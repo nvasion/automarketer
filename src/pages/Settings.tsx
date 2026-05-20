@@ -4,6 +4,18 @@ import PlatformBadge from '../components/PlatformBadge'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
+const NOTIFICATIONS: { id: string; title: string; desc: string; defaultOn: boolean }[] = [
+  { id: 'postPublished', title: 'Post Published', desc: 'Get notified when a post goes live', defaultOn: true },
+  { id: 'engagementMilestones', title: 'Engagement Milestones', desc: 'Alerts when posts reach 1k, 5k, 10k engagements', defaultOn: true },
+  { id: 'generationComplete', title: 'Generation Complete', desc: 'When AI finishes generating your campaign posts', defaultOn: true },
+  { id: 'weeklyDigest', title: 'Weekly Digest', desc: 'Summary of performance every Monday morning', defaultOn: false },
+  { id: 'platformErrors', title: 'Platform Errors', desc: 'Alerts when a post fails to publish', defaultOn: true },
+]
+
+const DEFAULT_NOTIFICATIONS: Record<string, boolean> = Object.fromEntries(
+  NOTIFICATIONS.map(({ id, defaultOn }) => [id, defaultOn])
+)
+
 const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: 'profile', label: 'Profile', icon: '👤' },
   { id: 'platforms', label: 'Connected Platforms', icon: '🔗' },
@@ -27,6 +39,11 @@ function Settings() {
   const [defaultTone, setDefaultTone] = useState('professional')
   const [autoHashtags, setAutoHashtags] = useState(true)
   const [emojiUsage, setEmojiUsage] = useState('moderate')
+  const [notifications, setNotifications] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATIONS)
+
+  const toggleNotification = (id: string) => {
+    setNotifications((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
 
   const handleSave = () => {
     setSaved(true)
@@ -355,37 +372,11 @@ function Settings() {
                 Choose what notifications you receive.
               </p>
 
-              {[
-                {
-                  title: 'Post Published',
-                  desc: 'Get notified when a post goes live',
-                  defaultOn: true,
-                },
-                {
-                  title: 'Engagement Milestones',
-                  desc: 'Alerts when posts reach 1k, 5k, 10k engagements',
-                  defaultOn: true,
-                },
-                {
-                  title: 'Generation Complete',
-                  desc: 'When AI finishes generating your campaign posts',
-                  defaultOn: true,
-                },
-                {
-                  title: 'Weekly Digest',
-                  desc: 'Summary of performance every Monday morning',
-                  defaultOn: false,
-                },
-                {
-                  title: 'Platform Errors',
-                  desc: 'Alerts when a post fails to publish',
-                  defaultOn: true,
-                },
-              ].map(({ title, desc, defaultOn }) => {
-                const [on, setOn] = useState(defaultOn)
+              {NOTIFICATIONS.map(({ id, title, desc }) => {
+                const on = notifications[id]
                 return (
                   <div
-                    key={title}
+                    key={id}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -399,7 +390,7 @@ function Settings() {
                       <div style={{ fontSize: '12px', color: '#94a3b8' }}>{desc}</div>
                     </div>
                     <div
-                      onClick={() => setOn(!on)}
+                      onClick={() => toggleNotification(id)}
                       style={{
                         width: '44px',
                         height: '24px',
