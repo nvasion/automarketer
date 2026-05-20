@@ -1,48 +1,36 @@
-.app {
+/* App-level styles */
+#root {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
+/* Animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.main h1 {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  color: #213547;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
-.main p {
-  color: #666;
-  margin-bottom: 1.5rem;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.main ul {
-  text-align: left;
-  color: #666;
+/* Smooth transitions for interactive elements */
+button {
+  transition: opacity 0.15s ease, transform 0.1s ease;
 }
 
-.main li {
-  margin: 0.5rem 0;
+button:active {
+  transform: scale(0.98);
 }
 
-.card {
-  padding: 2rem;
-  background: #f9f9f9;
-  border-radius: 8px;
-  margin-top: 1rem;
-}
-
-.card code {
-  background: #e0e0e0;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  font-family: monospace;
+/* Focus styles */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }

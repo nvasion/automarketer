@@ -1,0 +1,328 @@
+import { useNavigate } from 'react-router-dom'
+import { SAMPLE_CAMPAIGNS, STATS, PLATFORM_CONFIGS } from '../data/sampleData'
+import PlatformBadge from '../components/PlatformBadge'
+import StatusBadge from '../components/StatusBadge'
+import { Campaign } from '../types'
+
+const statCards = [
+  {
+    label: 'Total Campaigns',
+    value: STATS.totalCampaigns,
+    icon: '📢',
+    color: '#6366f1',
+    bg: '#eff0ff',
+    change: '+2 this week',
+    positive: true,
+  },
+  {
+    label: 'Posts Published',
+    value: STATS.totalPostsPublished,
+    icon: '✅',
+    color: '#10b981',
+    bg: '#ecfdf5',
+    change: '+8 this week',
+    positive: true,
+  },
+  {
+    label: 'Total Engagements',
+    value: '128.4k',
+    icon: '🔥',
+    color: '#f59e0b',
+    bg: '#fffbeb',
+    change: '+12.4% vs last month',
+    positive: true,
+  },
+  {
+    label: 'Avg. Engagement Rate',
+    value: `${STATS.avgEngagementRate}%`,
+    icon: '📈',
+    color: '#3b82f6',
+    bg: '#eff6ff',
+    change: '+0.3% vs last month',
+    positive: true,
+  },
+]
+
+function CampaignRow({ campaign }: { campaign: Campaign }) {
+  const navigate = useNavigate()
+
+  return (
+    <tr
+      onClick={() => navigate(`/campaigns/${campaign.id}`)}
+      style={{ cursor: 'pointer', transition: 'background 0.1s' }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = '#f8fafc')}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = 'transparent')}
+    >
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+        <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>{campaign.name}</div>
+        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{campaign.websiteUrl}</div>
+      </td>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {campaign.platforms.map((p) => (
+            <PlatformBadge key={p} platform={p} size="sm" />
+          ))}
+        </div>
+      </td>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+        <StatusBadge status={campaign.status} size="sm" pulse={campaign.status === 'generating'} />
+      </td>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontSize: '13px' }}>
+        {campaign.posts.length} posts
+      </td>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '13px' }}>
+        {new Date(campaign.createdAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        })}
+      </td>
+    </tr>
+  )
+}
+
+function Dashboard() {
+  const navigate = useNavigate()
+
+  return (
+    <div style={{ padding: '32px 32px 48px' }}>
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px' }}>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            Dashboard
+          </h1>
+          <p style={{ color: '#64748b', fontSize: '14px' }}>
+            Welcome back, Ted! Here's your marketing overview.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/create')}
+          style={{
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '10px 20px',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+          }}
+        >
+          <span>✨</span> New Campaign
+        </button>
+      </div>
+
+      {/* Stat cards */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '16px',
+          marginBottom: '32px',
+        }}
+      >
+        {statCards.map((card) => (
+          <div
+            key={card.label}
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              padding: '20px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ color: '#64748b', fontSize: '13px', fontWeight: 500 }}>{card.label}</span>
+              <span
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  backgroundColor: card.bg,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                }}
+              >
+                {card.icon}
+              </span>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+              {card.value}
+            </div>
+            <div style={{ fontSize: '12px', color: card.positive ? '#16a34a' : '#dc2626' }}>
+              {card.positive ? '↑' : '↓'} {card.change}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main content grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px' }}>
+        {/* Recent campaigns */}
+        <div
+          style={{
+            background: 'white',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Recent Campaigns</h2>
+            <button
+              onClick={() => navigate('/campaigns')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6366f1',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              View all →
+            </button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#fafbfc' }}>
+                {['Campaign', 'Platforms', 'Status', 'Posts', 'Created'].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#94a3b8',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      borderBottom: '1px solid #f1f5f9',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SAMPLE_CAMPAIGNS.map((campaign) => (
+                <CampaignRow key={campaign.id} campaign={campaign} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Right sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Platform performance */}
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              padding: '20px',
+            }}
+          >
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '16px' }}>
+              Platform Performance
+            </h3>
+            {[
+              { platform: 'twitter', engagement: 18400, posts: 18, pct: 82 },
+              { platform: 'linkedin', engagement: 8200, posts: 15, pct: 63 },
+              { platform: 'reddit', engagement: 3100, posts: 8, pct: 38 },
+              { platform: 'instagram', engagement: 2100, posts: 6, pct: 28 },
+            ].map(({ platform, engagement, posts, pct }) => {
+              const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)
+              return (
+                <div key={platform} style={{ marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <PlatformBadge platform={platform as never} size="sm" />
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#334155' }}>{cfg?.name}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      {engagement >= 1000 ? `${(engagement / 1000).toFixed(1)}k` : engagement} engagements
+                    </span>
+                  </div>
+                  <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${pct}%`,
+                        background: cfg?.bgColor ?? '#6366f1',
+                        borderRadius: '3px',
+                        transition: 'width 0.8s ease',
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>{posts} posts</div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Quick actions */}
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              padding: '20px',
+            }}
+          >
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '14px' }}>
+              Quick Actions
+            </h3>
+            {[
+              { icon: '✨', label: 'Create New Campaign', action: () => navigate('/create'), primary: true },
+              { icon: '📅', label: 'View Schedule', action: () => navigate('/scheduler'), primary: false },
+              { icon: '📊', label: 'View Analytics', action: () => navigate('/analytics'), primary: false },
+            ].map(({ icon, label, action, primary }) => (
+              <button
+                key={label}
+                onClick={action}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: primary ? 'none' : '1px solid #e2e8f0',
+                  background: primary ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#fafbfc',
+                  color: primary ? 'white' : '#334155',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  marginBottom: '8px',
+                  textAlign: 'left',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Dashboard

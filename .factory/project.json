@@ -1,9 +1,18 @@
 {
   "id": "a21c83a4-0efc-45ae-b981-005b187c2cde",
-  "name": "silent-elk-bronze",
+  "name": "automarketer",
   "language": "typescript",
   "type": "ui",
   "factory_version": "latest",
+  "owner_id": "efcb66f9-947e-47d4-92ce-9e5ecd0f6493",
   "created_at": "2026-05-18T21:37:33.467292109Z",
-  "updated_at": "2026-05-18T21:37:33.467292199Z"
+  "updated_at": "2026-05-20T15:33:37.447154549Z",
+  "git": {
+    "connected": true,
+    "remote_url": "https://github.com/nvasion/automarketer.git",
+    "branch": "main",
+    "repo_name": "automarketer",
+    "repo_owner": "nvasion",
+    "connected_at": "2026-05-20T15:33:37.40423349Z"
+  }
 }

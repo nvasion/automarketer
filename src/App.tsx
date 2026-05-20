@@ -1,44 +1,42 @@
 import { Routes, Route } from 'react-router-dom'
-import Header from './components/Header'
+import Sidebar from './components/Sidebar'
+import Dashboard from './pages/Dashboard'
+import CampaignList from './pages/CampaignList'
+import CampaignDetail from './pages/CampaignDetail'
+import CreateCampaign from './pages/CreateCampaign'
+import Scheduler from './pages/Scheduler'
+import Analytics from './pages/Analytics'
+import Settings from './pages/Settings'
 import './App.css'
-
-function Home() {
-  return (
-    <main className="main">
-      <h1>Welcome to silent-elk-bronze</h1>
-      <p>A React application built with TypeScript</p>
-      <div className="card">
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-    </main>
-  )
-}
-
-function About() {
-  return (
-    <main className="main">
-      <h1>About</h1>
-      <p>This project was created with AI Project Factory.</p>
-      <ul>
-        <li>React 18 with TypeScript</li>
-        <li>Vite for fast development</li>
-        <li>React Router for navigation</li>
-        <li>Vitest for testing</li>
-      </ul>
-    </main>
-  )
-}
 
 function App() {
   return (
-    <div className="app">
-      <Header />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-      </Routes>
+    <div
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        backgroundColor: '#f8fafc',
+      }}
+    >
+      <Sidebar />
+      <main
+        style={{
+          flex: 1,
+          marginLeft: '240px',
+          minHeight: '100vh',
+          overflowX: 'hidden',
+        }}
+      >
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/campaigns" element={<CampaignList />} />
+          <Route path="/campaigns/:id" element={<CampaignDetail />} />
+          <Route path="/create" element={<CreateCampaign />} />
+          <Route path="/scheduler" element={<Scheduler />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </main>
     </div>
   )
 }

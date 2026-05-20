@@ -1,34 +1,43 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import App from '../src/App'
 
+function renderApp() {
+  return render(
+    <HashRouter>
+      <App />
+    </HashRouter>
+  )
+}
+
 describe('App', () => {
-  it('renders the header with project name', () => {
-    render(
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    )
-    expect(screen.getByText('silent-elk-bronze')).toBeDefined()
+  it('renders the sidebar with brand name', () => {
+    renderApp()
+    expect(screen.getByText('AutoMarketer')).toBeDefined()
   })
 
   it('renders navigation links', () => {
-    render(
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    )
-    expect(screen.getByText('Home')).toBeDefined()
-    expect(screen.getByText('About')).toBeDefined()
+    renderApp()
+    expect(screen.getByText('Dashboard')).toBeDefined()
+    expect(screen.getByText('Campaigns')).toBeDefined()
+    expect(screen.getByText('Scheduler')).toBeDefined()
   })
 
-  it('renders welcome message on home page', () => {
-    render(
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    )
-    expect(screen.getByText(/Welcome to/)).toBeDefined()
+  it('renders dashboard heading', () => {
+    renderApp()
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0)
+  })
+
+  it('renders campaign stats', () => {
+    renderApp()
+    expect(screen.getByText('Total Campaigns')).toBeDefined()
+    expect(screen.getByText('Posts Published')).toBeDefined()
+  })
+
+  it('renders recent campaigns table', () => {
+    renderApp()
+    expect(screen.getByText('Recent Campaigns')).toBeDefined()
+    expect(screen.getByText('Acme SaaS Product Launch')).toBeDefined()
   })
 })
