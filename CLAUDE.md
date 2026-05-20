@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this project.
 
 ## Project Overview
 
-**silent-elk-bronze** is a React web application built with TypeScript and Vite.
+**AutoMarketer** is a React web application built with TypeScript and Vite.
 
 ## Persona
 
