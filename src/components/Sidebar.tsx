@@ -39,7 +39,7 @@ const logoIconStyle: React.CSSProperties = {
   width: '36px',
   height: '36px',
   borderRadius: '10px',
-  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+  background: 'linear-gradient(135deg, #52b788, #40916c)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -78,7 +78,7 @@ const navSectionLabel: React.CSSProperties = {
 
 function NavItem({ path, label, icon }: { path: string; label: string; icon: string }) {
   const location = useLocation()
-  const isActive = location.hash === `#${path}` || (path === '/' && location.hash === '')
+  const isActive = location.pathname === path
 
   const itemStyle: React.CSSProperties = {
     display: 'flex',
@@ -87,7 +87,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
     padding: '8px 10px',
     borderRadius: '8px',
     color: isActive ? '#ffffff' : '#94a3b8',
-    backgroundColor: isActive ? '#6366f1' : 'transparent',
+    backgroundColor: isActive ? '#52b788' : 'transparent',
     marginBottom: '2px',
     fontSize: '14px',
     fontWeight: isActive ? 600 : 400,
@@ -103,9 +103,9 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
         <span
           style={{
             marginLeft: 'auto',
-            background: '#6366f1',
-            color: isActive ? 'rgba(255,255,255,0.7)' : '#818cf8',
-            border: isActive ? '1px solid rgba(255,255,255,0.2)' : '1px solid #334155',
+            background: '#40916c',
+            color: isActive ? 'rgba(255,255,255,0.7)' : '#74c69d',
+            border: isActive ? '1px solid rgba(255,255,255,0.2)' : '1px solid #2d6a4f',
             borderRadius: '4px',
             fontSize: '10px',
             fontWeight: 600,
@@ -137,7 +137,7 @@ const avatarStyle: React.CSSProperties = {
   width: '32px',
   height: '32px',
   borderRadius: '50%',
-  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+  background: 'linear-gradient(135deg, #52b788, #40916c)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
