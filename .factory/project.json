@@ -6,13 +6,5 @@
   "factory_version": "latest",
   "owner_id": "efcb66f9-947e-47d4-92ce-9e5ecd0f6493",
   "created_at": "2026-05-18T21:37:33.467292109Z",
-  "updated_at": "2026-05-20T17:45:04.999085056Z",
-  "git": {
-    "connected": true,
-    "remote_url": "https://github.com/nvasion/automarketer.git",
-    "branch": "factory",
-    "repo_name": "automarketer",
-    "repo_owner": "nvasion",
-    "connected_at": "2026-05-20T17:45:04.9723476Z"
-  }
+  "updated_at": "2026-05-20T17:46:28.250351882Z"
 }
