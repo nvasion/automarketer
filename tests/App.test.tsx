@@ -19,7 +19,8 @@ describe('App', () => {
 
   it('renders navigation links', () => {
     renderApp()
-    expect(screen.getByText('Dashboard')).toBeDefined()
+    // "Dashboard" appears in both the nav link and the page <h1>, so use getAllByText
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0)
     expect(screen.getByText('Campaigns')).toBeDefined()
     expect(screen.getByText('Scheduler')).toBeDefined()
   })

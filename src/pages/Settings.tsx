@@ -390,6 +390,7 @@ function Settings() {
                       <div style={{ fontSize: '12px', color: '#94a3b8' }}>{desc}</div>
                     </div>
                     <div
+                      data-testid={`toggle-track-${id}`}
                       onClick={() => toggleNotification(id)}
                       style={{
                         width: '44px',
@@ -403,6 +404,7 @@ function Settings() {
                       }}
                     >
                       <div
+                        data-testid={`toggle-thumb-${id}`}
                         style={{
                           width: '18px',
                           height: '18px',
