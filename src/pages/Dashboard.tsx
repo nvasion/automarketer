@@ -98,7 +98,7 @@ function Dashboard() {
         <button
           onClick={() => navigate('/create')}
           style={{
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, #52b788, #40916c)',
             border: 'none',
             borderRadius: '10px',
             padding: '10px 20px',
@@ -109,7 +109,7 @@ function Dashboard() {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+            boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
           }}
         >
           <span>✨</span> New Campaign
@@ -188,7 +188,7 @@ function Dashboard() {
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#6366f1',
+                color: '#52b788',
                 fontSize: '13px',
                 cursor: 'pointer',
                 fontWeight: 500,
@@ -304,7 +304,7 @@ function Dashboard() {
                   padding: '10px 12px',
                   borderRadius: '8px',
                   border: primary ? 'none' : '1px solid #e2e8f0',
-                  background: primary ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#fafbfc',
+                  background: primary ? 'linear-gradient(135deg, #52b788, #40916c)' : '#fafbfc',
                   color: primary ? 'white' : '#334155',
                   fontSize: '13px',
                   fontWeight: 500,

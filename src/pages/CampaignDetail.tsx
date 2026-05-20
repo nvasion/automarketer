@@ -21,7 +21,7 @@ function CampaignDetail() {
         <button
           onClick={() => navigate('/campaigns')}
           style={{
-            background: '#6366f1',
+            background: '#52b788',
             border: 'none',
             borderRadius: '8px',
             padding: '10px 24px',
@@ -58,7 +58,7 @@ function CampaignDetail() {
           style={{
             background: 'none',
             border: 'none',
-            color: '#6366f1',
+            color: '#52b788',
             fontSize: '13px',
             cursor: 'pointer',
             padding: 0,
@@ -88,7 +88,7 @@ function CampaignDetail() {
             </div>
             <a
               href={campaign.websiteUrl}
-              style={{ color: '#6366f1', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              style={{ color: '#52b788', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
               🌐 {campaign.websiteUrl}
             </a>
@@ -118,7 +118,7 @@ function CampaignDetail() {
             {campaign.status === 'ready' && (
               <button
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '9px 18px',
@@ -126,7 +126,7 @@ function CampaignDetail() {
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                 }}
               >
                 🚀 Publish All
@@ -237,9 +237,9 @@ function CampaignDetail() {
               padding: '14px 16px',
               fontSize: '13px',
               fontWeight: activeTab === 'all' ? 600 : 400,
-              color: activeTab === 'all' ? '#6366f1' : '#64748b',
+              color: activeTab === 'all' ? '#40916c' : '#64748b',
               cursor: 'pointer',
-              borderBottom: activeTab === 'all' ? '2px solid #6366f1' : '2px solid transparent',
+              borderBottom: activeTab === 'all' ? '2px solid #52b788' : '2px solid transparent',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
             }}
@@ -259,9 +259,9 @@ function CampaignDetail() {
                   padding: '14px 16px',
                   fontSize: '13px',
                   fontWeight: activeTab === p ? 600 : 400,
-                  color: activeTab === p ? '#6366f1' : '#64748b',
+                  color: activeTab === p ? '#40916c' : '#64748b',
                   cursor: 'pointer',
-                  borderBottom: activeTab === p ? '2px solid #6366f1' : '2px solid transparent',
+                  borderBottom: activeTab === p ? '2px solid #52b788' : '2px solid transparent',
                   transition: 'all 0.15s',
                   whiteSpace: 'nowrap',
                   display: 'flex',

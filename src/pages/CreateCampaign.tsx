@@ -39,9 +39,9 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
               fontSize: '13px',
               background:
                 step < current
-                  ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                  ? 'linear-gradient(135deg, #52b788, #40916c)'
                   : step === current
-                  ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                  ? 'linear-gradient(135deg, #52b788, #40916c)'
                   : '#e2e8f0',
               color: step <= current ? 'white' : '#94a3b8',
               transition: 'all 0.3s',
@@ -54,7 +54,7 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
               style={{
                 height: '2px',
                 width: '80px',
-                background: step < current ? '#6366f1' : '#e2e8f0',
+                background: step < current ? '#52b788' : '#e2e8f0',
                 transition: 'background 0.3s',
               }}
             />
@@ -139,7 +139,7 @@ function CreateCampaign() {
           style={{
             background: 'none',
             border: 'none',
-            color: '#6366f1',
+            color: '#52b788',
             fontSize: '13px',
             cursor: 'pointer',
             padding: 0,
@@ -247,18 +247,18 @@ function CreateCampaign() {
             <div
               onClick={() => fileRef.current?.click()}
               style={{
-                border: '2px dashed #c7d2fe',
+                border: '2px dashed #b7e4c7',
                 borderRadius: '12px',
                 padding: '40px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                background: '#fafbff',
+                background: '#f0fdf4',
                 transition: 'all 0.15s',
                 marginBottom: '20px',
               }}
             >
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>📸</div>
-              <p style={{ fontWeight: 600, color: '#4f46e5', marginBottom: '4px' }}>
+              <p style={{ fontWeight: 600, color: '#40916c', marginBottom: '4px' }}>
                 Click to upload screenshots
               </p>
               <p style={{ color: '#94a3b8', fontSize: '13px' }}>PNG, JPG, GIF up to 10MB each</p>
@@ -370,11 +370,11 @@ function CreateCampaign() {
                       key={p.id}
                       onClick={() => togglePlatform(p.id)}
                       style={{
-                        border: `2px solid ${selected ? '#6366f1' : '#e2e8f0'}`,
+                        border: `2px solid ${selected ? '#52b788' : '#e2e8f0'}`,
                         borderRadius: '10px',
                         padding: '12px 14px',
                         cursor: 'pointer',
-                        background: selected ? '#eff0ff' : 'white',
+                        background: selected ? '#d8f3dc' : 'white',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
@@ -393,7 +393,7 @@ function CreateCampaign() {
                             width: '20px',
                             height: '20px',
                             borderRadius: '50%',
-                            background: '#6366f1',
+                            background: '#52b788',
                             color: 'white',
                             fontSize: '11px',
                             display: 'flex',
@@ -421,11 +421,11 @@ function CreateCampaign() {
                       key={t.id}
                       onClick={() => setTone(t.id)}
                       style={{
-                        border: `2px solid ${selected ? '#6366f1' : '#e2e8f0'}`,
+                        border: `2px solid ${selected ? '#52b788' : '#e2e8f0'}`,
                         borderRadius: '10px',
                         padding: '12px 14px',
                         cursor: 'pointer',
-                        background: selected ? '#eff0ff' : 'white',
+                        background: selected ? '#d8f3dc' : 'white',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
@@ -471,7 +471,7 @@ function CreateCampaign() {
                     height: '48px',
                     borderRadius: '50%',
                     border: '3px solid #e2e8f0',
-                    borderTopColor: '#6366f1',
+                    borderTopColor: '#52b788',
                     animation: 'spin 0.8s linear infinite',
                   }}
                 />
@@ -592,7 +592,7 @@ function CreateCampaign() {
                 onClick={() => setStep((prev) => (prev + 1) as Step)}
                 disabled={step === 1 && (!campaignName.trim() || !websiteUrl.trim() || !description.trim())}
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '10px 24px',
@@ -601,7 +601,7 @@ function CreateCampaign() {
                   cursor: 'pointer',
                   fontWeight: 600,
                   opacity: step === 1 && (!campaignName.trim() || !websiteUrl.trim() || !description.trim()) ? 0.5 : 1,
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                 }}
               >
                 Continue →
@@ -613,7 +613,7 @@ function CreateCampaign() {
                 onClick={handleGenerate}
                 disabled={selectedPlatforms.length === 0}
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '10px 24px',
@@ -622,7 +622,7 @@ function CreateCampaign() {
                   cursor: 'pointer',
                   fontWeight: 600,
                   opacity: selectedPlatforms.length === 0 ? 0.5 : 1,
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
@@ -636,7 +636,7 @@ function CreateCampaign() {
               <button
                 onClick={() => navigate('/campaigns')}
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '10px 24px',
@@ -644,7 +644,7 @@ function CreateCampaign() {
                   color: 'white',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                 }}
               >
                 Save Campaign ✓

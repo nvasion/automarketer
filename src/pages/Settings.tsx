@@ -90,8 +90,8 @@ function Settings() {
                 padding: '9px 10px',
                 borderRadius: '8px',
                 border: 'none',
-                background: activeTab === id ? '#eff0ff' : 'transparent',
-                color: activeTab === id ? '#6366f1' : '#64748b',
+                background: activeTab === id ? '#d8f3dc' : 'transparent',
+                color: activeTab === id ? '#40916c' : '#64748b',
                 fontSize: '13px',
                 fontWeight: activeTab === id ? 600 : 400,
                 cursor: 'pointer',
@@ -131,7 +131,7 @@ function Settings() {
                     width: '64px',
                     height: '64px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    background: 'linear-gradient(135deg, #52b788, #40916c)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -224,8 +224,8 @@ function Settings() {
                       <button
                         onClick={() => toggleConnection(p.id)}
                         style={{
-                          background: connected ? 'white' : '#6366f1',
-                          border: `1px solid ${connected ? '#e2e8f0' : '#6366f1'}`,
+                          background: connected ? 'white' : '#52b788',
+                          border: `1px solid ${connected ? '#e2e8f0' : '#52b788'}`,
                           borderRadius: '8px',
                           padding: '7px 16px',
                           fontSize: '13px',
@@ -319,7 +319,7 @@ function Settings() {
                       width: '44px',
                       height: '24px',
                       borderRadius: '12px',
-                      background: autoHashtags ? '#6366f1' : '#e2e8f0',
+                      background: autoHashtags ? '#52b788' : '#e2e8f0',
                       cursor: 'pointer',
                       position: 'relative',
                       transition: 'background 0.2s',
@@ -404,7 +404,7 @@ function Settings() {
                         width: '44px',
                         height: '24px',
                         borderRadius: '12px',
-                        background: on ? '#6366f1' : '#e2e8f0',
+                        background: on ? '#52b788' : '#e2e8f0',
                         cursor: 'pointer',
                         position: 'relative',
                         transition: 'background 0.2s',
@@ -438,7 +438,7 @@ function Settings() {
               style={{
                 background: saved
                   ? '#16a34a'
-                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  : 'linear-gradient(135deg, #52b788, #40916c)',
                 border: 'none',
                 borderRadius: '8px',
                 padding: '10px 24px',
@@ -447,7 +447,7 @@ function Settings() {
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'background 0.2s',
-                boxShadow: saved ? '0 4px 14px rgba(22,163,74,0.3)' : '0 4px 14px rgba(99,102,241,0.35)',
+                boxShadow: saved ? '0 4px 14px rgba(22,163,74,0.3)' : '0 4px 14px rgba(82,183,136,0.35)',
               }}
             >
               {saved ? '✓ Changes Saved' : 'Save Changes'}

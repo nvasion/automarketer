@@ -34,8 +34,8 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLDivElement
-        el.style.borderColor = '#c7d2fe'
-        el.style.boxShadow = '0 4px 16px rgba(99,102,241,0.1)'
+        el.style.borderColor = '#b7e4c7'
+        el.style.boxShadow = '0 4px 16px rgba(82,183,136,0.1)'
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLDivElement
@@ -62,7 +62,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
           <a
             href={campaign.websiteUrl}
             onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: '12px', color: '#6366f1', textDecoration: 'none' }}
+            style={{ fontSize: '12px', color: '#52b788', textDecoration: 'none' }}
           >
             {campaign.websiteUrl}
           </a>
@@ -157,7 +157,7 @@ function CampaignList() {
         <button
           onClick={() => navigate('/create')}
           style={{
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, #52b788, #40916c)',
             border: 'none',
             borderRadius: '10px',
             padding: '10px 20px',
@@ -168,7 +168,7 @@ function CampaignList() {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+            boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
           }}
         >
           <span>✨</span> New Campaign
@@ -224,9 +224,9 @@ function CampaignList() {
               style={{
                 padding: '7px 14px',
                 borderRadius: '8px',
-                border: `1px solid ${filter === value ? '#6366f1' : '#e2e8f0'}`,
-                background: filter === value ? '#eff0ff' : 'white',
-                color: filter === value ? '#6366f1' : '#64748b',
+                border: `1px solid ${filter === value ? '#52b788' : '#e2e8f0'}`,
+                background: filter === value ? '#d8f3dc' : 'white',
+                color: filter === value ? '#40916c' : '#64748b',
                 fontSize: '13px',
                 fontWeight: filter === value ? 600 : 400,
                 cursor: 'pointer',
@@ -272,7 +272,7 @@ function CampaignList() {
           <button
             onClick={() => navigate('/create')}
             style={{
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              background: 'linear-gradient(135deg, #52b788, #40916c)',
               border: 'none',
               borderRadius: '8px',
               padding: '10px 24px',
