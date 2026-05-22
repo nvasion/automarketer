@@ -22,21 +22,89 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 | Routing | React Router v6 |
 | Testing | Vitest + React Testing Library |
 | Linting | ESLint + TypeScript ESLint |
+| Containerisation | Docker + Compose v2 |
+| Database | PostgreSQL 15 |
+| Production server | nginx 1.25 |
 
 ## Getting Started
 
-### Prerequisites
+Two options: **Docker Compose** (recommended — zero local setup) or a **local Node.js** install.
+
+---
+
+### Option A — Docker Compose (recommended)
+
+#### Prerequisites
+
+- [Docker Desktop 4.x](https://www.docker.com/products/docker-desktop/) (includes Compose v2)  
+  Verify with: `docker compose version`
+
+#### 1. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set a secure `POSTGRES_PASSWORD`. The defaults are fine for local development.
+
+#### 2. Start all services
+
+```bash
+docker compose up --build
+```
+
+This single command:
+- Builds the React dev server image
+- Pulls the PostgreSQL 15 image
+- Waits for the database to pass its health check before starting the app
+- Mounts your source directory into the container for live hot-module reload
+
+#### 3. Open the app
+
+| Service | URL |
+|---------|-----|
+| React dev server | http://localhost:5173 |
+| PostgreSQL | `localhost:5432` (use any DB client) |
+
+#### Useful Docker commands
+
+```bash
+docker compose up --build        # start all services (rebuild images)
+docker compose up -d             # start in detached (background) mode
+docker compose down              # stop and remove containers
+docker compose down -v           # stop and remove containers + volumes (wipes DB)
+docker compose logs -f app       # tail app logs
+docker compose logs -f db        # tail database logs
+docker compose exec db psql -U postgres -d automarketer  # open psql shell
+```
+
+#### Production deployment
+
+```bash
+cp .env.example .env
+# edit .env — set strong credentials; POSTGRES_PASSWORD is required
+
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+The production compose file uses the `production` Dockerfile stage: TypeScript is compiled and bundled by Node, then served as static files by nginx on port 80. No Node.js or source code is present in the final image.
+
+---
+
+### Option B — Local Node.js
+
+#### Prerequisites
 
 - Node.js 18 or higher
 - npm
 
-### Installation
+#### Installation
 
 ```bash
 npm install
 ```
 
-### Development
+#### Development
 
 ```bash
 npm run dev
@@ -44,21 +112,21 @@ npm run dev
 
 The app will be available at http://localhost:5173.
 
-### Building
+#### Building
 
 ```bash
 npm run build      # Production build
 npm run preview    # Preview the production build locally
 ```
 
-### Testing
+#### Testing
 
 ```bash
 npm test           # Run the full test suite once
 npm run test:watch # Run tests in watch mode
 ```
 
-### Linting
+#### Linting
 
 ```bash
 npm run lint
@@ -93,6 +161,12 @@ automarketer/
 ├── tests/
 │   ├── App.test.tsx          # Tests for app shell and Dashboard rendering
 │   └── Settings.test.tsx     # Tests for Settings page tabs and toggle behavior
+├── Dockerfile                # Multi-stage build: development → builder → production (nginx)
+├── docker-compose.yml        # Development: app + PostgreSQL with hot-module reload
+├── docker-compose.prod.yml   # Production: pre-built nginx image + PostgreSQL
+├── nginx.conf                # nginx SPA config — gzip, asset caching, and index.html fallback
+├── .env.example              # Environment variable template (copy to .env)
+├── .dockerignore             # Files excluded from the Docker build context
 ├── index.html                # HTML entry point
 ├── vite.config.ts            # Vite configuration
 ├── vitest.config.ts          # Vitest configuration

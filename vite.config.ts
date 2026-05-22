@@ -12,14 +12,19 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   server: {
+    // Bind to all interfaces so the dev server is reachable inside Docker
+    // containers as well as from the host machine.
+    host: '0.0.0.0',
     port: 5173,
     open: true,
-    // Allow the HMR WebSocket to connect through the same proxy host/port
-    // instead of defaulting to localhost, which is unreachable from the browser
-    // when served via the cloud preview proxy.
     hmr: {
-      clientPort: 443,
-      protocol: 'wss',
+      // Default to cloud-proxy settings (port 443, wss).
+      // docker-compose.yml overrides these via HMR_CLIENT_PORT / HMR_PROTOCOL
+      // so HMR works correctly when the app is accessed on localhost:5173.
+      clientPort: process.env.HMR_CLIENT_PORT
+        ? parseInt(process.env.HMR_CLIENT_PORT, 10)
+        : 443,
+      protocol: (process.env.HMR_PROTOCOL === 'ws' ? 'ws' : 'wss') as 'ws' | 'wss',
     },
   },
   build: {
