@@ -11,6 +11,7 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 - **Scheduler** — Calendar interface to browse and manage scheduled and published posts by date
 - **Analytics** — Weekly engagement bar charts, per-platform performance breakdowns, and top-performing posts table
 - **Settings** — Configure profile, connected platforms, AI inference endpoint, and notification toggles
+- **Authentication** — Secure registration and login with bcrypt password hashing (12 rounds) and JWT session management via httpOnly cookies; all app routes are protected and redirect to `/login` when unauthenticated
 - **AI Content Generation** — Real AI-powered post generation via OpenRouter (100+ models) or any self-hosted OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, …). Falls back to built-in template content when no key is configured
 
 ## Tech Stack
@@ -21,7 +22,9 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 | Language | TypeScript (strict mode) |
 | Build Tool | Vite 5 |
 | Routing | React Router v6 |
-| Testing | Vitest + React Testing Library |
+| Backend API | Express 5 |
+| Authentication | JSON Web Tokens (JWT) + bcryptjs |
+| Testing | Vitest + React Testing Library + Supertest |
 | Linting | ESLint + TypeScript ESLint |
 | Containerisation | Docker + Compose v2 |
 | Database | PostgreSQL 15 |
@@ -109,20 +112,32 @@ npm install
 
 #### Development
 
+Run both the React dev server and the Express API server together:
+
 ```bash
-npm run dev
+npm run dev:full
 ```
 
-The app will be available at http://localhost:5173.
+Or start them separately in two terminals:
+
+```bash
+npm run dev          # Vite dev server → http://localhost:5173
+npm run dev:server   # Express API     → http://localhost:3001
+```
+
+Vite proxies `/api/*` requests to the Express server, so frontend code always calls `/api/auth/...` with no cross-origin issues.
 
 #### Building
 
 ```bash
-npm run build      # Production build
-npm run preview    # Preview the production build locally
+npm run build          # Production build (frontend)
+npm run build:server   # Compile Express server TypeScript
+npm run preview        # Preview the production frontend build locally
 ```
 
 #### Testing
+
+The test suite covers both frontend components (React Testing Library in jsdom) and backend API routes (Supertest in Node):
 
 ```bash
 npm test           # Run the full test suite once
@@ -191,14 +206,31 @@ The `AIConfig.providers` field is a `Record<InferenceProvider, ProviderConfig>` 
 
 ```
 automarketer/
+├── server/                   # Express API server
+│   ├── app.ts                # Express app factory (exported for Supertest)
+│   ├── index.ts              # Server entry point (binds to PORT)
+│   ├── types.ts              # Shared server TypeScript interfaces + Express.Request augmentation
+│   ├── middleware/
+│   │   └── auth.ts           # requireAuth middleware — verifies JWT from httpOnly cookie
+│   ├── models/
+│   │   └── userStore.ts      # In-memory user store (replace with DB ORM in next phase)
+│   ├── routes/
+│   │   └── auth.ts           # POST /register, POST /login, POST /logout, GET /me
+│   └── utils/
+│       └── config.ts         # jwtSecret() helper with fail-fast production guard
 ├── src/
 │   ├── components/           # Reusable UI components
 │   │   ├── Header.tsx        # Top navigation header
 │   │   ├── Sidebar.tsx       # Main navigation sidebar with active-route highlighting
 │   │   ├── PostCard.tsx      # Post display with platform info, status, actions, and engagement metrics
 │   │   ├── PlatformBadge.tsx # Platform icon badge (sm/md/lg sizes)
-│   │   └── StatusBadge.tsx   # Color-coded status indicator (draft, generating, ready, published, etc.)
+│   │   ├── StatusBadge.tsx   # Color-coded status indicator (draft, generating, ready, published, etc.)
+│   │   └── ProtectedRoute.tsx# Redirects unauthenticated users to /login; shows null while loading
+│   ├── contexts/
+│   │   └── AuthContext.tsx   # React auth context: user state, login, register, logout via cookie session
 │   ├── pages/                # Route-level page components
+│   │   ├── Login.tsx         # Sign-in form
+│   │   ├── Register.tsx      # Account creation form
 │   │   ├── Dashboard.tsx     # Home page with stat cards, recent campaigns, and platform performance
 │   │   ├── CampaignList.tsx  # Campaign browser with search and status filters
 │   │   ├── CampaignDetail.tsx# Single campaign view with tabbed posts by platform
@@ -207,6 +239,7 @@ automarketer/
 │   │   ├── Analytics.tsx     # Engagement charts and platform performance breakdown
 │   │   └── Settings.tsx      # Profile, platforms, AI inference config, and notifications
 │   ├── services/
+│   │   ├── authService.ts    # fetch wrappers for /api/auth/* — uses httpOnly cookies via credentials:'include'
 │   │   └── ai/               # AI inference abstraction layer (see above)
 │   ├── config/
 │   │   └── aiConfig.ts       # AIConfig type + localStorage persistence
@@ -215,11 +248,14 @@ automarketer/
 │   ├── data/
 │   │   └── sampleData.ts     # Mock campaigns, platform configs, and global stats
 │   ├── types.ts              # Shared TypeScript interfaces and type aliases
-│   ├── App.tsx               # Root component with routing
-│   ├── main.tsx              # React entry point
+│   ├── App.tsx               # Root component with routing (public + protected routes)
+│   ├── main.tsx              # React entry point (wraps app in AuthProvider + BrowserRouter)
 │   ├── App.css               # App-level styles
 │   └── index.css             # Global styles
 ├── tests/
+│   ├── auth.server.test.ts   # Supertest integration tests for register/login/logout/me routes
+│   ├── Login.test.tsx        # Login page form behaviour and error handling
+│   ├── Register.test.tsx     # Register page form validation and submission
 │   ├── services/ai/          # Unit tests for OpenRouterClient, CustomEndpointClient, ContentGenerationService
 │   ├── config/               # Unit tests for aiConfig load/save/merge
 │   ├── hooks/                # Tests for useContentGeneration hook
@@ -232,12 +268,22 @@ automarketer/
 ├── .env.example              # Environment variable template (copy to .env)
 ├── .dockerignore             # Files excluded from the Docker build context
 ├── index.html                # HTML entry point
-├── vite.config.ts            # Vite configuration
-├── vitest.config.ts          # Vitest configuration
-└── tsconfig.json             # TypeScript configuration
+├── vite.config.ts            # Vite configuration (with /api proxy to PORT 3001)
+├── vitest.config.ts          # Vitest configuration (jsdom for frontend, node for server tests)
+├── tsconfig.json             # TypeScript configuration (frontend)
+└── tsconfig.server.json      # TypeScript configuration (server — targets Node ESM)
 ```
 
 ## Routes
+
+### Public (no authentication required)
+
+| Path | Page | Description |
+|------|------|-------------|
+| `/login` | Login | Sign-in form |
+| `/register` | Register | Account creation form |
+
+### Protected (redirect to `/login` when unauthenticated)
 
 | Path | Page | Description |
 |------|------|-------------|
@@ -248,6 +294,32 @@ automarketer/
 | `/scheduler` | Scheduler | Calendar view of scheduled/published posts |
 | `/analytics` | Analytics | Engagement charts and performance data |
 | `/settings` | Settings | User profile, platforms, AI, and notifications |
+
+## API Endpoints
+
+The Express server runs on port `3001` and is proxied by Vite under `/api/*` during development.
+
+| Method | Path | Auth required | Description |
+|--------|------|---------------|-------------|
+| `POST` | `/api/auth/register` | No | Create a new account; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
+| `POST` | `/api/auth/login` | No | Sign in; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
+| `POST` | `/api/auth/logout` | No | Clears the `auth_token` cookie server-side |
+| `GET` | `/api/auth/me` | `auth_token` cookie | Returns the current user's public profile |
+| `GET` | `/api/health` | No | Service health check |
+
+> **Security note:** Tokens are stored exclusively in `httpOnly` cookies set by the server. No token is ever placed in the JSON response body or `localStorage`, which eliminates XSS-based session-hijacking risk. The browser attaches the cookie automatically on every request via `credentials: 'include'`.
+
+### Authentication rate limiting
+
+All `/api/auth/*` routes are protected by a rate limiter: **20 requests per 15-minute window per IP**. Exceeding the limit returns `429 Too Many Requests`.
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | `dev-secret-change-in-production` | Secret used to sign JWTs — **must be overridden in production** (e.g. `openssl rand -hex 64`) |
+| `PORT` | `3001` | Express API server port |
+| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin (must be set in production) |
 
 ## Key Types
 

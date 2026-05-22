@@ -17,6 +17,14 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     open: true,
+    // Forward all /api/* requests to the Express server so the browser
+    // always talks to a same-origin URL (no cross-origin cookie issues).
+    proxy: {
+      '/api': {
+        target: `http://localhost:${process.env.API_PORT ?? 3001}`,
+        changeOrigin: true,
+      },
+    },
     hmr: {
       // Default to cloud-proxy settings (port 443, wss).
       // docker-compose.yml overrides these via HMR_CLIENT_PORT / HMR_PROTOCOL
