@@ -239,8 +239,8 @@ automarketer/
 │   │   ├── Analytics.tsx     # Engagement charts and platform performance breakdown
 │   │   └── Settings.tsx      # Profile, platforms, AI inference config, and notifications
 │   ├── services/
-│   │   ├── authService.ts    # fetch wrappers for /api/auth/* — uses httpOnly cookies via credentials:'include'
-│   │   └── ai/               # AI inference abstraction layer (see above)
+│   │   ├── ai/               # AI inference abstraction layer (see above)
+│   │   └── social/           # Social media posting connectors (see above)
 │   ├── config/
 │   │   └── aiConfig.ts       # AIConfig type + localStorage persistence
 │   ├── hooks/
@@ -257,6 +257,7 @@ automarketer/
 │   ├── Login.test.tsx        # Login page form behaviour and error handling
 │   ├── Register.test.tsx     # Register page form validation and submission
 │   ├── services/ai/          # Unit tests for OpenRouterClient, CustomEndpointClient, ContentGenerationService
+│   ├── services/social/      # Unit tests for BaseSocialConnector and all platform connectors
 │   ├── config/               # Unit tests for aiConfig load/save/merge
 │   ├── hooks/                # Tests for useContentGeneration hook
 │   ├── App.test.tsx          # Tests for app shell and Dashboard rendering
@@ -352,6 +353,69 @@ interface GeneratedPost {
   engagements?: { likes: number; comments: number; shares: number; views: number };
 }
 ```
+
+## Social Media Posting Connectors
+
+AutoMarketer implements platform-specific posting connectors for all five supported social platforms.  Each connector enforces character limits, validates content, and calls the platform's official API.
+
+### Architecture
+
+```
+src/services/social/
+├── types.ts                 # SocialPostRequest/Result, ContentValidation, EnforcedContent, SocialError
+├── SocialConnector.ts       # Pluggable interface — implement this to add a new platform
+├── BaseSocialConnector.ts   # Shared char-limit utilities: validateContent(), enforceLimit()
+├── platforms/
+│   ├── LinkedInConnector.ts  # LinkedIn UGC Posts API v2 (3,000 chars)
+│   ├── TwitterConnector.ts   # Twitter API v2 — create tweet (280 chars)
+│   ├── RedditConnector.ts    # Reddit OAuth API — self post submission (40,000 chars)
+│   ├── FacebookConnector.ts  # Facebook Graph API v18 — page feed (63,206 chars)
+│   └── InstagramConnector.ts # Instagram Graph API v18 — two-step container+publish (2,200 chars)
+└── index.ts                 # Public exports
+```
+
+### Character-limit enforcement
+
+Every connector calls `enforceLimit()` before sending to the API, so oversized content is never submitted:
+
+1. **Within limit** — content returned unchanged.
+2. **Content too long** — truncated at the last word boundary; an ellipsis (…) is appended.
+3. **Hashtags alone exceed the limit** — all hashtags are dropped and the content is truncated.
+
+```typescript
+import { LinkedInConnector } from './src/services/social'
+
+const connector = new LinkedInConnector()
+
+// Validate without modifying
+const validation = connector.validateContent(content, hashtags)
+// { valid: false, characterCount: 3250, limit: 3000, overflowBy: 250 }
+
+// Enforce (truncate) to fit
+const enforced = connector.enforceLimit(content, hashtags)
+// { content: '...', hashtags: [...], truncated: true }
+
+// Post via API (requires OAuth access token)
+const result = await connector.post(
+  {
+    content,
+    hashtags,
+    linkedIn: { authorId: 'urn:li:person:abc123' },
+  },
+  accessToken
+)
+// { success: true, platform: 'linkedin', postId: 'urn:li:ugcPost:...' }
+```
+
+### API requirements per platform
+
+| Platform | API | Required scope / permission |
+|----------|-----|----------------------------|
+| LinkedIn | LinkedIn REST API v2 — `/v2/ugcPosts` | `w_member_social` |
+| Twitter/X | Twitter API v2 — `/2/tweets` | `tweet.write`, `users.read` |
+| Reddit | Reddit OAuth API — `/api/submit` | `submit` |
+| Facebook | Facebook Graph API v18 — `/{pageId}/feed` | `pages_manage_posts` |
+| Instagram | Instagram Graph API v18 — `/{userId}/media` + `/{userId}/media_publish` | `instagram_content_publish` |
 
 ## Supported Platforms
 
