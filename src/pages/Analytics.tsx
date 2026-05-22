@@ -137,7 +137,7 @@ function Analytics() {
           <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '20px' }}>
             Platform Breakdown
           </h2>
-          {PLATFORM_STATS.map(({ platform, posts, engagements, reach, growth }) => {
+          {PLATFORM_STATS.map(({ platform, posts, engagements, growth }) => {
             const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)
             return (
               <div

@@ -10,7 +10,8 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 - **Post Management** — View, edit, publish, and schedule posts per platform with character limit enforcement and engagement tracking
 - **Scheduler** — Calendar interface to browse and manage scheduled and published posts by date
 - **Analytics** — Weekly engagement bar charts, per-platform performance breakdowns, and top-performing posts table
-- **Settings** — Configure profile, connected platforms, AI model preferences, and notification toggles
+- **Settings** — Configure profile, connected platforms, AI inference endpoint, and notification toggles
+- **AI Content Generation** — Real AI-powered post generation via OpenRouter (100+ models) or any self-hosted OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, …). Falls back to built-in template content when no key is configured
 
 ## Tech Stack
 
@@ -45,7 +46,9 @@ Two options: **Docker Compose** (recommended — zero local setup) or a **local 
 cp .env.example .env
 ```
 
-Edit `.env` and set a secure `POSTGRES_PASSWORD`. The defaults are fine for local development.
+Edit `.env` and set a secure `POSTGRES_PASSWORD`. That is all that is required to start the app.
+
+To enable AI content generation, enter your API key **inside the running app** via **Settings → AI Settings** — not in `.env`. Putting a secret in a `VITE_*` variable bakes it into the compiled JavaScript bundle, making it trivially readable by anyone who opens DevTools. Keys entered through Settings are stored in browser localStorage and are never sent to AutoMarketer's own servers. See [Security](#security) below for details.
 
 #### 2. Start all services
 
@@ -132,6 +135,58 @@ npm run test:watch # Run tests in watch mode
 npm run lint
 ```
 
+## AI Content Generation
+
+AutoMarketer generates platform-specific social media posts using a **pluggable inference client abstraction**.  The same `ContentGenerationService` works with any backend — just swap the client.
+
+### Quick start: OpenRouter
+
+1. Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Launch the app and go to **Settings → AI Settings → API Key**, then paste the key and click **Save Changes**
+
+That's it. The next campaign you create will generate real, campaign-specific content across all selected platforms.
+
+> **Why not use a `.env` variable?**  `VITE_*` variables are compiled into the JS bundle and are trivially readable by anyone who opens browser DevTools. Keys entered through Settings stay in browser `localStorage` and are never included in the build output.
+
+### Using a custom / self-hosted endpoint
+
+Any [OpenAI-compatible `/chat/completions` endpoint](https://platform.openai.com/docs/api-reference/chat) works — Ollama, vLLM, LM Studio, LocalAI, and others.
+
+In **Settings → AI Settings**:
+1. Switch provider to **Custom Endpoint**
+2. Enter the **Endpoint URL** (e.g. `http://localhost:11434/v1` for Ollama)
+3. Enter the **Model** name (e.g. `llama3`, `mistral`)
+4. Optionally add an **API Key** if your endpoint requires one
+5. Click **Save Changes**
+
+### Fallback behaviour
+
+When no API key or endpoint URL is configured the campaign wizard uses built-in template posts (one per platform) so the workflow remains fully usable without any backend.
+
+### Service architecture
+
+```
+src/services/ai/
+├── types.ts                  # InferenceProvider, InferenceRequest/Response, InferenceError
+├── InferenceClient.ts        # Pluggable interface — implement this to add a new backend
+├── OpenRouterClient.ts       # OpenRouter implementation (100+ models via one key)
+├── CustomEndpointClient.ts   # OpenAI-compatible endpoint implementation
+├── ContentGenerationService.ts  # Platform-aware prompts + hashtag parsing + char-limit enforcement
+└── index.ts                  # Public exports + createInferenceClient() factory
+
+src/config/aiConfig.ts        # AIConfig + ProviderConfig types, validation, localStorage persistence
+src/hooks/useContentGeneration.ts  # React hook wrapping ContentGenerationService
+```
+
+The `AIConfig.providers` field is a `Record<InferenceProvider, ProviderConfig>` — adding a new backend requires only a new key in that record, keeping the root interface stable.
+
+### Security
+
+- API keys are entered by users in **Settings → AI Settings** and stored in browser `localStorage`.
+- `localStorage` is readable by any same-origin JavaScript (XSS risk). Users should set **spending limits** on their API keys to cap potential exposure.
+- A future backend proxy will allow keys to be stored server-side, eliminating this surface. See the security notice in the Settings UI for a live reminder.
+- Custom endpoint URLs are validated to be `http://` or `https://` before saving (SSRF mitigation for a future server-side proxy).
+
 ## Project Structure
 
 ```
@@ -147,10 +202,16 @@ automarketer/
 │   │   ├── Dashboard.tsx     # Home page with stat cards, recent campaigns, and platform performance
 │   │   ├── CampaignList.tsx  # Campaign browser with search and status filters
 │   │   ├── CampaignDetail.tsx# Single campaign view with tabbed posts by platform
-│   │   ├── CreateCampaign.tsx# 4-step campaign creation wizard
+│   │   ├── CreateCampaign.tsx# 4-step campaign creation wizard with real AI generation
 │   │   ├── Scheduler.tsx     # Calendar view for scheduled and published posts
 │   │   ├── Analytics.tsx     # Engagement charts and platform performance breakdown
-│   │   └── Settings.tsx      # Profile, platforms, AI, and notification settings
+│   │   └── Settings.tsx      # Profile, platforms, AI inference config, and notifications
+│   ├── services/
+│   │   └── ai/               # AI inference abstraction layer (see above)
+│   ├── config/
+│   │   └── aiConfig.ts       # AIConfig type + localStorage persistence
+│   ├── hooks/
+│   │   └── useContentGeneration.ts  # React hook for content generation
 │   ├── data/
 │   │   └── sampleData.ts     # Mock campaigns, platform configs, and global stats
 │   ├── types.ts              # Shared TypeScript interfaces and type aliases
@@ -159,6 +220,9 @@ automarketer/
 │   ├── App.css               # App-level styles
 │   └── index.css             # Global styles
 ├── tests/
+│   ├── services/ai/          # Unit tests for OpenRouterClient, CustomEndpointClient, ContentGenerationService
+│   ├── config/               # Unit tests for aiConfig load/save/merge
+│   ├── hooks/                # Tests for useContentGeneration hook
 │   ├── App.test.tsx          # Tests for app shell and Dashboard rendering
 │   └── Settings.test.tsx     # Tests for Settings page tabs and toggle behavior
 ├── Dockerfile                # Multi-stage build: development → builder → production (nginx)
