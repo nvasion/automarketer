@@ -4,6 +4,7 @@ import type { Platform, Tone, Screenshot } from '../types'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import { loadAIConfig } from '../config/aiConfig'
 import { useContentGeneration } from '../hooks/useContentGeneration'
+import { createCampaign } from '../api/campaigns'
 import PlatformBadge from '../components/PlatformBadge'
 
 type Step = 1 | 2 | 3 | 4
@@ -88,6 +89,8 @@ function CreateCampaign() {
   const [generated, setGenerated] = useState(false)
   const [usedFallback, setUsedFallback] = useState(false)
   const [generatedPosts, setGeneratedPosts] = useState<Partial<Record<Platform, string>>>({})
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -121,8 +124,8 @@ function CreateCampaign() {
    */
   const hasInferenceConfig = (): boolean => {
     const config = loadAIConfig()
-    if (config.provider === 'openrouter') return Boolean(config.openRouter.apiKey)
-    return Boolean(config.custom.baseUrl)
+    if (config.provider === 'openrouter') return Boolean(config.providers.openrouter.apiKey)
+    return Boolean(config.providers.custom.baseUrl)
   }
 
   const handleGenerate = async () => {
@@ -171,6 +174,35 @@ function CreateCampaign() {
       setStep(3)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const posts = selectedPlatforms.map((platform, idx) => ({
+        id: `post-new-${Date.now()}-${idx}`,
+        platform,
+        content: generatedPosts[platform] ?? '',
+        hashtags: [] as string[],
+        status: 'draft' as const,
+      }))
+      const record = await createCampaign({
+        name: campaignName,
+        websiteUrl,
+        description,
+        targetAudience,
+        tone,
+        status: 'ready',
+        platforms: selectedPlatforms,
+        screenshots,
+        posts,
+      })
+      navigate(`/campaigns/${record.id}`)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save campaign')
+      setSaving(false)
     }
   }
 
@@ -832,22 +864,29 @@ function CreateCampaign() {
             )}
 
             {step === 4 && generated && !generating && (
-              <button
-                onClick={() => navigate('/campaigns')}
-                style={{
-                  background: 'linear-gradient(135deg, #52b788, #40916c)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '10px 24px',
-                  fontSize: '14px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
-                }}
-              >
-                Save Campaign ✓
-              </button>
+              <>
+                {saveError && (
+                  <span style={{ fontSize: '12px', color: '#dc2626' }}>{saveError}</span>
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    background: 'linear-gradient(135deg, #52b788, #40916c)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 24px',
+                    fontSize: '14px',
+                    color: 'white',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontWeight: 600,
+                    opacity: saving ? 0.7 : 1,
+                    boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+                  }}
+                >
+                  {saving ? 'Saving…' : 'Save Campaign ✓'}
+                </button>
+              </>
             )}
           </div>
         </div>

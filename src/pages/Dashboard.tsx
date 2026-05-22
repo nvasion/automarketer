@@ -1,49 +1,11 @@
 import { useNavigate } from 'react-router-dom'
-import { SAMPLE_CAMPAIGNS, STATS, PLATFORM_CONFIGS } from '../data/sampleData'
+import { PLATFORM_CONFIGS } from '../data/sampleData'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
-import { Campaign } from '../types'
+import { useCampaigns, useCampaignStats } from '../hooks/useCampaigns'
+import type { CampaignRecord } from '../db/schema'
 
-const statCards = [
-  {
-    label: 'Total Campaigns',
-    value: STATS.totalCampaigns,
-    icon: '📢',
-    color: '#6366f1',
-    bg: '#eff0ff',
-    change: '+2 this week',
-    positive: true,
-  },
-  {
-    label: 'Posts Published',
-    value: STATS.totalPostsPublished,
-    icon: '✅',
-    color: '#10b981',
-    bg: '#ecfdf5',
-    change: '+8 this week',
-    positive: true,
-  },
-  {
-    label: 'Total Engagements',
-    value: '128.4k',
-    icon: '🔥',
-    color: '#f59e0b',
-    bg: '#fffbeb',
-    change: '+12.4% vs last month',
-    positive: true,
-  },
-  {
-    label: 'Avg. Engagement Rate',
-    value: `${STATS.avgEngagementRate}%`,
-    icon: '📈',
-    color: '#3b82f6',
-    bg: '#eff6ff',
-    change: '+0.3% vs last month',
-    positive: true,
-  },
-]
-
-function CampaignRow({ campaign }: { campaign: Campaign }) {
+function CampaignRow({ campaign }: { campaign: CampaignRecord }) {
   const navigate = useNavigate()
 
   return (
@@ -82,6 +44,51 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
 
 function Dashboard() {
   const navigate = useNavigate()
+  const { campaigns, loading: campaignsLoading } = useCampaigns()
+  const { stats } = useCampaignStats()
+
+  const statCards = [
+    {
+      label: 'Total Campaigns',
+      value: stats?.totalCampaigns ?? '—',
+      icon: '📢',
+      color: '#6366f1',
+      bg: '#eff0ff',
+      change: '+2 this week',
+      positive: true,
+    },
+    {
+      label: 'Posts Published',
+      value: stats?.totalPostsPublished ?? '—',
+      icon: '✅',
+      color: '#10b981',
+      bg: '#ecfdf5',
+      change: '+8 this week',
+      positive: true,
+    },
+    {
+      label: 'Total Engagements',
+      value: stats
+        ? stats.totalEngagements >= 1000
+          ? `${(stats.totalEngagements / 1000).toFixed(1)}k`
+          : String(stats.totalEngagements)
+        : '—',
+      icon: '🔥',
+      color: '#f59e0b',
+      bg: '#fffbeb',
+      change: '+12.4% vs last month',
+      positive: true,
+    },
+    {
+      label: 'Avg. Engagement Rate',
+      value: stats ? `${stats.avgEngagementRate}%` : '—',
+      icon: '📈',
+      color: '#3b82f6',
+      bg: '#eff6ff',
+      change: '+0.3% vs last month',
+      positive: true,
+    },
+  ]
 
   return (
     <div style={{ padding: '32px 32px 48px' }}>
@@ -92,7 +99,7 @@ function Dashboard() {
             Dashboard
           </h1>
           <p style={{ color: '#64748b', fontSize: '14px' }}>
-            Welcome back, Ted! Here's your marketing overview.
+            Welcome back! Here's your marketing overview.
           </p>
         </div>
         <button
@@ -197,34 +204,40 @@ function Dashboard() {
               View all →
             </button>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#fafbfc' }}>
-                {['Campaign', 'Platforms', 'Status', 'Posts', 'Created'].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: '10px 16px',
-                      textAlign: 'left',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: '#94a3b8',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      borderBottom: '1px solid #f1f5f9',
-                    }}
-                  >
-                    {h}
-                  </th>
+          {campaignsLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+              Loading campaigns…
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#fafbfc' }}>
+                  {['Campaign', 'Platforms', 'Status', 'Posts', 'Created'].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '10px 16px',
+                        textAlign: 'left',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#94a3b8',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        borderBottom: '1px solid #f1f5f9',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.slice(0, 5).map((campaign) => (
+                  <CampaignRow key={campaign.id} campaign={campaign} />
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_CAMPAIGNS.map((campaign) => (
-                <CampaignRow key={campaign.id} campaign={campaign} />
-              ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Right sidebar */}

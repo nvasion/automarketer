@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { SAMPLE_CAMPAIGNS } from '../data/sampleData'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
-import { GeneratedPost, Platform } from '../types'
+import { useCampaigns } from '../hooks/useCampaigns'
+import type { PostRecord, CampaignRecord } from '../db/schema'
+import type { Platform } from '../types'
 
 interface ScheduledItem {
-  post: GeneratedPost
+  post: PostRecord
   campaignName: string
   campaignId: string
 }
@@ -16,15 +17,21 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-// Flatten all scheduled/published posts from all campaigns
-const ALL_SCHEDULED: ScheduledItem[] = SAMPLE_CAMPAIGNS.flatMap((c) =>
-  c.posts
-    .filter((p) => p.status === 'scheduled' || p.status === 'published')
-    .map((p) => ({ post: p, campaignName: c.name, campaignId: c.id }))
-)
+function buildScheduledItems(campaigns: CampaignRecord[]): ScheduledItem[] {
+  return campaigns.flatMap((c) =>
+    c.posts
+      .filter((p) => p.status === 'scheduled' || p.status === 'published')
+      .map((p) => ({ post: p, campaignName: c.name, campaignId: c.id }))
+  )
+}
 
-function getPostsForDay(year: number, month: number, day: number): ScheduledItem[] {
-  return ALL_SCHEDULED.filter((item) => {
+function getPostsForDay(
+  items: ScheduledItem[],
+  year: number,
+  month: number,
+  day: number
+): ScheduledItem[] {
+  return items.filter((item) => {
     const dateStr = item.post.scheduledAt ?? item.post.publishedAt
     if (!dateStr) return false
     const d = new Date(dateStr)
@@ -37,6 +44,9 @@ function Scheduler() {
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const { campaigns } = useCampaigns()
+
+  const allScheduled = buildScheduledItems(campaigns)
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
@@ -52,9 +62,11 @@ function Scheduler() {
     setSelectedDay(null)
   }
 
-  const selectedItems = selectedDay ? getPostsForDay(viewYear, viewMonth, selectedDay) : []
+  const selectedItems = selectedDay
+    ? getPostsForDay(allScheduled, viewYear, viewMonth, selectedDay)
+    : []
 
-  const upcomingPosts = ALL_SCHEDULED
+  const upcomingPosts = allScheduled
     .filter((item) => item.post.status === 'scheduled')
     .sort((a, b) => {
       const da = new Date(a.post.scheduledAt ?? 0).getTime()
@@ -174,7 +186,7 @@ function Scheduler() {
                 viewMonth === today.getMonth() &&
                 day === today.getDate()
               const isSelected = selectedDay === day
-              const dayPosts = getPostsForDay(viewYear, viewMonth, day)
+              const dayPosts = getPostsForDay(allScheduled, viewYear, viewMonth, day)
 
               return (
                 <div

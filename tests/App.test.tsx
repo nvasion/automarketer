@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import { HashRouter } from 'react-router-dom'
 import App from '../src/App'
+import { CampaignModel } from '../src/db/CampaignModel'
 
 function renderApp() {
   return render(
@@ -10,6 +11,12 @@ function renderApp() {
     </HashRouter>
   )
 }
+
+// Seed sample data before each test so the dashboard has campaigns to display.
+beforeEach(() => {
+  localStorage.clear()
+  CampaignModel.init()
+})
 
 describe('App', () => {
   it('renders the sidebar with brand name', () => {
@@ -36,9 +43,12 @@ describe('App', () => {
     expect(screen.getByText('Posts Published')).toBeDefined()
   })
 
-  it('renders recent campaigns table', () => {
+  it('renders recent campaigns table with seeded campaign', async () => {
     renderApp()
+    // The dashboard now loads campaigns asynchronously — wait for the data.
+    await waitFor(() => {
+      expect(screen.getByText('Acme SaaS Product Launch')).toBeDefined()
+    })
     expect(screen.getByText('Recent Campaigns')).toBeDefined()
-    expect(screen.getByText('Acme SaaS Product Launch')).toBeDefined()
   })
 })

@@ -1,6 +1,7 @@
-import { SAMPLE_CAMPAIGNS, PLATFORM_CONFIGS } from '../data/sampleData'
+import { PLATFORM_CONFIGS } from '../data/sampleData'
 import PlatformBadge from '../components/PlatformBadge'
-import { Platform } from '../types'
+import type { Platform } from '../types'
+import { useCampaigns } from '../hooks/useCampaigns'
 
 const WEEKLY_DATA = [
   { day: 'Mon', linkedin: 120, twitter: 340, reddit: 45 },
@@ -21,19 +22,40 @@ const PLATFORM_STATS: { platform: Platform; posts: number; engagements: number; 
   { platform: 'instagram', posts: 6, engagements: 2100, reach: 18000, growth: '+12%' },
 ]
 
-const TOP_POSTS = SAMPLE_CAMPAIGNS.flatMap((c) =>
-  c.posts
-    .filter((p) => p.engagements)
-    .map((p) => ({
-      content: p.content.slice(0, 100) + '…',
-      platform: p.platform,
-      engagements: (p.engagements?.likes ?? 0) + (p.engagements?.comments ?? 0) + (p.engagements?.shares ?? 0),
-      views: p.engagements?.views ?? 0,
-      campaign: c.name,
-    }))
-).sort((a, b) => b.engagements - a.engagements)
-
 function Analytics() {
+  const { campaigns } = useCampaigns()
+
+  const topPosts = campaigns.flatMap((c) =>
+    c.posts
+      .filter((p) => p.engagements)
+      .map((p) => ({
+        content: p.content.slice(0, 100) + '…',
+        platform: p.platform,
+        engagements: (p.engagements?.likes ?? 0) + (p.engagements?.comments ?? 0) + (p.engagements?.shares ?? 0),
+        views: p.engagements?.views ?? 0,
+        campaign: c.name,
+      }))
+  ).sort((a, b) => b.engagements - a.engagements)
+
+  const totalEngagements = campaigns.reduce((sum, c) =>
+    sum + c.posts.reduce((s, p) => {
+      const e = p.engagements
+      return s + (e ? e.likes + e.comments + e.shares : 0)
+    }, 0), 0)
+
+  const totalViews = campaigns.reduce((sum, c) =>
+    sum + c.posts.reduce((s, p) => s + (p.engagements?.views ?? 0), 0), 0)
+
+  const publishedCount = campaigns.reduce(
+    (sum, c) => sum + c.posts.filter((p) => p.status === 'published').length, 0
+  )
+
+  const avgRate = totalViews > 0
+    ? ((totalEngagements / totalViews) * 100).toFixed(1)
+    : '0.0'
+
+  const formatNum = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px' }}>
@@ -48,10 +70,10 @@ function Analytics() {
       {/* Summary stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' }}>
         {[
-          { icon: '👁️', label: 'Total Reach', value: '181K', sub: 'Unique accounts reached' },
-          { icon: '❤️', label: 'Engagements', value: '31.8K', sub: 'Likes, comments & shares' },
-          { icon: '📈', label: 'Avg. Rate', value: '4.2%', sub: 'Engagement per impression' },
-          { icon: '✅', label: 'Posts Published', value: '47', sub: 'Across all platforms' },
+          { icon: '👁️', label: 'Total Reach', value: formatNum(totalViews), sub: 'Unique accounts reached' },
+          { icon: '❤️', label: 'Engagements', value: formatNum(totalEngagements), sub: 'Likes, comments & shares' },
+          { icon: '📈', label: 'Avg. Rate', value: `${avgRate}%`, sub: 'Engagement per impression' },
+          { icon: '✅', label: 'Posts Published', value: String(publishedCount), sub: 'Across all platforms' },
         ].map(({ icon, label, value, sub }) => (
           <div
             key={label}
@@ -187,52 +209,58 @@ function Analytics() {
         >
           Top Performing Posts
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#fafbfc' }}>
-              {['Post', 'Platform', 'Campaign', 'Engagements', 'Views'].map((h) => (
-                <th
-                  key={h}
-                  style={{
-                    padding: '10px 16px',
-                    textAlign: 'left',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#94a3b8',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    borderBottom: '1px solid #f1f5f9',
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {TOP_POSTS.map((post, i) => (
-              <tr key={i}>
-                <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', maxWidth: '320px' }}>
-                  <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.4 }}>{post.content}</p>
-                </td>
-                <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa' }}>
-                  <PlatformBadge platform={post.platform as Platform} size="sm" showLabel />
-                </td>
-                <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', fontSize: '13px', color: '#64748b' }}>
-                  {post.campaign}
-                </td>
-                <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa' }}>
-                  <span style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>
-                    {post.engagements >= 1000 ? `${(post.engagements / 1000).toFixed(1)}k` : post.engagements}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', fontSize: '13px', color: '#64748b' }}>
-                  {post.views >= 1000 ? `${(post.views / 1000).toFixed(1)}k` : post.views}
-                </td>
+        {topPosts.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+            No published posts with engagement data yet.
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#fafbfc' }}>
+                {['Post', 'Platform', 'Campaign', 'Engagements', 'Views'].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#94a3b8',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      borderBottom: '1px solid #f1f5f9',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {topPosts.map((post, i) => (
+                <tr key={i}>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', maxWidth: '320px' }}>
+                    <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.4 }}>{post.content}</p>
+                  </td>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa' }}>
+                    <PlatformBadge platform={post.platform as Platform} size="sm" showLabel />
+                  </td>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', fontSize: '13px', color: '#64748b' }}>
+                    {post.campaign}
+                  </td>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa' }}>
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>
+                      {post.engagements >= 1000 ? `${(post.engagements / 1000).toFixed(1)}k` : post.engagements}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', fontSize: '13px', color: '#64748b' }}>
+                    {post.views >= 1000 ? `${(post.views / 1000).toFixed(1)}k` : post.views}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
