@@ -46,7 +46,6 @@ export function createApp(): express.Application {
 
   // ── Global error handler ─────────────────────────────────────────────────
   // Must have exactly four parameters for Express to treat it as an error handler.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
     const isProduction = process.env.NODE_ENV === 'production';
 

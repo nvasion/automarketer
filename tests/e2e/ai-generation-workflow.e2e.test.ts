@@ -245,7 +245,7 @@ describe('Multi-platform batch generation (generatePosts)', () => {
   it('generates drafts for all five platforms in a single call', async () => {
     let callIndex = 0
     const platformOrder: Platform[] = []
-    const client = makeStubClient((req) => {
+    const client = makeStubClient((_req) => {
       const platform = ALL_PLATFORMS[callIndex++]
       platformOrder.push(platform)
       return `Post content for platform index ${callIndex}`
