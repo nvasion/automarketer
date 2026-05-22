@@ -1,0 +1,73 @@
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import authRouter from './routes/auth.js';
+
+/**
+ * Factory function that creates and configures the Express application.
+ * Exporting this separately from the HTTP listener makes the app trivially
+ * testable with Supertest without binding to a real port.
+ */
+export function createApp(): express.Application {
+  const app = express();
+
+  // ── CORS ───────────────────────────────────────────────────────────────────
+  // credentials: true is required for the browser to send/receive cookies
+  // cross-origin. The allowed origin must be explicit (not '*') when
+  // credentials are enabled.
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'FRONTEND_URL environment variable must be set in production to restrict CORS. ' +
+        'Example: FRONTEND_URL=https://app.example.com',
+    );
+  }
+
+  app.use(
+    cors({
+      origin: frontendUrl ?? 'http://localhost:5173',
+      credentials: true, // required for cross-origin cookie exchange
+    }),
+  );
+
+  // ── Body & cookie parsing ─────────────────────────────────────────────────
+  app.use(express.json());
+  app.use(cookieParser());
+
+  // ── Routes ────────────────────────────────────────────────────────────────
+  // The authRouter applies its own rate limiter (20 req / 15 min per IP) to
+  // all auth endpoints before any handler runs — see server/routes/auth.ts.
+  app.use('/api/auth', authRouter);
+
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // ── Global error handler ─────────────────────────────────────────────────
+  // Must have exactly four parameters for Express to treat it as an error handler.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (err instanceof Error) {
+      // In production: log only the error name and a sanitised message — never
+      // stack traces or raw field values which may contain PII or secrets.
+      // In development: include the stack for fast debugging.
+      console.error('[server] Unhandled error:', {
+        name: err.name,
+        message: isProduction ? 'Internal server error' : err.message,
+        ...(isProduction ? {} : { stack: err.stack }),
+      });
+    } else {
+      console.error('[server] Unhandled non-Error thrown');
+    }
+
+    res.status(500).json({ error: 'Internal server error', code: 'INTERNAL_ERROR' });
+  });
+
+  return app;
+}
+
+// Pre-instantiated app for convenience (used by the dev server entry point)
+export const app = createApp();

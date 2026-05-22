@@ -1,13 +1,32 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import { HashRouter } from 'react-router-dom'
+import { AuthContext } from '../src/contexts/AuthContext'
 import App from '../src/App'
-import { CampaignModel } from '../src/db/CampaignModel'
+import type { PublicUser } from '../src/services/authService'
+
+// Provide an authenticated user so ProtectedRoute renders the app shell instead
+// of redirecting to /login.
+const mockUser: PublicUser = {
+  id: '1',
+  email: 'test@example.com',
+  createdAt: new Date().toISOString(),
+}
+
+const authContextValue = {
+  user: mockUser,
+  loading: false,
+  login: vi.fn(),
+  register: vi.fn(),
+  logout: vi.fn(),
+}
 
 function renderApp() {
   return render(
     <HashRouter>
-      <App />
+      <AuthContext.Provider value={authContextValue}>
+        <App />
+      </AuthContext.Provider>
     </HashRouter>
   )
 }
