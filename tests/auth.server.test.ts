@@ -4,6 +4,10 @@
  *
  * These run in Node environment (not jsdom) because they import real server
  * modules and use the Node-native http module underneath Supertest.
+ *
+ * Note: bcrypt with 12 rounds takes ~200-400ms per hash in Node.js. Tests that
+ * involve password hashing/verification (login, register) use a 30-second
+ * timeout to remain stable on slow CI machines.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -117,6 +121,9 @@ describe('POST /api/auth/register', () => {
 
 // ── POST /api/auth/login ─────────────────────────────────────────────────────
 
+// Longer timeout for all login tests — bcrypt verification (~200-400ms × hashing rounds)
+const LOGIN_TIMEOUT = 30_000
+
 describe('POST /api/auth/login', () => {
   it('returns 200 and user data for valid credentials', async () => {
     await registerUser();
@@ -126,7 +133,7 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(200);
     expect(res.body.user).toMatchObject({ email: 'test@example.com' });
     expect(res.body.user).not.toHaveProperty('passwordHash');
-  });
+  }, LOGIN_TIMEOUT);
 
   it('sets an httpOnly auth_token cookie on success', async () => {
     await registerUser();
@@ -136,7 +143,7 @@ describe('POST /api/auth/login', () => {
     const cookie = (res.headers['set-cookie'] as string[] | undefined)?.[0] ?? '';
     expect(cookie).toContain('auth_token=');
     expect(cookie.toLowerCase()).toContain('httponly');
-  });
+  }, LOGIN_TIMEOUT);
 
   it('is case-insensitive for email', async () => {
     await registerUser('user@example.com');
@@ -144,7 +151,7 @@ describe('POST /api/auth/login', () => {
       .post('/api/auth/login')
       .send({ email: 'USER@EXAMPLE.COM', password: 'password123' });
     expect(res.status).toBe(200);
-  });
+  }, LOGIN_TIMEOUT);
 
   it('returns 401 for an unknown email', async () => {
     const res = await request(app)
@@ -152,7 +159,7 @@ describe('POST /api/auth/login', () => {
       .send({ email: 'nobody@example.com', password: 'password123' });
     expect(res.status).toBe(401);
     expect(res.body.code).toBe('INVALID_CREDENTIALS');
-  });
+  }, LOGIN_TIMEOUT);
 
   it('returns 401 for a wrong password', async () => {
     await registerUser();
@@ -161,7 +168,7 @@ describe('POST /api/auth/login', () => {
       .send({ email: 'test@example.com', password: 'wrong-password' });
     expect(res.status).toBe(401);
     expect(res.body.code).toBe('INVALID_CREDENTIALS');
-  });
+  }, LOGIN_TIMEOUT);
 
   it('returns the same error for wrong email and wrong password (no user enumeration)', async () => {
     await registerUser();
@@ -174,7 +181,7 @@ describe('POST /api/auth/login', () => {
     expect(badEmail.body.code).toBe('INVALID_CREDENTIALS');
     expect(badPassword.body.code).toBe('INVALID_CREDENTIALS');
     expect(badEmail.body.error).toBe(badPassword.body.error);
-  });
+  }, LOGIN_TIMEOUT);
 
   it('rejects invalid email format with 400', async () => {
     const res = await request(app)
@@ -197,7 +204,7 @@ describe('POST /api/auth/logout', () => {
     // The Set-Cookie header should clear the cookie (max-age=0 or expires in past)
     const setCookie = ((res.headers['set-cookie'] as string[] | undefined) ?? []).join(' ');
     expect(setCookie.toLowerCase()).toMatch(/auth_token=;|max-age=0/);
-  });
+  }, LOGIN_TIMEOUT);
 });
 
 // ── GET /api/auth/me ─────────────────────────────────────────────────────────
@@ -208,7 +215,7 @@ describe('GET /api/auth/me', () => {
     const res = await request(app).get('/api/auth/me').set('Cookie', cookie);
     expect(res.status).toBe(200);
     expect(res.body.user).toMatchObject({ email: 'test@example.com' });
-  });
+  }, LOGIN_TIMEOUT);
 
   it('returns 401 when no cookie is present', async () => {
     const res = await request(app).get('/api/auth/me');
