@@ -15,6 +15,9 @@ export default defineConfig({
       ['tests/e2e/auth-workflow.e2e.test.ts', 'node'],
       // Social posting tests use vi.stubGlobal(fetch) and platform connectors
       ['tests/e2e/social-posting-workflow.e2e.test.ts', 'node'],
+      // Queue tests exercise real connectors with mocked fetch
+      ['tests/e2e/queue-workflow.e2e.test.ts', 'node'],
+      ['tests/services/queue/**', 'node'],
     ],
     environment: 'jsdom',
     include: ['tests/**/*.test.{ts,tsx}'],

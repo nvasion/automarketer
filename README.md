@@ -240,7 +240,8 @@ automarketer/
 │   │   └── Settings.tsx      # Profile, platforms, AI inference config, and notifications
 │   ├── services/
 │   │   ├── ai/               # AI inference abstraction layer (see above)
-│   │   └── social/           # Social media posting connectors (see above)
+│   │   ├── social/           # Social media posting connectors (see above)
+│   │   └── queue/            # Content scheduling & posting queue (see above)
 │   ├── config/
 │   │   └── aiConfig.ts       # AIConfig type + localStorage persistence
 │   ├── hooks/
@@ -258,6 +259,10 @@ automarketer/
 │   ├── Register.test.tsx     # Register page form validation and submission
 │   ├── services/ai/          # Unit tests for OpenRouterClient, CustomEndpointClient, ContentGenerationService
 │   ├── services/social/      # Unit tests for BaseSocialConnector and all platform connectors
+│   ├── services/queue/       # Unit tests for JobStore, ExecutionLog, RateLimiter, PostingQueueService
+│   ├── e2e/                  # End-to-end pipelines: auth, AI generation, social posting, queue
+│   ├── api/                  # Unit tests for the frontend API client (campaigns)
+│   ├── db/                   # Unit tests for the database layer
 │   ├── config/               # Unit tests for aiConfig load/save/merge
 │   ├── hooks/                # Tests for useContentGeneration hook
 │   ├── App.test.tsx          # Tests for app shell and Dashboard rendering
@@ -416,6 +421,146 @@ const result = await connector.post(
 | Reddit | Reddit OAuth API — `/api/submit` | `submit` |
 | Facebook | Facebook Graph API v18 — `/{pageId}/feed` | `pages_manage_posts` |
 | Instagram | Instagram Graph API v18 — `/{userId}/media` + `/{userId}/media_publish` | `instagram_content_publish` |
+
+## Content Scheduling & Posting Queue
+
+The queue service automates publishing across every supported platform with retry, rate-limit and audit-log support.  It sits between the campaign UI and the social media connectors — schedule a post once, the worker drains due jobs on every tick.
+
+### Architecture
+
+```
+src/services/queue/
+├── types.ts                 # ScheduledJob, JobStatus, ExecutionLogEntry, QueueConfig, RateLimitConfig
+├── JobStore.ts              # In-memory store for ScheduledJob records (swap for DB later)
+├── ExecutionLog.ts          # Append-only audit log of every attempt
+├── RateLimiter.ts           # Sliding-window per-platform rate limiter
+├── PostingQueueService.ts   # Orchestrator: schedule(), tick(), start()/stop(), cancel()
+└── index.ts                 # Public exports
+```
+
+The queue is **pull-based**: callers either invoke `tick()` directly (tests, cron, manual triggers) or call `start()` to spin up an internal poller that calls `tick()` on `pollIntervalMs`.
+
+### Lifecycle of a job
+
+```
+schedule() ──▶ pending ──▶ ready (when scheduledAt reached)
+                              │
+                              ▼
+                          running ──▶ succeeded
+                              │
+                              ├──▶ retrying ──▶ running …      (retryable error)
+                              │
+                              └──▶ failed                       (non-retryable / retries exhausted)
+
+cancel()  ──▶ cancelled  (from any of pending / ready / retrying)
+```
+
+### Error handling & retry policy
+
+| Cause | Outcome | Retry? |
+|-------|---------|--------|
+| HTTP 2xx success | `succeeded` | – |
+| `SocialError` with `retryable: true` (e.g. 429, 5xx) | `retrying` | yes, exponential back-off |
+| `SocialError` with `retryable: false` (e.g. 401, 403) | `failed` | no |
+| Non-Social error (network bug, etc.) | `failed` | no |
+| Retries exhausted (`attempts >= maxAttempts`) | `failed` | no |
+
+Back-off grows as `retryInitialDelayMs × multiplier^(attempt-1)` and is capped at `retryMaxDelayMs`.
+
+### Rate-limit compliance
+
+`RateLimiter` keeps a sliding-window count of requests per platform.  Before the connector is called, the worker checks `canSend(platform)`:
+
+- If allowed → record the send, call the connector, advance the job.
+- If saturated → reschedule the job to `nextAvailable(platform)` with status `retrying` and outcome `rate_limited`.  No attempt is counted.
+
+Default windows are conservative reads of the public docs and can be overridden per platform:
+
+| Platform | Default | Source |
+|----------|---------|--------|
+| LinkedIn | 150 / 24 h | Community management API quota |
+| Twitter/X | 17 / 24 h | Free tier ceiling |
+| Reddit | 1 / 10 min | Single-account submission rate |
+| Facebook | 200 / 1 h | Graph API page quota |
+| Instagram | 25 / 24 h | Content Publishing API per IG user |
+
+### Execution log
+
+Every attempt is appended to the `ExecutionLog`.  Each entry records:
+
+- `jobId`, `platform`, `attempt` (1-indexed)
+- `outcome`: `success` | `retry` | `failure` | `rate_limited`
+- `durationMs` of the connector call
+- `errorMessage` and `httpStatus` when applicable
+- `timestamp` (ISO 8601)
+
+Filter helpers: `forJob(id)`, `forPlatform(p)`, `byOutcome(o)`.
+
+**Security hardening of `errorMessage`** — third-party APIs occasionally
+return error bodies containing HTML or echoed credentials.  Before storing,
+the log passes every `errorMessage` through `sanitizeErrorMessage` which:
+
+- strips HTML/script/style tags (XSS-safe for UI rendering),
+- redacts Bearer tokens, JWTs, `api_key=`/`password=`/`secret=` parameters
+  and URL-embedded credentials (`https://user:pass@host`), and
+- truncates messages to 500 characters with a `...` indicator.
+
+Job IDs and execution-log entry IDs are RFC 4122 v4 UUIDs sourced from the
+platform CSPRNG (`globalThis.crypto.randomUUID` → `node:crypto.randomUUID`
+→ `node:crypto.randomBytes`).  No `Math.random()` fallback.
+
+### Example usage
+
+```typescript
+import {
+  PostingQueueService,
+  RateLimiter,
+} from './src/services/queue'
+import { TwitterConnector, LinkedInConnector } from './src/services/social'
+import { StaticCredentialProvider } from './src/services/social'
+
+const twitter = new TwitterConnector()
+const linkedin = new LinkedInConnector()
+
+const queue = new PostingQueueService({
+  connectors: { twitter, linkedin },
+  credentials: {
+    twitter: new StaticCredentialProvider(process.env.TWITTER_TOKEN!),
+    linkedin: new StaticCredentialProvider(process.env.LINKEDIN_TOKEN!),
+  },
+  rateLimiter: new RateLimiter(), // defaults are fine
+  config: { pollIntervalMs: 5_000, defaultMaxAttempts: 3 },
+})
+
+// 1. Schedule a post for 10 minutes from now
+queue.schedule({
+  platform: 'twitter',
+  request: { content: 'Launching today!', hashtags: ['#AI', '#Launch'] },
+  scheduledAt: new Date(Date.now() + 10 * 60_000),
+})
+
+// 2. Start the internal worker
+queue.start()
+
+// 3. Inspect status and logs anytime
+queue.store.byStatus('succeeded')
+queue.log.byOutcome('failure')
+
+// 4. Stop the worker when shutting down
+queue.stop()
+```
+
+### Tests
+
+```
+tests/services/queue/
+├── JobStore.test.ts
+├── ExecutionLog.test.ts                # Includes XSS / secret-redaction / truncation cases
+├── RateLimiter.test.ts
+├── sanitize.test.ts                    # HTML stripping + secret redaction for errorMessage
+└── PostingQueueService.test.ts        # 26 tests covering scheduling, retry, rate-limit, multi-platform
+tests/e2e/queue-workflow.e2e.test.ts   # End-to-end with real connectors and a mocked fetch
+```
 
 ## Supported Platforms
 
