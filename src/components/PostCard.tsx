@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { GeneratedPost } from '../types'
+import type { PostRecord } from '../db/schema'
 import PlatformBadge from './PlatformBadge'
 import StatusBadge from './StatusBadge'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 
 interface Props {
-  post: GeneratedPost
-  onStatusChange?: (id: string, status: GeneratedPost['status']) => void
+  post: PostRecord
+  onStatusChange?: (id: string, status: PostRecord['status']) => void
 }
 
 function PostCard({ post, onStatusChange }: Props) {

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { SAMPLE_CAMPAIGNS, PLATFORM_CONFIGS } from '../data/sampleData'
-import { GeneratedPost, Platform } from '../types'
+import { PLATFORM_CONFIGS } from '../data/sampleData'
+import type { PostRecord } from '../db/schema'
+import type { Platform } from '../types'
+import { useCampaign } from '../hooks/useCampaign'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
 import PostCard from '../components/PostCard'
@@ -9,11 +11,23 @@ import PostCard from '../components/PostCard'
 function CampaignDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const campaign = SAMPLE_CAMPAIGNS.find((c) => c.id === id)
-  const [posts, setPosts] = useState<GeneratedPost[]>(campaign?.posts ?? [])
+  const { campaign, loading, error, update } = useCampaign(id)
+  const [posts, setPosts] = useState<PostRecord[] | null>(null)
   const [activeTab, setActiveTab] = useState<Platform | 'all'>('all')
 
-  if (!campaign) {
+  // Use local post state if updated, otherwise use posts from the loaded campaign
+  const activePosts = posts ?? campaign?.posts ?? []
+
+  if (loading) {
+    return (
+      <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+        <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+        <p>Loading campaign…</p>
+      </div>
+    )
+  }
+
+  if (error || !campaign) {
     return (
       <div style={{ padding: '32px', textAlign: 'center' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>😕</div>
@@ -36,18 +50,25 @@ function CampaignDetail() {
     )
   }
 
-  const handleStatusChange = (postId: string, status: GeneratedPost['status']) => {
-    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, status } : p)))
+  const handleStatusChange = async (postId: string, status: PostRecord['status']) => {
+    const updatedPosts = activePosts.map((p) => (p.id === postId ? { ...p, status } : p))
+    setPosts(updatedPosts)
+    // Persist the change
+    await update({ posts: updatedPosts }).catch(() => {
+      // Revert on failure
+      setPosts(activePosts)
+    })
   }
 
-  const filteredPosts = activeTab === 'all' ? posts : posts.filter((p) => p.platform === activeTab)
+  const filteredPosts =
+    activeTab === 'all' ? activePosts : activePosts.filter((p) => p.platform === activeTab)
 
-  const totalEngagements = posts.reduce((sum, p) => {
+  const totalEngagements = activePosts.reduce((sum, p) => {
     const e = p.engagements
     return sum + (e ? e.likes + e.comments + e.shares : 0)
   }, 0)
 
-  const publishedCount = posts.filter((p) => p.status === 'published').length
+  const publishedCount = activePosts.filter((p) => p.status === 'published').length
 
   return (
     <div style={{ padding: '32px' }}>
@@ -184,9 +205,9 @@ function CampaignDetail() {
         }}
       >
         {[
-          { icon: '📝', label: 'Total Posts', value: posts.length },
+          { icon: '📝', label: 'Total Posts', value: activePosts.length },
           { icon: '✅', label: 'Published', value: publishedCount },
-          { icon: '📅', label: 'Scheduled', value: posts.filter((p) => p.status === 'scheduled').length },
+          { icon: '📅', label: 'Scheduled', value: activePosts.filter((p) => p.status === 'scheduled').length },
           {
             icon: '❤️',
             label: 'Total Engagements',
@@ -244,11 +265,11 @@ function CampaignDetail() {
               whiteSpace: 'nowrap',
             }}
           >
-            All Posts ({posts.length})
+            All Posts ({activePosts.length})
           </button>
           {campaign.platforms.map((p) => {
             const cfg = PLATFORM_CONFIGS.find((c) => c.id === p)
-            const count = posts.filter((post) => post.platform === p).length
+            const count = activePosts.filter((post) => post.platform === p).length
             return (
               <button
                 key={p}

@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Platform, Screenshot } from '../types'
+import type { Platform, Tone, Screenshot } from '../types'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
+import { loadAIConfig } from '../config/aiConfig'
+import { useContentGeneration } from '../hooks/useContentGeneration'
+import { createCampaign } from '../api/campaigns'
 import PlatformBadge from '../components/PlatformBadge'
 
-type Tone = 'professional' | 'casual' | 'excited' | 'informative'
 type Step = 1 | 2 | 3 | 4
 
 const TONES: { id: Tone; label: string; desc: string; icon: string }[] = [
@@ -14,13 +16,16 @@ const TONES: { id: Tone; label: string; desc: string; icon: string }[] = [
   { id: 'informative', label: 'Informative', desc: 'Educational and detailed', icon: '📚' },
 ]
 
-const AI_GENERATED_POSTS: Record<Platform, string> = {
+/** Template posts used as a fallback when no API key is configured. */
+const TEMPLATE_POSTS: Record<Platform, string> = {
   linkedin: `🚀 Exciting news! We're thrilled to introduce our latest product — built to solve real problems for teams like yours.\n\nAfter months of development and feedback from hundreds of users, we've created something we're genuinely proud of:\n\n✅ Powerful features that just work\n✅ An intuitive interface your team will love\n✅ Enterprise-grade security and reliability\n\nWe believe great tools should get out of your way and let you focus on what matters.\n\nWe're opening early access today. Click below to get started — no credit card required.\n\nWhat's the biggest challenge your team faces right now? Drop it in the comments — we'd love to hear from you.`,
   twitter: `Big news 🎉\n\nWe just launched something we've been building for months.\n\nThe result? A product that makes your workflow 10× smoother.\n\n→ Fast\n→ Intuitive\n→ Built with teams in mind\n\nEarly access is open now 👇`,
   reddit: `Hey everyone! Long-time lurker, first time poster (about our own stuff — I promise we'll make it worth your time).\n\nWe just shipped our product publicly after 6 months in private beta with ~200 teams.\n\n**What problem are we solving?** [Based on your website description]\n\n**What makes it different?** We talked to 300+ potential users before writing a single line of code. Every feature exists because real people asked for it.\n\nNo fluff, no hype — just a tool that does what it says it does.\n\nHappy to answer any questions about the build process, design decisions, or the product itself. Looking forward to the brutal feedback this community is known for.`,
   facebook: `We've got some exciting news to share! 🎉\n\nOur new product is officially live, and we couldn't be more excited to finally share it with the world.\n\nWe've been heads-down building something that we think will make a real difference. Whether you're a small team or a growing enterprise, this was built with you in mind.\n\n✨ Easy to get started\n📈 Scales with your needs\n🔒 Secure by default\n\nWe're offering a free trial — no strings attached. Come check it out and let us know what you think!`,
   instagram: `Something big is here ✨\n\nWe built this because we were tired of tools that promise a lot and deliver little.\n\nThis is different. Simple. Powerful. Yours.\n\nLink in bio to get started free. 🔗\n\nTag a friend who needs this 👇`,
 }
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepIndicator({ current, total }: { current: Step; total: number }) {
   return (
@@ -38,9 +43,7 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
               fontWeight: 700,
               fontSize: '13px',
               background:
-                step < current
-                  ? 'linear-gradient(135deg, #52b788, #40916c)'
-                  : step === current
+                step <= current
                   ? 'linear-gradient(135deg, #52b788, #40916c)'
                   : '#e2e8f0',
               color: step <= current ? 'white' : '#94a3b8',
@@ -65,19 +68,33 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
   )
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 function CreateCampaign() {
   const navigate = useNavigate()
+  const { generate, error: generationError, clearError } = useContentGeneration()
+
+  // Form fields
   const [step, setStep] = useState<Step>(1)
-  const [websiteUrl, setWebsiteUrl] = useState('')
   const [campaignName, setCampaignName] = useState('')
+  const [websiteUrl, setWebsiteUrl] = useState('')
   const [description, setDescription] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['linkedin', 'twitter'])
   const [tone, setTone] = useState<Tone>('professional')
   const [screenshots, setScreenshots] = useState<Screenshot[]>([])
+
+  // Generation state
   const [generating, setGenerating] = useState(false)
   const [generated, setGenerated] = useState(false)
+  const [usedFallback, setUsedFallback] = useState(false)
+  const [generatedPosts, setGeneratedPosts] = useState<Partial<Record<Platform, string>>>({})
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   const togglePlatform = (p: Platform) => {
     setSelectedPlatforms((prev) =>
@@ -100,14 +117,96 @@ function CreateCampaign() {
     setScreenshots((prev) => prev.filter((s) => s.id !== id))
   }
 
-  const handleGenerate = () => {
-    setGenerating(true)
-    setTimeout(() => {
-      setGenerating(false)
-      setGenerated(true)
-      setStep(4)
-    }, 2200)
+  /**
+   * Detect whether the user has a valid inference endpoint configured.
+   * Returns false when the provider is openrouter with no API key, or
+   * custom with no base URL.
+   */
+  const hasInferenceConfig = (): boolean => {
+    const config = loadAIConfig()
+    if (config.provider === 'openrouter') return Boolean(config.providers.openrouter.apiKey)
+    return Boolean(config.providers.custom.baseUrl)
   }
+
+  const handleGenerate = async () => {
+    clearError()
+    setGenerating(true)
+    setGenerated(false)
+    setUsedFallback(false)
+    setStep(4) // move to review step immediately so the spinner is visible
+
+    try {
+      if (!hasInferenceConfig()) {
+        // No API key → use built-in template content after a brief delay
+        await new Promise((res) => setTimeout(res, 1400))
+        const posts: Partial<Record<Platform, string>> = {}
+        selectedPlatforms.forEach((p) => {
+          posts[p] = TEMPLATE_POSTS[p]
+        })
+        setGeneratedPosts(posts)
+        setUsedFallback(true)
+        setGenerated(true)
+        return
+      }
+
+      // Real AI generation
+      const drafts = await generate({
+        campaignName,
+        websiteUrl,
+        description,
+        targetAudience,
+        platforms: selectedPlatforms,
+        tone,
+      })
+
+      const posts: Partial<Record<Platform, string>> = {}
+      for (const draft of drafts) {
+        const body = draft.hashtags.length > 0
+          ? `${draft.content}\n\n${draft.hashtags.join(' ')}`
+          : draft.content
+        posts[draft.platform] = body
+      }
+      setGeneratedPosts(posts)
+      setGenerated(true)
+    } catch {
+      // generationError is set by the hook; go back to step 3 so the user
+      // can see the error and retry
+      setStep(3)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const posts = selectedPlatforms.map((platform, idx) => ({
+        id: `post-new-${Date.now()}-${idx}`,
+        platform,
+        content: generatedPosts[platform] ?? '',
+        hashtags: [] as string[],
+        status: 'draft' as const,
+      }))
+      const record = await createCampaign({
+        name: campaignName,
+        websiteUrl,
+        description,
+        targetAudience,
+        tone,
+        status: 'ready',
+        platforms: selectedPlatforms,
+        screenshots,
+        posts,
+      })
+      navigate(`/campaigns/${record.id}`)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save campaign')
+      setSaving(false)
+    }
+  }
+
+  // ── Shared styles ───────────────────────────────────────────────────────────
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -130,6 +229,8 @@ function CreateCampaign() {
   }
 
   const fieldStyle: React.CSSProperties = { marginBottom: '20px' }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ padding: '32px', maxWidth: '800px' }}>
@@ -170,7 +271,7 @@ function CreateCampaign() {
       >
         <StepIndicator current={step} total={4} />
 
-        {/* Step 1: Website Info */}
+        {/* ── Step 1: Website Info ────────────────────────────────────────── */}
         {step === 1 && (
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
@@ -199,7 +300,7 @@ function CreateCampaign() {
                 onChange={(e) => setWebsiteUrl(e.target.value)}
               />
               <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                We'll analyze your website to generate accurate, on-brand content.
+                AI will use this for on-brand, accurate content.
               </p>
             </div>
 
@@ -225,14 +326,14 @@ function CreateCampaign() {
           </div>
         )}
 
-        {/* Step 2: Screenshots */}
+        {/* ── Step 2: Screenshots ─────────────────────────────────────────── */}
         {step === 2 && (
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
               Upload Screenshots
             </h2>
             <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
-              Add screenshots of your product, landing page, or key features. AI will use these for richer context.
+              Add screenshots of your product or landing page. AI will use these for richer context.
             </p>
 
             <input
@@ -261,7 +362,7 @@ function CreateCampaign() {
               <p style={{ fontWeight: 600, color: '#40916c', marginBottom: '4px' }}>
                 Click to upload screenshots
               </p>
-              <p style={{ color: '#94a3b8', fontSize: '13px' }}>PNG, JPG, GIF up to 10MB each</p>
+              <p style={{ color: '#94a3b8', fontSize: '13px' }}>PNG, JPG, GIF up to 10 MB each</p>
             </div>
 
             {screenshots.length > 0 && (
@@ -299,7 +400,7 @@ function CreateCampaign() {
                       </div>
                     )}
                     <button
-                      onClick={() => removeScreenshot(ss.id)}
+                      onClick={(e) => { e.stopPropagation(); removeScreenshot(ss.id) }}
                       style={{
                         position: 'absolute',
                         top: '6px',
@@ -350,7 +451,7 @@ function CreateCampaign() {
           </div>
         )}
 
-        {/* Step 3: Platforms & Tone */}
+        {/* ── Step 3: Platforms & Tone ────────────────────────────────────── */}
         {step === 3 && (
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
@@ -442,10 +543,93 @@ function CreateCampaign() {
                 })}
               </div>
             </div>
+
+            {/* Generation error banner (shown after a failed attempt) */}
+            {generationError && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '10px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  marginTop: '8px',
+                }}
+              >
+                <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#991b1b', marginBottom: '2px' }}>
+                    Generation failed
+                  </div>
+                  <div style={{ color: '#b91c1c', fontSize: '13px' }}>{generationError}</div>
+                  <div style={{ color: '#7f1d1d', fontSize: '12px', marginTop: '6px' }}>
+                    Check your API key in{' '}
+                    <button
+                      onClick={() => navigate('/settings')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#7f1d1d',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontSize: '12px',
+                      }}
+                    >
+                      Settings → AI Settings
+                    </button>{' '}
+                    or retry below.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* No-key notice */}
+            {!hasInferenceConfig() && !generationError && (
+              <div
+                style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  marginTop: '8px',
+                }}
+              >
+                <span style={{ fontSize: '18px', flexShrink: 0 }}>💡</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: '#92400e' }}>
+                    No AI key configured — will use template content
+                  </div>
+                  <div style={{ color: '#a16207', fontSize: '12px', marginTop: '2px' }}>
+                    Add an OpenRouter API key in{' '}
+                    <button
+                      onClick={() => navigate('/settings')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#a16207',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontSize: '12px',
+                      }}
+                    >
+                      Settings → AI Settings
+                    </button>{' '}
+                    for personalised, campaign-specific posts.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Step 4: Generated Content */}
+        {/* ── Step 4: Generated Content ───────────────────────────────────── */}
         {step === 4 && (
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
@@ -455,6 +639,7 @@ function CreateCampaign() {
               Review and edit your generated posts before publishing or scheduling.
             </p>
 
+            {/* Spinner */}
             {generating && (
               <div
                 style={{
@@ -477,16 +662,57 @@ function CreateCampaign() {
                 />
                 <div style={{ fontWeight: 600, color: '#1e293b' }}>Generating your content…</div>
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center' }}>
-                  AI is analyzing your website and crafting platform-specific posts
+                  AI is crafting platform-specific posts for your campaign
                 </div>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
 
+            {/* Generated posts */}
             {generated && !generating && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Fallback notice */}
+                {usedFallback && (
+                  <div
+                    style={{
+                      background: '#fffbeb',
+                      border: '1px solid #fde68a',
+                      borderRadius: '10px',
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}
+                  >
+                    <span style={{ fontSize: '18px' }}>💡</span>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#92400e' }}>
+                        Using template content
+                      </div>
+                      <div style={{ color: '#a16207', fontSize: '12px' }}>
+                        These are generic drafts. Add an OpenRouter API key in{' '}
+                        <button
+                          onClick={() => navigate('/settings')}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#a16207',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                            padding: 0,
+                            fontSize: '12px',
+                          }}
+                        >
+                          Settings → AI Settings
+                        </button>{' '}
+                        for campaign-specific, personalised posts.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {selectedPlatforms.map((platform) => {
-                  const content = AI_GENERATED_POSTS[platform] ?? 'Content generated for this platform.'
+                  const content = generatedPosts[platform] ?? ''
                   const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)
                   return (
                     <div
@@ -550,7 +776,8 @@ function CreateCampaign() {
                       Content ready to publish!
                     </div>
                     <div style={{ color: '#16a34a', fontSize: '12px' }}>
-                      {selectedPlatforms.length} posts generated. Review above and click "Save Campaign" when ready.
+                      {selectedPlatforms.length} post{selectedPlatforms.length !== 1 ? 's' : ''} generated.
+                      Review above and click "Save Campaign" when ready.
                     </div>
                   </div>
                 </div>
@@ -559,7 +786,7 @@ function CreateCampaign() {
           </div>
         )}
 
-        {/* Navigation buttons */}
+        {/* ── Navigation buttons ──────────────────────────────────────────── */}
         <div
           style={{
             display: 'flex',
@@ -572,14 +799,15 @@ function CreateCampaign() {
         >
           <button
             onClick={() => (step > 1 ? setStep((prev) => (prev - 1) as Step) : navigate('/'))}
+            disabled={generating}
             style={{
               background: '#f8fafc',
               border: '1px solid #e2e8f0',
               borderRadius: '8px',
               padding: '10px 20px',
               fontSize: '14px',
-              color: '#64748b',
-              cursor: 'pointer',
+              color: generating ? '#94a3b8' : '#64748b',
+              cursor: generating ? 'not-allowed' : 'pointer',
               fontWeight: 500,
             }}
           >
@@ -600,7 +828,10 @@ function CreateCampaign() {
                   color: 'white',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  opacity: step === 1 && (!campaignName.trim() || !websiteUrl.trim() || !description.trim()) ? 0.5 : 1,
+                  opacity:
+                    step === 1 && (!campaignName.trim() || !websiteUrl.trim() || !description.trim())
+                      ? 0.5
+                      : 1,
                   boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                 }}
               >
@@ -611,7 +842,7 @@ function CreateCampaign() {
             {step === 3 && (
               <button
                 onClick={handleGenerate}
-                disabled={selectedPlatforms.length === 0}
+                disabled={selectedPlatforms.length === 0 || generating}
                 style={{
                   background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
@@ -619,9 +850,9 @@ function CreateCampaign() {
                   padding: '10px 24px',
                   fontSize: '14px',
                   color: 'white',
-                  cursor: 'pointer',
+                  cursor: selectedPlatforms.length === 0 || generating ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
-                  opacity: selectedPlatforms.length === 0 ? 0.5 : 1,
+                  opacity: selectedPlatforms.length === 0 || generating ? 0.5 : 1,
                   boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                   display: 'flex',
                   alignItems: 'center',
@@ -633,22 +864,29 @@ function CreateCampaign() {
             )}
 
             {step === 4 && generated && !generating && (
-              <button
-                onClick={() => navigate('/campaigns')}
-                style={{
-                  background: 'linear-gradient(135deg, #52b788, #40916c)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '10px 24px',
-                  fontSize: '14px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
-                }}
-              >
-                Save Campaign ✓
-              </button>
+              <>
+                {saveError && (
+                  <span style={{ fontSize: '12px', color: '#dc2626' }}>{saveError}</span>
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    background: 'linear-gradient(135deg, #52b788, #40916c)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 24px',
+                    fontSize: '14px',
+                    color: 'white',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontWeight: 600,
+                    opacity: saving ? 0.7 : 1,
+                    boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+                  }}
+                >
+                  {saving ? 'Saving…' : 'Save Campaign ✓'}
+                </button>
+              </>
             )}
           </div>
         </div>

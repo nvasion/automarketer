@@ -4,6 +4,9 @@ export type PostStatus = 'draft' | 'scheduled' | 'published' | 'failed'
 
 export type CampaignStatus = 'draft' | 'generating' | 'ready' | 'published'
 
+/** Writing style for AI-generated posts. */
+export type Tone = 'professional' | 'casual' | 'excited' | 'informative'
+
 export interface GeneratedPost {
   id: string
   platform: Platform
@@ -37,7 +40,7 @@ export interface Campaign {
   platforms: Platform[]
   screenshots: Screenshot[]
   posts: GeneratedPost[]
-  tone: 'professional' | 'casual' | 'excited' | 'informative'
+  tone: Tone
   targetAudience: string
 }
 

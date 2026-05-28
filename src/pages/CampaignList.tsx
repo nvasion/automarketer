@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Campaign, CampaignStatus } from '../types'
-import { SAMPLE_CAMPAIGNS } from '../data/sampleData'
+import type { CampaignStatus } from '../types'
+import type { CampaignRecord } from '../db/schema'
+import { useCampaigns } from '../hooks/useCampaigns'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
 
@@ -13,7 +14,7 @@ const STATUS_FILTERS: { label: string; value: CampaignStatus | 'all' }[] = [
   { label: 'Generating', value: 'generating' },
 ]
 
-function CampaignCard({ campaign }: { campaign: Campaign }) {
+function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
   const navigate = useNavigate()
   const publishedPosts = campaign.posts.filter((p) => p.status === 'published')
   const totalEngagements = campaign.posts.reduce((sum, p) => {
@@ -132,8 +133,9 @@ function CampaignList() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<CampaignStatus | 'all'>('all')
   const [search, setSearch] = useState('')
+  const { campaigns, loading, error } = useCampaigns()
 
-  const filtered = SAMPLE_CAMPAIGNS.filter((c) => {
+  const filtered = campaigns.filter((c) => {
     const matchStatus = filter === 'all' || c.status === filter
     const matchSearch =
       !search ||
@@ -151,7 +153,7 @@ function CampaignList() {
             Campaigns
           </h1>
           <p style={{ color: '#64748b', fontSize: '14px' }}>
-            {SAMPLE_CAMPAIGNS.length} campaigns total
+            {loading ? 'Loading…' : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''} total`}
           </p>
         </div>
         <button
@@ -239,20 +241,8 @@ function CampaignList() {
         </div>
       </div>
 
-      {/* Campaign grid */}
-      {filtered.length > 0 ? (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-            gap: '16px',
-          }}
-        >
-          {filtered.map((campaign) => (
-            <CampaignCard key={campaign.id} campaign={campaign} />
-          ))}
-        </div>
-      ) : (
+      {/* Loading state */}
+      {loading && (
         <div
           style={{
             textAlign: 'center',
@@ -262,29 +252,75 @@ function CampaignList() {
             border: '1px solid #e2e8f0',
           }}
         >
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
-          <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
-            No campaigns found
-          </h3>
-          <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '20px' }}>
-            {search ? `No campaigns match "${search}"` : 'Create your first campaign to get started.'}
-          </p>
-          <button
-            onClick={() => navigate('/create')}
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+          <p style={{ color: '#94a3b8', fontSize: '14px' }}>Loading campaigns…</p>
+        </div>
+      )}
+
+      {/* Error state */}
+      {!loading && error && (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '60px 40px',
+            background: '#fef2f2',
+            borderRadius: '12px',
+            border: '1px solid #fecaca',
+          }}
+        >
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
+          <p style={{ color: '#dc2626', fontSize: '14px' }}>{error}</p>
+        </div>
+      )}
+
+      {/* Campaign grid */}
+      {!loading && !error && (
+        filtered.length > 0 ? (
+          <div
             style={{
-              background: 'linear-gradient(135deg, #52b788, #40916c)',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 24px',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: '16px',
             }}
           >
-            Create Campaign
-          </button>
-        </div>
+            {filtered.map((campaign) => (
+              <CampaignCard key={campaign.id} campaign={campaign} />
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '80px 40px',
+              background: 'white',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+              No campaigns found
+            </h3>
+            <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '20px' }}>
+              {search ? `No campaigns match "${search}"` : 'Create your first campaign to get started.'}
+            </p>
+            <button
+              onClick={() => navigate('/create')}
+              style={{
+                background: 'linear-gradient(135deg, #52b788, #40916c)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 24px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Create Campaign
+            </button>
+          </div>
+        )
       )}
     </div>
   )

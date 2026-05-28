@@ -16,6 +16,18 @@
     "react-refresh/only-export-components": [
       "warn",
       { "allowConstantExport": true }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/contexts/**/*.tsx"],
+      "rules": {
+        "react-refresh/only-export-components": "off"
+      }
+    }
+  ]
 }

@@ -10,7 +10,9 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 - **Post Management** — View, edit, publish, and schedule posts per platform with character limit enforcement and engagement tracking
 - **Scheduler** — Calendar interface to browse and manage scheduled and published posts by date
 - **Analytics** — Weekly engagement bar charts, per-platform performance breakdowns, and top-performing posts table
-- **Settings** — Configure profile, connected platforms, AI model preferences, and notification toggles
+- **Settings** — Configure profile, connected platforms, AI inference endpoint, and notification toggles
+- **Authentication** — Secure registration and login with bcrypt password hashing (12 rounds) and JWT session management via httpOnly cookies; all app routes are protected and redirect to `/login` when unauthenticated
+- **AI Content Generation** — Real AI-powered post generation via OpenRouter (100+ models) or any self-hosted OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, …). Falls back to built-in template content when no key is configured
 
 ## Tech Stack
 
@@ -20,86 +22,274 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 | Language | TypeScript (strict mode) |
 | Build Tool | Vite 5 |
 | Routing | React Router v6 |
-| Testing | Vitest + React Testing Library |
+| Backend API | Express 5 |
+| Authentication | JSON Web Tokens (JWT) + bcryptjs |
+| Testing | Vitest + React Testing Library + Supertest |
 | Linting | ESLint + TypeScript ESLint |
+| Containerisation | Docker + Compose v2 |
+| Database | PostgreSQL 15 |
+| Production server | nginx 1.25 |
 
 ## Getting Started
 
-### Prerequisites
+Two options: **Docker Compose** (recommended — zero local setup) or a **local Node.js** install.
+
+---
+
+### Option A — Docker Compose (recommended)
+
+#### Prerequisites
+
+- [Docker Desktop 4.x](https://www.docker.com/products/docker-desktop/) (includes Compose v2)  
+  Verify with: `docker compose version`
+
+#### 1. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set a secure `POSTGRES_PASSWORD`. That is all that is required to start the app.
+
+To enable AI content generation, enter your API key **inside the running app** via **Settings → AI Settings** — not in `.env`. Putting a secret in a `VITE_*` variable bakes it into the compiled JavaScript bundle, making it trivially readable by anyone who opens DevTools. Keys entered through Settings are stored in browser localStorage and are never sent to AutoMarketer's own servers. See [Security](#security) below for details.
+
+#### 2. Start all services
+
+```bash
+docker compose up --build
+```
+
+This single command:
+- Builds the React dev server image
+- Pulls the PostgreSQL 15 image
+- Waits for the database to pass its health check before starting the app
+- Mounts your source directory into the container for live hot-module reload
+
+#### 3. Open the app
+
+| Service | URL |
+|---------|-----|
+| React dev server | http://localhost:5173 |
+| PostgreSQL | `localhost:5432` (use any DB client) |
+
+#### Useful Docker commands
+
+```bash
+docker compose up --build        # start all services (rebuild images)
+docker compose up -d             # start in detached (background) mode
+docker compose down              # stop and remove containers
+docker compose down -v           # stop and remove containers + volumes (wipes DB)
+docker compose logs -f app       # tail app logs
+docker compose logs -f db        # tail database logs
+docker compose exec db psql -U postgres -d automarketer  # open psql shell
+```
+
+#### Production deployment
+
+```bash
+cp .env.example .env
+# edit .env — set strong credentials; POSTGRES_PASSWORD is required
+
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+The production compose file uses the `production` Dockerfile stage: TypeScript is compiled and bundled by Node, then served as static files by nginx on port 80. No Node.js or source code is present in the final image.
+
+---
+
+### Option B — Local Node.js
+
+#### Prerequisites
 
 - Node.js 18 or higher
 - npm
 
-### Installation
+#### Installation
 
 ```bash
 npm install
 ```
 
-### Development
+#### Development
+
+Run both the React dev server and the Express API server together:
 
 ```bash
-npm run dev
+npm run dev:full
 ```
 
-The app will be available at http://localhost:5173.
-
-### Building
+Or start them separately in two terminals:
 
 ```bash
-npm run build      # Production build
-npm run preview    # Preview the production build locally
+npm run dev          # Vite dev server → http://localhost:5173
+npm run dev:server   # Express API     → http://localhost:3001
 ```
 
-### Testing
+Vite proxies `/api/*` requests to the Express server, so frontend code always calls `/api/auth/...` with no cross-origin issues.
+
+#### Building
+
+```bash
+npm run build          # Production build (frontend)
+npm run build:server   # Compile Express server TypeScript
+npm run preview        # Preview the production frontend build locally
+```
+
+#### Testing
+
+The test suite covers both frontend components (React Testing Library in jsdom) and backend API routes (Supertest in Node):
 
 ```bash
 npm test           # Run the full test suite once
 npm run test:watch # Run tests in watch mode
 ```
 
-### Linting
+#### Linting
 
 ```bash
 npm run lint
 ```
 
+## AI Content Generation
+
+AutoMarketer generates platform-specific social media posts using a **pluggable inference client abstraction**.  The same `ContentGenerationService` works with any backend — just swap the client.
+
+### Quick start: OpenRouter
+
+1. Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Launch the app and go to **Settings → AI Settings → API Key**, then paste the key and click **Save Changes**
+
+That's it. The next campaign you create will generate real, campaign-specific content across all selected platforms.
+
+> **Why not use a `.env` variable?**  `VITE_*` variables are compiled into the JS bundle and are trivially readable by anyone who opens browser DevTools. Keys entered through Settings stay in browser `localStorage` and are never included in the build output.
+
+### Using a custom / self-hosted endpoint
+
+Any [OpenAI-compatible `/chat/completions` endpoint](https://platform.openai.com/docs/api-reference/chat) works — Ollama, vLLM, LM Studio, LocalAI, and others.
+
+In **Settings → AI Settings**:
+1. Switch provider to **Custom Endpoint**
+2. Enter the **Endpoint URL** (e.g. `http://localhost:11434/v1` for Ollama)
+3. Enter the **Model** name (e.g. `llama3`, `mistral`)
+4. Optionally add an **API Key** if your endpoint requires one
+5. Click **Save Changes**
+
+### Fallback behaviour
+
+When no API key or endpoint URL is configured the campaign wizard uses built-in template posts (one per platform) so the workflow remains fully usable without any backend.
+
+### Service architecture
+
+```
+src/services/ai/
+├── types.ts                  # InferenceProvider, InferenceRequest/Response, InferenceError
+├── InferenceClient.ts        # Pluggable interface — implement this to add a new backend
+├── OpenRouterClient.ts       # OpenRouter implementation (100+ models via one key)
+├── CustomEndpointClient.ts   # OpenAI-compatible endpoint implementation
+├── ContentGenerationService.ts  # Platform-aware prompts + hashtag parsing + char-limit enforcement
+└── index.ts                  # Public exports + createInferenceClient() factory
+
+src/config/aiConfig.ts        # AIConfig + ProviderConfig types, validation, localStorage persistence
+src/hooks/useContentGeneration.ts  # React hook wrapping ContentGenerationService
+```
+
+The `AIConfig.providers` field is a `Record<InferenceProvider, ProviderConfig>` — adding a new backend requires only a new key in that record, keeping the root interface stable.
+
+### Security
+
+- API keys are entered by users in **Settings → AI Settings** and stored in browser `localStorage`.
+- `localStorage` is readable by any same-origin JavaScript (XSS risk). Users should set **spending limits** on their API keys to cap potential exposure.
+- A future backend proxy will allow keys to be stored server-side, eliminating this surface. See the security notice in the Settings UI for a live reminder.
+- Custom endpoint URLs are validated to be `http://` or `https://` before saving (SSRF mitigation for a future server-side proxy).
+
 ## Project Structure
 
 ```
 automarketer/
+├── server/                   # Express API server
+│   ├── app.ts                # Express app factory (exported for Supertest)
+│   ├── index.ts              # Server entry point (binds to PORT)
+│   ├── types.ts              # Shared server TypeScript interfaces + Express.Request augmentation
+│   ├── middleware/
+│   │   └── auth.ts           # requireAuth middleware — verifies JWT from httpOnly cookie
+│   ├── models/
+│   │   └── userStore.ts      # In-memory user store (replace with DB ORM in next phase)
+│   ├── routes/
+│   │   └── auth.ts           # POST /register, POST /login, POST /logout, GET /me
+│   └── utils/
+│       └── config.ts         # jwtSecret() helper with fail-fast production guard
 ├── src/
 │   ├── components/           # Reusable UI components
 │   │   ├── Header.tsx        # Top navigation header
 │   │   ├── Sidebar.tsx       # Main navigation sidebar with active-route highlighting
 │   │   ├── PostCard.tsx      # Post display with platform info, status, actions, and engagement metrics
 │   │   ├── PlatformBadge.tsx # Platform icon badge (sm/md/lg sizes)
-│   │   └── StatusBadge.tsx   # Color-coded status indicator (draft, generating, ready, published, etc.)
+│   │   ├── StatusBadge.tsx   # Color-coded status indicator (draft, generating, ready, published, etc.)
+│   │   └── ProtectedRoute.tsx# Redirects unauthenticated users to /login; shows null while loading
+│   ├── contexts/
+│   │   └── AuthContext.tsx   # React auth context: user state, login, register, logout via cookie session
 │   ├── pages/                # Route-level page components
+│   │   ├── Login.tsx         # Sign-in form
+│   │   ├── Register.tsx      # Account creation form
 │   │   ├── Dashboard.tsx     # Home page with stat cards, recent campaigns, and platform performance
 │   │   ├── CampaignList.tsx  # Campaign browser with search and status filters
 │   │   ├── CampaignDetail.tsx# Single campaign view with tabbed posts by platform
-│   │   ├── CreateCampaign.tsx# 4-step campaign creation wizard
+│   │   ├── CreateCampaign.tsx# 4-step campaign creation wizard with real AI generation
 │   │   ├── Scheduler.tsx     # Calendar view for scheduled and published posts
 │   │   ├── Analytics.tsx     # Engagement charts and platform performance breakdown
-│   │   └── Settings.tsx      # Profile, platforms, AI, and notification settings
+│   │   └── Settings.tsx      # Profile, platforms, AI inference config, and notifications
+│   ├── services/
+│   │   ├── ai/               # AI inference abstraction layer (see above)
+│   │   ├── social/           # Social media posting connectors (see above)
+│   │   └── queue/            # Content scheduling & posting queue (see above)
+│   ├── config/
+│   │   └── aiConfig.ts       # AIConfig type + localStorage persistence
+│   ├── hooks/
+│   │   └── useContentGeneration.ts  # React hook for content generation
 │   ├── data/
 │   │   └── sampleData.ts     # Mock campaigns, platform configs, and global stats
 │   ├── types.ts              # Shared TypeScript interfaces and type aliases
-│   ├── App.tsx               # Root component with routing
-│   ├── main.tsx              # React entry point
+│   ├── App.tsx               # Root component with routing (public + protected routes)
+│   ├── main.tsx              # React entry point (wraps app in AuthProvider + BrowserRouter)
 │   ├── App.css               # App-level styles
 │   └── index.css             # Global styles
 ├── tests/
+│   ├── auth.server.test.ts   # Supertest integration tests for register/login/logout/me routes
+│   ├── Login.test.tsx        # Login page form behaviour and error handling
+│   ├── Register.test.tsx     # Register page form validation and submission
+│   ├── services/ai/          # Unit tests for OpenRouterClient, CustomEndpointClient, ContentGenerationService
+│   ├── services/social/      # Unit tests for BaseSocialConnector and all platform connectors
+│   ├── services/queue/       # Unit tests for JobStore, ExecutionLog, RateLimiter, PostingQueueService
+│   ├── e2e/                  # End-to-end pipelines: auth, AI generation, social posting, queue
+│   ├── api/                  # Unit tests for the frontend API client (campaigns)
+│   ├── db/                   # Unit tests for the database layer
+│   ├── config/               # Unit tests for aiConfig load/save/merge
+│   ├── hooks/                # Tests for useContentGeneration hook
 │   ├── App.test.tsx          # Tests for app shell and Dashboard rendering
 │   └── Settings.test.tsx     # Tests for Settings page tabs and toggle behavior
+├── Dockerfile                # Multi-stage build: development → builder → production (nginx)
+├── docker-compose.yml        # Development: app + PostgreSQL with hot-module reload
+├── docker-compose.prod.yml   # Production: pre-built nginx image + PostgreSQL
+├── nginx.conf                # nginx SPA config — gzip, asset caching, and index.html fallback
+├── .env.example              # Environment variable template (copy to .env)
+├── .dockerignore             # Files excluded from the Docker build context
 ├── index.html                # HTML entry point
-├── vite.config.ts            # Vite configuration
-├── vitest.config.ts          # Vitest configuration
-└── tsconfig.json             # TypeScript configuration
+├── vite.config.ts            # Vite configuration (with /api proxy to PORT 3001)
+├── vitest.config.ts          # Vitest configuration (jsdom for frontend, node for server tests)
+├── tsconfig.json             # TypeScript configuration (frontend)
+└── tsconfig.server.json      # TypeScript configuration (server — targets Node ESM)
 ```
 
 ## Routes
+
+### Public (no authentication required)
+
+| Path | Page | Description |
+|------|------|-------------|
+| `/login` | Login | Sign-in form |
+| `/register` | Register | Account creation form |
+
+### Protected (redirect to `/login` when unauthenticated)
 
 | Path | Page | Description |
 |------|------|-------------|
@@ -110,6 +300,32 @@ automarketer/
 | `/scheduler` | Scheduler | Calendar view of scheduled/published posts |
 | `/analytics` | Analytics | Engagement charts and performance data |
 | `/settings` | Settings | User profile, platforms, AI, and notifications |
+
+## API Endpoints
+
+The Express server runs on port `3001` and is proxied by Vite under `/api/*` during development.
+
+| Method | Path | Auth required | Description |
+|--------|------|---------------|-------------|
+| `POST` | `/api/auth/register` | No | Create a new account; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
+| `POST` | `/api/auth/login` | No | Sign in; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
+| `POST` | `/api/auth/logout` | No | Clears the `auth_token` cookie server-side |
+| `GET` | `/api/auth/me` | `auth_token` cookie | Returns the current user's public profile |
+| `GET` | `/api/health` | No | Service health check |
+
+> **Security note:** Tokens are stored exclusively in `httpOnly` cookies set by the server. No token is ever placed in the JSON response body or `localStorage`, which eliminates XSS-based session-hijacking risk. The browser attaches the cookie automatically on every request via `credentials: 'include'`.
+
+### Authentication rate limiting
+
+All `/api/auth/*` routes are protected by a rate limiter: **20 requests per 15-minute window per IP**. Exceeding the limit returns `429 Too Many Requests`.
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | `dev-secret-change-in-production` | Secret used to sign JWTs — **must be overridden in production** (e.g. `openssl rand -hex 64`) |
+| `PORT` | `3001` | Express API server port |
+| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin (must be set in production) |
 
 ## Key Types
 
@@ -141,6 +357,209 @@ interface GeneratedPost {
   publishedAt?: string;
   engagements?: { likes: number; comments: number; shares: number; views: number };
 }
+```
+
+## Social Media Posting Connectors
+
+AutoMarketer implements platform-specific posting connectors for all five supported social platforms.  Each connector enforces character limits, validates content, and calls the platform's official API.
+
+### Architecture
+
+```
+src/services/social/
+├── types.ts                 # SocialPostRequest/Result, ContentValidation, EnforcedContent, SocialError
+├── SocialConnector.ts       # Pluggable interface — implement this to add a new platform
+├── BaseSocialConnector.ts   # Shared char-limit utilities: validateContent(), enforceLimit()
+├── platforms/
+│   ├── LinkedInConnector.ts  # LinkedIn UGC Posts API v2 (3,000 chars)
+│   ├── TwitterConnector.ts   # Twitter API v2 — create tweet (280 chars)
+│   ├── RedditConnector.ts    # Reddit OAuth API — self post submission (40,000 chars)
+│   ├── FacebookConnector.ts  # Facebook Graph API v18 — page feed (63,206 chars)
+│   └── InstagramConnector.ts # Instagram Graph API v18 — two-step container+publish (2,200 chars)
+└── index.ts                 # Public exports
+```
+
+### Character-limit enforcement
+
+Every connector calls `enforceLimit()` before sending to the API, so oversized content is never submitted:
+
+1. **Within limit** — content returned unchanged.
+2. **Content too long** — truncated at the last word boundary; an ellipsis (…) is appended.
+3. **Hashtags alone exceed the limit** — all hashtags are dropped and the content is truncated.
+
+```typescript
+import { LinkedInConnector } from './src/services/social'
+
+const connector = new LinkedInConnector()
+
+// Validate without modifying
+const validation = connector.validateContent(content, hashtags)
+// { valid: false, characterCount: 3250, limit: 3000, overflowBy: 250 }
+
+// Enforce (truncate) to fit
+const enforced = connector.enforceLimit(content, hashtags)
+// { content: '...', hashtags: [...], truncated: true }
+
+// Post via API (requires OAuth access token)
+const result = await connector.post(
+  {
+    content,
+    hashtags,
+    linkedIn: { authorId: 'urn:li:person:abc123' },
+  },
+  accessToken
+)
+// { success: true, platform: 'linkedin', postId: 'urn:li:ugcPost:...' }
+```
+
+### API requirements per platform
+
+| Platform | API | Required scope / permission |
+|----------|-----|----------------------------|
+| LinkedIn | LinkedIn REST API v2 — `/v2/ugcPosts` | `w_member_social` |
+| Twitter/X | Twitter API v2 — `/2/tweets` | `tweet.write`, `users.read` |
+| Reddit | Reddit OAuth API — `/api/submit` | `submit` |
+| Facebook | Facebook Graph API v18 — `/{pageId}/feed` | `pages_manage_posts` |
+| Instagram | Instagram Graph API v18 — `/{userId}/media` + `/{userId}/media_publish` | `instagram_content_publish` |
+
+## Content Scheduling & Posting Queue
+
+The queue service automates publishing across every supported platform with retry, rate-limit and audit-log support.  It sits between the campaign UI and the social media connectors — schedule a post once, the worker drains due jobs on every tick.
+
+### Architecture
+
+```
+src/services/queue/
+├── types.ts                 # ScheduledJob, JobStatus, ExecutionLogEntry, QueueConfig, RateLimitConfig
+├── JobStore.ts              # In-memory store for ScheduledJob records (swap for DB later)
+├── ExecutionLog.ts          # Append-only audit log of every attempt
+├── RateLimiter.ts           # Sliding-window per-platform rate limiter
+├── PostingQueueService.ts   # Orchestrator: schedule(), tick(), start()/stop(), cancel()
+└── index.ts                 # Public exports
+```
+
+The queue is **pull-based**: callers either invoke `tick()` directly (tests, cron, manual triggers) or call `start()` to spin up an internal poller that calls `tick()` on `pollIntervalMs`.
+
+### Lifecycle of a job
+
+```
+schedule() ──▶ pending ──▶ ready (when scheduledAt reached)
+                              │
+                              ▼
+                          running ──▶ succeeded
+                              │
+                              ├──▶ retrying ──▶ running …      (retryable error)
+                              │
+                              └──▶ failed                       (non-retryable / retries exhausted)
+
+cancel()  ──▶ cancelled  (from any of pending / ready / retrying)
+```
+
+### Error handling & retry policy
+
+| Cause | Outcome | Retry? |
+|-------|---------|--------|
+| HTTP 2xx success | `succeeded` | – |
+| `SocialError` with `retryable: true` (e.g. 429, 5xx) | `retrying` | yes, exponential back-off |
+| `SocialError` with `retryable: false` (e.g. 401, 403) | `failed` | no |
+| Non-Social error (network bug, etc.) | `failed` | no |
+| Retries exhausted (`attempts >= maxAttempts`) | `failed` | no |
+
+Back-off grows as `retryInitialDelayMs × multiplier^(attempt-1)` and is capped at `retryMaxDelayMs`.
+
+### Rate-limit compliance
+
+`RateLimiter` keeps a sliding-window count of requests per platform.  Before the connector is called, the worker checks `canSend(platform)`:
+
+- If allowed → record the send, call the connector, advance the job.
+- If saturated → reschedule the job to `nextAvailable(platform)` with status `retrying` and outcome `rate_limited`.  No attempt is counted.
+
+Default windows are conservative reads of the public docs and can be overridden per platform:
+
+| Platform | Default | Source |
+|----------|---------|--------|
+| LinkedIn | 150 / 24 h | Community management API quota |
+| Twitter/X | 17 / 24 h | Free tier ceiling |
+| Reddit | 1 / 10 min | Single-account submission rate |
+| Facebook | 200 / 1 h | Graph API page quota |
+| Instagram | 25 / 24 h | Content Publishing API per IG user |
+
+### Execution log
+
+Every attempt is appended to the `ExecutionLog`.  Each entry records:
+
+- `jobId`, `platform`, `attempt` (1-indexed)
+- `outcome`: `success` | `retry` | `failure` | `rate_limited`
+- `durationMs` of the connector call
+- `errorMessage` and `httpStatus` when applicable
+- `timestamp` (ISO 8601)
+
+Filter helpers: `forJob(id)`, `forPlatform(p)`, `byOutcome(o)`.
+
+**Security hardening of `errorMessage`** — third-party APIs occasionally
+return error bodies containing HTML or echoed credentials.  Before storing,
+the log passes every `errorMessage` through `sanitizeErrorMessage` which:
+
+- strips HTML/script/style tags (XSS-safe for UI rendering),
+- redacts Bearer tokens, JWTs, `api_key=`/`password=`/`secret=` parameters
+  and URL-embedded credentials (`https://user:pass@host`), and
+- truncates messages to 500 characters with a `...` indicator.
+
+Job IDs and execution-log entry IDs are RFC 4122 v4 UUIDs sourced from the
+platform CSPRNG (`globalThis.crypto.randomUUID` → `node:crypto.randomUUID`
+→ `node:crypto.randomBytes`).  No `Math.random()` fallback.
+
+### Example usage
+
+```typescript
+import {
+  PostingQueueService,
+  RateLimiter,
+} from './src/services/queue'
+import { TwitterConnector, LinkedInConnector } from './src/services/social'
+import { StaticCredentialProvider } from './src/services/social'
+
+const twitter = new TwitterConnector()
+const linkedin = new LinkedInConnector()
+
+const queue = new PostingQueueService({
+  connectors: { twitter, linkedin },
+  credentials: {
+    twitter: new StaticCredentialProvider(process.env.TWITTER_TOKEN!),
+    linkedin: new StaticCredentialProvider(process.env.LINKEDIN_TOKEN!),
+  },
+  rateLimiter: new RateLimiter(), // defaults are fine
+  config: { pollIntervalMs: 5_000, defaultMaxAttempts: 3 },
+})
+
+// 1. Schedule a post for 10 minutes from now
+queue.schedule({
+  platform: 'twitter',
+  request: { content: 'Launching today!', hashtags: ['#AI', '#Launch'] },
+  scheduledAt: new Date(Date.now() + 10 * 60_000),
+})
+
+// 2. Start the internal worker
+queue.start()
+
+// 3. Inspect status and logs anytime
+queue.store.byStatus('succeeded')
+queue.log.byOutcome('failure')
+
+// 4. Stop the worker when shutting down
+queue.stop()
+```
+
+### Tests
+
+```
+tests/services/queue/
+├── JobStore.test.ts
+├── ExecutionLog.test.ts                # Includes XSS / secret-redaction / truncation cases
+├── RateLimiter.test.ts
+├── sanitize.test.ts                    # HTML stripping + secret redaction for errorMessage
+└── PostingQueueService.test.ts        # 26 tests covering scheduling, retry, rate-limit, multi-platform
+tests/e2e/queue-workflow.e2e.test.ts   # End-to-end with real connectors and a mocked fetch
 ```
 
 ## Supported Platforms

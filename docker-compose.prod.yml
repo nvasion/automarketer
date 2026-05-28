@@ -1,0 +1,53 @@
+# AutoMarketer — production environment
+#
+# Usage:
+#   cp .env.example .env                                  # set production credentials
+#   docker compose -f docker-compose.prod.yml up --build -d
+#
+# All POSTGRES_* variables are required in production (no insecure defaults).
+
+name: automarketer
+
+services:
+
+  # ── nginx serving pre-built static bundle ─────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - "80:80"
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - automarketer-net
+
+  # ── PostgreSQL database ───────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      # All three variables are mandatory in production — no defaults.
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-automarketer}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-automarketer}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - automarketer-net
+
+volumes:
+  postgres_data:
+
+networks:
+  automarketer-net:
+    driver: bridge
