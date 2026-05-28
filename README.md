@@ -27,7 +27,7 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 | Testing | Vitest + React Testing Library + Supertest |
 | Linting | ESLint + TypeScript ESLint |
 | Containerisation | Docker + Compose v2 |
-| Database | PostgreSQL 15 |
+| Database | PostgreSQL 18 |
 | Production server | nginx 1.25 |
 
 ## Getting Started
@@ -61,7 +61,7 @@ docker compose up --build
 
 This single command:
 - Builds the React dev server image
-- Pulls the PostgreSQL 15 image
+- Pulls the PostgreSQL 18 image
 - Waits for the database to pass its health check before starting the app
 - Mounts your source directory into the container for live hot-module reload
 
