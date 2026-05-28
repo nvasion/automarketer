@@ -40,7 +40,7 @@ services:
 
   # ── PostgreSQL database ───────────────────────────────────────────────────
   db:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     ports:
       # Expose for local DB clients (psql, TablePlus, DBeaver, etc.)
