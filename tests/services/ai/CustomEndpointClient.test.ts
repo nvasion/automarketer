@@ -3,14 +3,15 @@ import { CustomEndpointClient } from '../../../src/services/ai/CustomEndpointCli
 import { InferenceError } from '../../../src/services/ai/types'
 
 function makeOkResponse(content: string) {
+  const body = {
+    choices: [{ message: { content } }],
+    usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+  }
   return {
     ok: true,
-    text: () => Promise.resolve(''),
-    json: () =>
-      Promise.resolve({
-        choices: [{ message: { content } }],
-        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-      }),
+    status: 200,
+    text: () => Promise.resolve(JSON.stringify(body)),
+    json: () => Promise.resolve(body),
   }
 }
 
@@ -203,9 +204,12 @@ describe('CustomEndpointClient', () => {
   })
 
   it('throws InferenceError when content is empty', async () => {
+    const body = { choices: [{ message: { content: null } }] }
     fetchMock.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ choices: [{ message: { content: null } }] }),
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
     })
     const client = new CustomEndpointClient({
       apiKey: '',
@@ -213,5 +217,16 @@ describe('CustomEndpointClient', () => {
       baseUrl: 'http://localhost:11434/v1',
     })
     await expect(client.complete({ messages: [] })).rejects.toThrow('Custom endpoint returned empty content')
+  })
+
+  it('throws InferenceError when response body is empty', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve('') })
+    const client = new CustomEndpointClient({
+      apiKey: '',
+      model: 'llama3',
+      baseUrl: 'http://localhost:11434/v1',
+    })
+    await expect(client.complete({ messages: [] })).rejects.toThrow(InferenceError)
+    await expect(client.complete({ messages: [] })).rejects.toThrow('non-JSON response')
   })
 })

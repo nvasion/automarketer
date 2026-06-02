@@ -5,16 +5,17 @@ import { InferenceError } from '../../../src/services/ai/types'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeOkResponse(content: string, usage = true) {
+  const body = {
+    choices: [{ message: { content } }],
+    ...(usage
+      ? { usage: { prompt_tokens: 50, completion_tokens: 100, total_tokens: 150 } }
+      : {}),
+  }
   return {
     ok: true,
-    text: () => Promise.resolve(''),
-    json: () =>
-      Promise.resolve({
-        choices: [{ message: { content } }],
-        ...(usage
-          ? { usage: { prompt_tokens: 50, completion_tokens: 100, total_tokens: 150 } }
-          : {}),
-      }),
+    status: 200,
+    text: () => Promise.resolve(JSON.stringify(body)),
+    json: () => Promise.resolve(body),
   }
 }
 
@@ -183,9 +184,12 @@ describe('OpenRouterClient', () => {
   })
 
   it('throws InferenceError when response has no content', async () => {
+    const body = { choices: [{ message: { content: '' } }] }
     fetchMock.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ choices: [{ message: { content: '' } }] }),
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
     })
     const client = new OpenRouterClient({ apiKey: 'key', model: 'gpt-4o', baseUrl: OPENROUTER_BASE_URL })
 
@@ -193,12 +197,23 @@ describe('OpenRouterClient', () => {
   })
 
   it('throws InferenceError when choices array is missing', async () => {
+    const body = {}
     fetchMock.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({}),
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
     })
     const client = new OpenRouterClient({ apiKey: 'key', model: 'gpt-4o', baseUrl: OPENROUTER_BASE_URL })
 
     await expect(client.complete({ messages: [] })).rejects.toThrow(InferenceError)
+  })
+
+  it('throws InferenceError when response body is empty', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve('') })
+    const client = new OpenRouterClient({ apiKey: 'key', model: 'gpt-4o', baseUrl: OPENROUTER_BASE_URL })
+
+    await expect(client.complete({ messages: [] })).rejects.toThrow(InferenceError)
+    await expect(client.complete({ messages: [] })).rejects.toThrow('non-JSON response')
   })
 })

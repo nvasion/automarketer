@@ -453,12 +453,14 @@ describe('Client factory (createInferenceClient)', () => {
   })
 
   it('created OpenRouterClient can complete a stubbed request via fetch mock', async () => {
+    const responseBody = {
+      choices: [{ message: { content: 'Generated LinkedIn post' } }],
+    }
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          choices: [{ message: { content: 'Generated LinkedIn post' } }],
-        }),
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(responseBody)),
+      json: () => Promise.resolve(responseBody),
     })
     vi.stubGlobal('fetch', fetchMock)
 

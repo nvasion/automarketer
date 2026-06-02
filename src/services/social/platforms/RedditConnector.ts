@@ -2,6 +2,7 @@ import type { Platform } from '../../../types'
 import { BaseSocialConnector } from '../BaseSocialConnector'
 import type { CredentialProvider, SocialPostRequest, SocialPostResult } from '../types'
 import { SocialError } from '../types'
+import { parseJsonBody } from '../../../utils/http'
 
 /**
  * Reddit connector — submits self (text) posts via the Reddit OAuth API.
@@ -96,8 +97,16 @@ export class RedditConnector extends BaseSocialConnector {
       )
     }
 
-    const data = await response.json() as {
+    let data: {
       json?: { data?: { id?: string; url?: string }; errors?: unknown[] }
+    }
+    try {
+      data = await parseJsonBody<typeof data>(response)
+    } catch (err) {
+      throw new SocialError(
+        `Reddit returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'reddit' }
+      )
     }
 
     // Reddit returns errors in the JSON body even on 200 responses

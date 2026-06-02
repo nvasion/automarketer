@@ -2,6 +2,7 @@ import type { Platform } from '../../../types'
 import { BaseSocialConnector } from '../BaseSocialConnector'
 import type { CredentialProvider, SocialPostRequest, SocialPostResult } from '../types'
 import { SocialError } from '../types'
+import { parseJsonBody } from '../../../utils/http'
 
 /**
  * Twitter/X connector — posts tweets via the Twitter API v2.
@@ -108,7 +109,15 @@ export class TwitterConnector extends BaseSocialConnector {
       )
     }
 
-    const data = await response.json() as { data?: { id?: string; text?: string } }
+    let data: { data?: { id?: string; text?: string } }
+    try {
+      data = await parseJsonBody<{ data?: { id?: string; text?: string } }>(response)
+    } catch (err) {
+      throw new SocialError(
+        `Twitter returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'twitter' }
+      )
+    }
     return {
       success: true,
       platform: 'twitter',

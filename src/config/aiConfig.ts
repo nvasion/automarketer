@@ -1,4 +1,5 @@
 import type { InferenceProvider } from '../services/ai/types'
+import { parseJsonBody } from '../utils/http'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -169,7 +170,7 @@ export async function fetchOpenRouterModels(
     const res = await fetch(`${baseUrl}/models`, { method: 'GET', headers })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-    const data = (await res.json()) as { data?: { id: string; name?: string }[] }
+    const data = await parseJsonBody<{ data?: { id: string; name?: string }[] }>(res)
     const models = (data.data ?? []).map((m) => ({ id: m.id, label: m.name ?? m.id }))
 
     if (models.length > 0) {

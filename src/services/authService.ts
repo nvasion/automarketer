@@ -10,6 +10,8 @@
  * every request (including cross-origin ones proxied through Vite's dev proxy).
  */
 
+import { parseJsonBody } from '../utils/http';
+
 const API_BASE = '/api/auth';
 
 export interface PublicUser {
@@ -42,8 +44,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
 
-  // Always parse the body — error responses also contain JSON
-  const data = (await res.json()) as { error?: string; code?: string } & T;
+  // Always parse the body — error responses also contain JSON.
+  // parseJsonBody reads as text first to produce a clear error when the server
+  // returns an empty body (e.g. after a redirect or timeout).
+  let data: { error?: string; code?: string } & T;
+  try {
+    data = await parseJsonBody<{ error?: string; code?: string } & T>(res);
+  } catch {
+    throw new AuthError(res.ok ? 'Received non-JSON response from server' : 'Request failed');
+  }
 
   if (!res.ok) {
     throw new AuthError(data.error ?? 'Request failed', data.code);

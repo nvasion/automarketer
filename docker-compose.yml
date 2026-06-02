@@ -30,8 +30,33 @@ services:
       # so HMR connects correctly when accessing the app via localhost:5173
       - HMR_CLIENT_PORT=5173
       - HMR_PROTOCOL=ws
-      # Database connection URL — consumed by the backend once it is wired up
+      # Point Vite's /api proxy at the "api" service — inside Docker,
+      # "localhost" resolves to the container itself, not the API service
+      - API_HOST=api
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks:
+      - automarketer-net
+
+  # ── Express API server ───────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    command: npm run dev:server
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    environment:
+      - PORT=3001
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-automarketer}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - NODE_ENV=development
     depends_on:
       db:
         condition: service_healthy

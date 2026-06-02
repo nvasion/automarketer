@@ -2,6 +2,7 @@ import type { Platform } from '../../../types'
 import { BaseSocialConnector } from '../BaseSocialConnector'
 import type { CredentialProvider, SocialPostRequest, SocialPostResult } from '../types'
 import { SocialError } from '../types'
+import { parseJsonBody } from '../../../utils/http'
 
 /**
  * LinkedIn connector — posts text updates via the LinkedIn UGC Posts API.
@@ -93,7 +94,15 @@ export class LinkedInConnector extends BaseSocialConnector {
       )
     }
 
-    const data = await response.json() as { id?: string }
+    let data: { id?: string }
+    try {
+      data = await parseJsonBody<{ id?: string }>(response)
+    } catch (err) {
+      throw new SocialError(
+        `LinkedIn returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'linkedin' }
+      )
+    }
     return {
       success: true,
       platform: 'linkedin',
