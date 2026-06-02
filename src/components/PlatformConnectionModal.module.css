@@ -1,0 +1,242 @@
+/* PlatformConnectionModal — extracted from inline styles for maintainability */
+
+/* ── Backdrop & panel ──────────────────────────────────────────────────────── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.panel {
+  background: white;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.headerText {
+  flex: 1;
+}
+
+.headerTitle {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.headerSubtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 18px;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+/* ── Body ──────────────────────────────────────────────────────────────────── */
+
+.body {
+  padding: 20px 24px 24px;
+}
+
+/* ── Method switcher ───────────────────────────────────────────────────────── */
+
+.methodSwitcher {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 20px;
+}
+
+.methodTab {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.methodTabActive {
+  background: white;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+}
+
+.methodTabInactive {
+  background: transparent;
+  color: #64748b;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.methodTabDisabled {
+  cursor: default;
+}
+
+/* ── OAuth panel ───────────────────────────────────────────────────────────── */
+
+.oauthPanel {
+  text-align: center;
+}
+
+.oauthDescription {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.oauthStatus {
+  font-size: 13px;
+  color: #64748b;
+  padding: 12px 0;
+}
+
+.oauthStatusSuccess {
+  font-size: 14px;
+  color: #16a34a;
+  font-weight: 600;
+  padding: 12px 0;
+}
+
+.oauthStatusError {
+  font-size: 13px;
+  color: #dc2626;
+  padding: 8px 10px;
+  background: #fef2f2;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.oauthRetryBtn {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* ── Credentials panel ─────────────────────────────────────────────────────── */
+
+.credentialsDescription {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.credentialsFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+}
+
+.fieldWrapper {
+  position: relative;
+}
+
+.fieldInput {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  background: white;
+  box-sizing: border-box;
+}
+
+.fieldInputWithToggle {
+  padding-right: 56px;
+}
+
+.toggleVisibilityBtn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0;
+}
+
+.securityNote {
+  font-size: 11px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.credentialsError {
+  font-size: 12px;
+  color: #dc2626;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #fef2f2;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+.connectBtn {
+  width: 100%;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #52b788, #40916c);
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}

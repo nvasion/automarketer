@@ -4,8 +4,9 @@ import { parseUserDetailsFromEmail } from '../utils/userDisplay'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import { loadAIConfig, saveAIConfig, validateEndpointUrl } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
+import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
-import DemoBadge from '../components/DemoBadge'
+import PlatformConnectionModal from '../components/PlatformConnectionModal'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -96,6 +97,7 @@ function Settings() {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [connections, setConnections] = useState(CONNECTED)
+  const [connectingPlatform, setConnectingPlatform] = useState<PlatformConfig | null>(null)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATIONS)
@@ -133,8 +135,16 @@ function Settings() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const toggleConnection = (platform: string) => {
-    setConnections((prev) => ({ ...prev, [platform]: !prev[platform] }))
+  const openConnectModal = (platform: PlatformConfig) => {
+    setConnectingPlatform(platform)
+  }
+
+  const handleConnectComplete = (platformId: string) => {
+    setConnections((prev) => ({ ...prev, [platformId]: true }))
+  }
+
+  const handleDisconnect = (platformId: string) => {
+    setConnections((prev) => ({ ...prev, [platformId]: false }))
   }
 
   // Helpers for updating nested AI config
@@ -363,7 +373,8 @@ function Settings() {
                         )}
                       </div>
                       <button
-                        onClick={() => toggleConnection(p.id)}
+                        data-testid={`platform-btn-${p.id}`}
+                        onClick={() => connected ? handleDisconnect(p.id) : openConnectModal(p)}
                         style={{
                           background: connected ? 'white' : '#52b788',
                           border: `1px solid ${connected ? '#e2e8f0' : '#52b788'}`,
@@ -777,6 +788,15 @@ function Settings() {
           </div>
         </div>
       </div>
+
+      {/* Platform connection modal */}
+      {connectingPlatform && (
+        <PlatformConnectionModal
+          platform={connectingPlatform}
+          onClose={() => setConnectingPlatform(null)}
+          onConnect={handleConnectComplete}
+        />
+      )}
     </div>
   )
 }
