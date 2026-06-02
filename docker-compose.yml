@@ -46,7 +46,7 @@ services:
       # Expose for local DB clients (psql, TablePlus, DBeaver, etc.)
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -61,6 +61,8 @@ services:
       - automarketer-net
 
 volumes:
+  # Mounted at /var/lib/postgresql (not /data) so Postgres 18+ can place data
+  # in its version-specific subdirectory (18/main) as required by the image.
   postgres_data:   # persists database data across container restarts
   node_modules:    # isolates container node_modules from host
 
