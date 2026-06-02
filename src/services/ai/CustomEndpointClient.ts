@@ -1,6 +1,7 @@
 import type { InferenceClient } from './InferenceClient'
 import type { InferenceProvider, InferenceRequest, InferenceResponse, InferenceClientConfig } from './types'
 import { InferenceError } from './types'
+import { parseJsonBody } from '../../utils/http'
 
 /**
  * Inference client for any OpenAI-compatible endpoint.
@@ -76,9 +77,19 @@ export class CustomEndpointClient implements InferenceClient {
       )
     }
 
-    const data = await response.json() as {
+    type Body = {
       choices?: { message?: { content?: string } }[]
       usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+    }
+    let data: Body
+    try {
+      data = await parseJsonBody<Body>(response)
+    } catch (err) {
+      throw new InferenceError(
+        `Custom endpoint returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        undefined,
+        'custom'
+      )
     }
 
     const content = data.choices?.[0]?.message?.content

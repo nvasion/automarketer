@@ -2,6 +2,7 @@ import type { Platform } from '../../../types'
 import { BaseSocialConnector } from '../BaseSocialConnector'
 import type { CredentialProvider, SocialPostRequest, SocialPostResult } from '../types'
 import { SocialError } from '../types'
+import { parseJsonBody } from '../../../utils/http'
 
 /**
  * Instagram connector — publishes image posts via the Instagram Graph API.
@@ -91,7 +92,15 @@ export class InstagramConnector extends BaseSocialConnector {
       )
     }
 
-    const containerData = await containerResponse.json() as { id?: string }
+    let containerData: { id?: string }
+    try {
+      containerData = await parseJsonBody<{ id?: string }>(containerResponse)
+    } catch (err) {
+      throw new SocialError(
+        `Instagram returned non-JSON response for media container: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'instagram' }
+      )
+    }
     const creationId = containerData.id
     if (!creationId) {
       throw new SocialError(
@@ -136,7 +145,15 @@ export class InstagramConnector extends BaseSocialConnector {
       )
     }
 
-    const publishData = await publishResponse.json() as { id?: string }
+    let publishData: { id?: string }
+    try {
+      publishData = await parseJsonBody<{ id?: string }>(publishResponse)
+    } catch (err) {
+      throw new SocialError(
+        `Instagram returned non-JSON response for media publish: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'instagram' }
+      )
+    }
     return {
       success: true,
       platform: 'instagram',

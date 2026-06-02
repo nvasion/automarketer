@@ -2,6 +2,7 @@ import type { Platform } from '../../../types'
 import { BaseSocialConnector } from '../BaseSocialConnector'
 import type { CredentialProvider, SocialPostRequest, SocialPostResult } from '../types'
 import { SocialError } from '../types'
+import { parseJsonBody } from '../../../utils/http'
 
 /**
  * Facebook connector — publishes posts to a Facebook Page feed via the
@@ -86,7 +87,15 @@ export class FacebookConnector extends BaseSocialConnector {
       )
     }
 
-    const data = await response.json() as { id?: string }
+    let data: { id?: string }
+    try {
+      data = await parseJsonBody<{ id?: string }>(response)
+    } catch (err) {
+      throw new SocialError(
+        `Facebook returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'facebook' }
+      )
+    }
     return {
       success: true,
       platform: 'facebook',
