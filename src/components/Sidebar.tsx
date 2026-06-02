@@ -1,4 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { parseUserDetailsFromEmail } from '../utils/userDisplay'
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '⬛' },
@@ -148,6 +150,11 @@ const avatarStyle: React.CSSProperties = {
 }
 
 function Sidebar() {
+  const { user } = useAuth()
+  const { fullName, initial } = user
+    ? parseUserDetailsFromEmail(user.email)
+    : { fullName: '', initial: '?' }
+
   return (
     <aside style={sidebarStyle}>
       <div style={logoAreaStyle}>
@@ -173,10 +180,10 @@ function Sidebar() {
 
       <div style={bottomAreaStyle}>
         <div style={userCardStyle}>
-          <div style={avatarStyle}>K</div>
+          <div style={avatarStyle}>{initial}</div>
           <div>
-            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>Ted Marketeer</div>
-            <div style={{ color: '#64748b', fontSize: '11px' }}>Pro Plan</div>
+            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>{fullName || user?.email}</div>
+            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{user?.email}</div>
           </div>
           <span style={{ color: '#64748b', marginLeft: 'auto', fontSize: '16px' }}>⋯</span>
         </div>

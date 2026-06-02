@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { parseUserDetailsFromEmail } from '../utils/userDisplay'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import { loadAIConfig, saveAIConfig, validateEndpointUrl, OPENROUTER_MODELS } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
@@ -86,6 +88,11 @@ function Toggle({ on, onChange, testId }: { on: boolean; onChange: () => void; t
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function Settings() {
+  const { user } = useAuth()
+  const { firstName, lastName, initial } = user
+    ? parseUserDetailsFromEmail(user.email)
+    : { firstName: '', lastName: '', initial: '?' }
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [connections, setConnections] = useState(CONNECTED)
   const [saved, setSaved] = useState(false)
@@ -256,7 +263,7 @@ function Settings() {
                     fontWeight: 700,
                   }}
                 >
-                  K
+                  {initial}
                 </div>
                 <div>
                   <button
@@ -282,16 +289,16 @@ function Settings() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={labelStyle}>First Name</label>
-                  <input style={inputStyle} defaultValue="Ted" />
+                  <input key={`fn-${user?.id}`} style={inputStyle} defaultValue={firstName} />
                 </div>
                 <div>
                   <label style={labelStyle}>Last Name</label>
-                  <input style={inputStyle} defaultValue="Marketeer" />
+                  <input key={`ln-${user?.id}`} style={inputStyle} defaultValue={lastName} />
                 </div>
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={labelStyle}>Email Address</label>
-                <input style={inputStyle} defaultValue="tedm@example.com" />
+                <input key={`em-${user?.id}`} style={inputStyle} defaultValue={user?.email ?? ''} />
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={labelStyle}>Company / Brand Name</label>
