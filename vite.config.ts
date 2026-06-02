@@ -16,7 +16,7 @@ export default defineConfig({
     // containers as well as from the host machine.
     host: '0.0.0.0',
     port: 5173,
-    open: true,
+    open: false,
     // Forward all /api/* requests to the Express server so the browser
     // always talks to a same-origin URL (no cross-origin cookie issues).
     proxy: {
