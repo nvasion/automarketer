@@ -21,7 +21,7 @@ export default defineConfig({
     // always talks to a same-origin URL (no cross-origin cookie issues).
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.API_PORT ?? 3001}`,
+        target: `http://${process.env.API_HOST ?? 'localhost'}:${process.env.API_PORT ?? 3001}`,
         changeOrigin: true,
       },
     },
