@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { parseUserDetailsFromEmail } from '../utils/userDisplay'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
-import { loadAIConfig, saveAIConfig, validateEndpointUrl, OPENROUTER_MODELS } from '../config/aiConfig'
+import { loadAIConfig, saveAIConfig, validateEndpointUrl } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
+import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
+import PlatformConnectionModal from '../components/PlatformConnectionModal'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -86,8 +90,14 @@ function Toggle({ on, onChange, testId }: { on: boolean; onChange: () => void; t
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function Settings() {
+  const { user } = useAuth()
+  const { firstName, lastName, initial } = user
+    ? parseUserDetailsFromEmail(user.email)
+    : { firstName: '', lastName: '', initial: '?' }
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [connections, setConnections] = useState(CONNECTED)
+  const [connectingPlatform, setConnectingPlatform] = useState<PlatformConfig | null>(null)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATIONS)
@@ -125,8 +135,16 @@ function Settings() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const toggleConnection = (platform: string) => {
-    setConnections((prev) => ({ ...prev, [platform]: !prev[platform] }))
+  const openConnectModal = (platform: PlatformConfig) => {
+    setConnectingPlatform(platform)
+  }
+
+  const handleConnectComplete = (platformId: string) => {
+    setConnections((prev) => ({ ...prev, [platformId]: true }))
+  }
+
+  const handleDisconnect = (platformId: string) => {
+    setConnections((prev) => ({ ...prev, [platformId]: false }))
   }
 
   // Helpers for updating nested AI config
@@ -234,12 +252,29 @@ function Settings() {
           {/* ── Profile Tab ──────────────────────────────────────────────── */}
           {activeTab === 'profile' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-                Profile Settings
-              </h2>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  Profile Settings
+                </h2>
+                <DemoBadge />
+              </div>
+              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>
                 Update your account information.
               </p>
+              <div
+                style={{
+                  background: '#fef3c7',
+                  border: '1px solid #fde68a',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  marginBottom: '20px',
+                  fontSize: '12px',
+                  color: '#92400e',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Demo data:</strong> The name, email, and company below are prefilled as sample values. Replace them with your real information.
+              </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <div
@@ -256,7 +291,7 @@ function Settings() {
                     fontWeight: 700,
                   }}
                 >
-                  K
+                  {initial}
                 </div>
                 <div>
                   <button
@@ -282,16 +317,16 @@ function Settings() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={labelStyle}>First Name</label>
-                  <input style={inputStyle} defaultValue="Ted" />
+                  <input key={`fn-${user?.id}`} style={inputStyle} defaultValue={firstName} />
                 </div>
                 <div>
                   <label style={labelStyle}>Last Name</label>
-                  <input style={inputStyle} defaultValue="Marketeer" />
+                  <input key={`ln-${user?.id}`} style={inputStyle} defaultValue={lastName} />
                 </div>
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={labelStyle}>Email Address</label>
-                <input style={inputStyle} defaultValue="tedm@example.com" />
+                <input key={`em-${user?.id}`} style={inputStyle} defaultValue={user?.email ?? ''} />
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={labelStyle}>Company / Brand Name</label>
@@ -338,7 +373,8 @@ function Settings() {
                         )}
                       </div>
                       <button
-                        onClick={() => toggleConnection(p.id)}
+                        data-testid={`platform-btn-${p.id}`}
+                        onClick={() => connected ? handleDisconnect(p.id) : openConnectModal(p)}
                         style={{
                           background: connected ? 'white' : '#52b788',
                           border: `1px solid ${connected ? '#e2e8f0' : '#52b788'}`,
@@ -486,17 +522,24 @@ function Settings() {
 
                   <div>
                     <label style={labelStyle}>Model</label>
-                    <select
+                    <input
                       style={inputStyle}
+                      placeholder="e.g. openai/gpt-4o-mini"
                       value={aiConfig.providers.openrouter.model}
                       onChange={(e) => updateProvider('openrouter', { model: e.target.value })}
-                    >
-                      {OPENROUTER_MODELS.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
+                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                      Paste any model ID from{' '}
+                      <a
+                        href="https://openrouter.ai/models"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#52b788' }}
+                      >
+                        openrouter.ai/models
+                      </a>
+                      .
+                    </p>
                   </div>
 
                   <div>
@@ -745,6 +788,15 @@ function Settings() {
           </div>
         </div>
       </div>
+
+      {/* Platform connection modal */}
+      {connectingPlatform && (
+        <PlatformConnectionModal
+          platform={connectingPlatform}
+          onClose={() => setConnectingPlatform(null)}
+          onConnect={handleConnectComplete}
+        />
+      )}
     </div>
   )
 }
