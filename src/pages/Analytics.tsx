@@ -1,5 +1,6 @@
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import PlatformBadge from '../components/PlatformBadge'
+import DemoBadge from '../components/DemoBadge'
 import type { Platform } from '../types'
 import { useCampaigns } from '../hooks/useCampaigns'
 
@@ -103,7 +104,10 @@ function Analytics() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Weekly Engagement</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Weekly Engagement</h2>
+              <DemoBadge />
+            </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               {[
                 { color: '#0077B5', label: 'LinkedIn' },
@@ -156,9 +160,12 @@ function Analytics() {
             padding: '24px',
           }}
         >
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '20px' }}>
-            Platform Breakdown
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              Platform Breakdown
+            </h2>
+            <DemoBadge />
+          </div>
           {PLATFORM_STATS.map(({ platform, posts, engagements, growth }) => {
             const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)
             return (

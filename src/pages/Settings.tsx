@@ -3,6 +3,7 @@ import { PLATFORM_CONFIGS } from '../data/sampleData'
 import { loadAIConfig, saveAIConfig, validateEndpointUrl } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import PlatformBadge from '../components/PlatformBadge'
+import DemoBadge from '../components/DemoBadge'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -234,12 +235,29 @@ function Settings() {
           {/* ── Profile Tab ──────────────────────────────────────────────── */}
           {activeTab === 'profile' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-                Profile Settings
-              </h2>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  Profile Settings
+                </h2>
+                <DemoBadge />
+              </div>
+              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>
                 Update your account information.
               </p>
+              <div
+                style={{
+                  background: '#fef3c7',
+                  border: '1px solid #fde68a',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  marginBottom: '20px',
+                  fontSize: '12px',
+                  color: '#92400e',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Demo data:</strong> The name, email, and company below are prefilled as sample values. Replace them with your real information.
+              </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <div
