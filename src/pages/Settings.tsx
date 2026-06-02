@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
-import { loadAIConfig, saveAIConfig, validateEndpointUrl, OPENROUTER_MODELS } from '../config/aiConfig'
+import { loadAIConfig, saveAIConfig, validateEndpointUrl } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import PlatformBadge from '../components/PlatformBadge'
 
@@ -486,17 +486,24 @@ function Settings() {
 
                   <div>
                     <label style={labelStyle}>Model</label>
-                    <select
+                    <input
                       style={inputStyle}
+                      placeholder="e.g. openai/gpt-4o-mini"
                       value={aiConfig.providers.openrouter.model}
                       onChange={(e) => updateProvider('openrouter', { model: e.target.value })}
-                    >
-                      {OPENROUTER_MODELS.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
+                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                      Paste any model ID from{' '}
+                      <a
+                        href="https://openrouter.ai/models"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#52b788' }}
+                      >
+                        openrouter.ai/models
+                      </a>
+                      .
+                    </p>
                   </div>
 
                   <div>
