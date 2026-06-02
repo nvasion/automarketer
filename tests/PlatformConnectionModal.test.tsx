@@ -299,12 +299,30 @@ describe('PlatformConnectionModal', () => {
 // ── Settings integration: modal opens on Connect click ───────────────────────
 
 import { HashRouter } from 'react-router-dom'
+import { AuthContext } from '../src/contexts/AuthContext'
 import Settings from '../src/pages/Settings'
+import type { PublicUser } from '../src/services/authService'
+
+const mockUser: PublicUser = {
+  id: 'test-id',
+  email: 'test.user@example.com',
+  createdAt: new Date().toISOString(),
+}
+
+const mockAuthContext = {
+  user: mockUser,
+  loading: false,
+  login: vi.fn(),
+  register: vi.fn(),
+  logout: vi.fn(),
+}
 
 function renderSettings() {
   return render(
     <HashRouter>
-      <Settings />
+      <AuthContext.Provider value={mockAuthContext}>
+        <Settings />
+      </AuthContext.Provider>
     </HashRouter>
   )
 }

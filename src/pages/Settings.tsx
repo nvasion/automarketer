@@ -7,6 +7,7 @@ import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
 import PlatformConnectionModal from '../components/PlatformConnectionModal'
+import DemoBadge from '../components/DemoBadge'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
