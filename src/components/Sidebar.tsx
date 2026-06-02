@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import DemoBadge from './DemoBadge'
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: '⬛' },
@@ -175,7 +176,10 @@ function Sidebar() {
         <div style={userCardStyle}>
           <div style={avatarStyle}>K</div>
           <div>
-            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>Ted Marketeer</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>Ted Marketeer</span>
+              <DemoBadge size="sm" />
+            </div>
             <div style={{ color: '#64748b', fontSize: '11px' }}>Pro Plan</div>
           </div>
           <span style={{ color: '#64748b', marginLeft: 'auto', fontSize: '16px' }}>⋯</span>

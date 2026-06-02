@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
+import DemoBadge from '../components/DemoBadge'
 import { useCampaigns, useCampaignStats } from '../hooks/useCampaigns'
 import type { CampaignRecord } from '../db/schema'
 
@@ -162,8 +163,9 @@ function Dashboard() {
             <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
               {card.value}
             </div>
-            <div style={{ fontSize: '12px', color: card.positive ? '#16a34a' : '#dc2626' }}>
-              {card.positive ? '↑' : '↓'} {card.change}
+            <div style={{ fontSize: '12px', color: card.positive ? '#16a34a' : '#dc2626', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+              <span>{card.positive ? '↑' : '↓'} {card.change}</span>
+              <DemoBadge size="sm" />
             </div>
           </div>
         ))}
@@ -251,9 +253,12 @@ function Dashboard() {
               padding: '20px',
             }}
           >
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '16px' }}>
-              Platform Performance
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                Platform Performance
+              </h3>
+              <DemoBadge />
+            </div>
             {[
               { platform: 'twitter', engagement: 18400, posts: 18, pct: 82 },
               { platform: 'linkedin', engagement: 8200, posts: 15, pct: 63 },
