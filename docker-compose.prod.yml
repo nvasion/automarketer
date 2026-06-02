@@ -30,7 +30,7 @@ services:
     image: postgres:18-alpine
     restart: always
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     environment:
       # All three variables are mandatory in production — no defaults.
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
