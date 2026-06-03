@@ -8,10 +8,11 @@
  *
  * Seeding
  * ───────
- * On first use (empty store) the model automatically seeds from the sample
- * data in `data/sampleData.ts`.  This mirrors a real database migration that
- * populates reference / demo data, and ensures the UI is not blank on a
- * fresh install.
+ * Demo data is opt-in. `init()` only seeds from `data/sampleData.ts` when
+ * the `VITE_SEED_DEMO_DATA` environment variable is set to `"true"`.
+ * By default the app starts with an empty store so production deployments
+ * never expose placeholder content to real users.
+ * Use `CampaignModel.seed()` directly in tests that need a pre-populated store.
  *
  * Error handling
  * ──────────────
@@ -160,27 +161,30 @@ export class CampaignModel {
    * Initialise the database on application startup.
    *
    * - If the stored schema version differs from `DB_SCHEMA_VERSION`, wipes the
-   *   store and re-seeds so the app always starts with valid data shapes.
-   * - If the store is empty, seeds sample data (first-run experience).
+   *   store so the app always starts with valid data shapes.
+   * - If the store is empty AND the `VITE_SEED_DEMO_DATA` environment variable
+   *   is set to `"true"`, seeds the store with sample campaigns.
+   *   By default (i.e. in production) the app starts with an empty store.
    */
   static init(): void {
     const storedVersion = parseInt(localStorage.getItem(DB_VERSION_KEY) ?? '0', 10)
 
     if (storedVersion !== DB_SCHEMA_VERSION) {
-      // Schema changed — clear and re-seed
+      // Schema changed — clear stale data
       localStorage.removeItem(CAMPAIGNS_KEY)
       localStorage.setItem(DB_VERSION_KEY, String(DB_SCHEMA_VERSION))
     }
 
-    if (readAll().length === 0) {
+    if (readAll().length === 0 && import.meta.env.VITE_SEED_DEMO_DATA === 'true') {
       CampaignModel.seed()
     }
   }
 
   /**
    * Populate the store with sample campaigns.
-   * Called automatically by `init()` on first use; can also be called
-   * directly in tests to reset state.
+   *
+   * Not called automatically by `init()` unless `VITE_SEED_DEMO_DATA=true`.
+   * Call this directly in tests or scripts that need a pre-populated store.
    */
   static seed(): void {
     const records = SAMPLE_CAMPAIGNS.map(sampleToCampaignRecord)

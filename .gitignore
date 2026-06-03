@@ -12,6 +12,7 @@
 vendor/
 node_modules/
 .npm/
+.npm-cache/
 
 # IDE
 .vscode/

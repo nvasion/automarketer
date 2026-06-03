@@ -39,12 +39,17 @@ function renderModal(
   return { ...result, ...props }
 }
 
+// Known state value injected by the mock so tests can include it in postMessage events.
+const MOCK_OAUTH_STATE = 'test-oauth-state-uuid'
+
 describe('PlatformConnectionModal', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mockPopup.closed = false
     // Default: popup opens successfully
     vi.spyOn(window, 'open').mockReturnValue(mockPopup as unknown as Window)
+    // Fix the random state so tests can assert on message contents
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(MOCK_OAUTH_STATE as ReturnType<typeof crypto.randomUUID>)
   })
 
   afterEach(() => {
@@ -160,6 +165,91 @@ describe('PlatformConnectionModal', () => {
     )
   })
 
+  it('OAuth flow: substitutes {REDIRECT_URI} with the real /oauth/callback URL', () => {
+    renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+    const [calledUrl] = (window.open as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(calledUrl).toContain('redirect_uri=')
+    expect(calledUrl).toContain(encodeURIComponent('/oauth/callback'))
+    expect(calledUrl).not.toContain('{REDIRECT_URI}')
+  })
+
+  it('OAuth flow: completes successfully when the callback postMessage is received', () => {
+    // renderModal() uses the LINKEDIN platform by default (see renderModal helper above)
+    const { onConnect, onClose } = renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) }) // open popup
+
+    // Simulate /oauth/callback posting a success message (with matching state)
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'test-auth-code', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
+    expect(screen.getByTestId('oauth-status').textContent).toContain('Connected')
+
+    act(() => { vi.advanceTimersByTime(800) })
+    expect(onConnect).toHaveBeenCalledWith('linkedin')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('OAuth flow: shows error when the callback postMessage contains an error', () => {
+    renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) }) // open popup
+
+    // Simulate the user denying access (include matching state for CSRF check)
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', error: 'access_denied', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
+    expect(screen.getByTestId('oauth-status').textContent).toContain('Authorization failed')
+    expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
+  })
+
+  it('OAuth flow: ignores postMessage events from other origins', () => {
+    renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+
+    // Message from a foreign origin must be silently ignored — flow stays in 'authorizing'
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'stolen-code', state: MOCK_OAUTH_STATE },
+          origin: 'https://evil.example.com',
+        })
+      )
+    })
+    expect(screen.getByTestId('oauth-status').textContent).toContain('authorisation')
+  })
+
+  it('OAuth flow: shows error when postMessage state does not match (CSRF)', () => {
+    renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+
+    // Message with wrong state must be rejected to prevent CSRF
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'injected-code', state: 'attacker-state' },
+          origin: window.location.origin,
+        })
+      )
+    })
+    expect(screen.getByTestId('oauth-status').textContent).toContain('state parameter mismatch')
+    expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
+  })
+
   it('OAuth flow: shows authorizing status once popup opens', () => {
     renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
@@ -167,21 +257,48 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('oauth-status').textContent).toContain('authorisation')
   })
 
-  it('OAuth flow: shows success and calls onConnect + onClose when popup closes', () => {
+  it('OAuth flow: shows cancellation error when user manually closes the popup', () => {
+    // Manually closing the popup means the user abandoned the flow — it is NOT
+    // a success.  Success only comes via the postMessage from /oauth/callback.
     const { onConnect, onClose } = renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // open popup
 
-    // Simulate user completing OAuth in the popup
     mockPopup.closed = true
-    act(() => { vi.advanceTimersByTime(500) }) // one poll interval
+    act(() => { vi.advanceTimersByTime(500) }) // one poll interval detects closed popup
+
+    // Should show a cancellation error, not the success state
+    expect(screen.getByTestId('oauth-status').textContent).toContain('cancelled')
+    expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
+    expect(onConnect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('OAuth flow: popup closed after postMessage does not double-resolve (success wins)', () => {
+    // When the callback page posts a success message AND then closes the popup,
+    // the poll timer fires after `resolved = true` and must be a no-op.
+    const { onConnect } = renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) }) // open popup
+
+    // Success message arrives first
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'auth-code', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
     expect(screen.getByTestId('oauth-status').textContent).toContain('Connected')
 
-    // onConnect and onClose fire after the 800ms success delay
-    expect(onConnect).not.toHaveBeenCalled()
+    // Popup then closes — the poll timer should not override the success state
+    mockPopup.closed = true
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(screen.getByTestId('oauth-status').textContent).toContain('Connected')
+
     act(() => { vi.advanceTimersByTime(800) })
-    expect(onConnect).toHaveBeenCalledWith('linkedin')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onConnect).toHaveBeenCalledTimes(1)
   })
 
   it('OAuth flow: shows error when popup is blocked', () => {
@@ -331,6 +448,8 @@ describe('Settings – Connected Platforms tab', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.spyOn(window, 'open').mockReturnValue({ closed: false } as unknown as Window)
+    // Fix the random state so tests can include it in postMessage events
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(MOCK_OAUTH_STATE as ReturnType<typeof crypto.randomUUID>)
   })
 
   afterEach(() => {
@@ -374,12 +493,28 @@ describe('Settings – Connected Platforms tab', () => {
   it('Disconnect button immediately disconnects without opening modal', () => {
     renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
-    // LinkedIn is connected by default
+
+    // First connect LinkedIn via the real OAuth success path (postMessage from /oauth/callback)
+    fireEvent.click(screen.getByTestId('platform-btn-linkedin'))
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) }) // open popup
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'auth-code', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
+    act(() => { vi.advanceTimersByTime(800) }) // success delay → onConnect fires, modal closes
+
+    // Now LinkedIn shows Disconnect
     expect(screen.getByTestId('platform-btn-linkedin').textContent).toBe('Disconnect')
     fireEvent.click(screen.getByTestId('platform-btn-linkedin'))
-    // No modal
+    // No modal opened for a disconnect action
     expect(screen.queryByTestId('platform-connection-modal')).toBeNull()
-    // Button now says Connect
+    // Button reverts to Connect
     expect(screen.getByTestId('platform-btn-linkedin').textContent).toBe('Connect')
   })
 })

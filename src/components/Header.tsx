@@ -24,7 +24,7 @@ function Header() {
   return (
     <header style={headerStyle}>
       <Link to="/" style={linkStyle}>
-        <h2>silent-elk-bronze</h2>
+        <h2>AutoMarketer</h2>
       </Link>
       <nav style={navStyle}>
         <Link to="/" style={linkStyle}>Home</Link>

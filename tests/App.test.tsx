@@ -32,10 +32,10 @@ function renderApp() {
   )
 }
 
-// Seed sample data before each test so the dashboard has campaigns to display.
+// Explicitly seed demo campaigns before each test so the dashboard has data.
 beforeEach(() => {
   localStorage.clear()
-  CampaignModel.init()
+  CampaignModel.seed()
 })
 
 describe('App', () => {

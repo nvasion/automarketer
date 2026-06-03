@@ -60,12 +60,24 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
     setOauthError(null)
 
     // Allow React to render the 'opening' state before the popup appears.
-    // The popup window initiates the real OAuth 2.0 authorization flow —
-    // the platform redirects back to the app's /oauth/callback route which
-    // posts a message to window.opener on success.
+    // The popup window initiates the OAuth 2.0 authorization flow.  The
+    // platform redirects back to /oauth/callback, which posts a message to
+    // window.opener and closes itself.  We also poll as a fallback in case
+    // the user closes the popup manually before completing auth.
     setTimeout(() => {
+      // Substitute URL placeholders with runtime values.
+      // {REDIRECT_URI} — must exactly match the URI registered in the platform's
+      //   developer dashboard (OAuth 2.0 §4.1.1).
+      // {STATE}        — a cryptographically random token bound to this request;
+      //   validated in onMessage below to prevent CSRF attacks (RFC 6749 §10.12).
+      const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`)
+      const state = crypto.randomUUID()
+      const url = oauthConfig.authUrl
+        .replace('{REDIRECT_URI}', redirectUri)
+        .replace('{STATE}', state)
+
       const popup = window.open(
-        oauthConfig.authUrl,
+        url,
         `oauth-${platform.id}`,
         'width=600,height=700,scrollbars=yes,resizable=yes'
       )
@@ -80,17 +92,54 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
 
       setOauthStep('authorizing')
 
-      // Poll until the popup is closed by the user completing (or cancelling) OAuth.
-      // In production the OAuth callback page posts a MessageEvent to window.opener
-      // confirming success or failure before the popup closes itself.
-      const pollTimer = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(pollTimer)
+      let resolved = false
+
+      // Finalise the OAuth flow — idempotent so both the message listener
+      // and the poll timer can call it without racing.
+      const resolve = (success: boolean, errorMsg?: string) => {
+        if (resolved) return
+        resolved = true
+        clearInterval(pollTimer)
+        window.removeEventListener('message', onMessage)
+        if (success) {
           setOauthStep('success')
           setTimeout(() => {
             onConnect(platform.id)
             onClose()
           }, 800)
+        } else {
+          setOauthStep('error')
+          setOauthError(errorMsg ?? 'Authorization failed.')
+        }
+      }
+
+      // Primary path: /oauth/callback posts a message to window.opener with the
+      // authorization code (or an error) before closing the popup window.
+      const onMessage = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return
+        if (e.data?.type !== 'oauth_callback') return
+        // Validate state to reject forged/replayed callbacks (CSRF protection).
+        if (e.data.state !== state) {
+          resolve(false, 'Authorization failed: state parameter mismatch. Please try again.')
+          return
+        }
+        if (e.data.error) {
+          // Limit length to prevent log injection; React JSX escapes HTML automatically.
+          const safeError = String(e.data.error).substring(0, 200)
+          resolve(false, `Authorization failed: ${safeError}`)
+        } else {
+          resolve(true)
+        }
+      }
+      window.addEventListener('message', onMessage)
+
+      // Fallback: detect the popup being closed by the user without completing
+      // auth (e.g. they dismissed the window).  A successful flow closes the
+      // popup *after* posting a message, so `resolved` will already be true by
+      // the time this fires — making the call a no-op.
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          resolve(false, 'Authorization was cancelled.')
         }
       }, 500)
     }, 100)

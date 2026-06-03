@@ -44,18 +44,27 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 // ─── initDb() ─────────────────────────────────────────────────────────────────
 
 describe('initDb()', () => {
-  it('seeds sample campaigns on first call', async () => {
+  it('starts with an empty store by default (no VITE_SEED_DEMO_DATA)', async () => {
+    initDb()
+    const campaigns = await fetchCampaigns()
+    expect(campaigns.length).toBe(0)
+  })
+
+  it('seeds demo campaigns when VITE_SEED_DEMO_DATA=true', async () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     initDb()
     const campaigns = await fetchCampaigns()
     expect(campaigns.length).toBeGreaterThan(0)
   })
 
   it('is idempotent', async () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     initDb()
     const count1 = (await fetchCampaigns()).length
     initDb()
@@ -80,7 +89,8 @@ describe('fetchCampaigns()', () => {
   })
 
   it('returns campaigns sorted by createdAt descending', async () => {
-    // Use the seeded sample data which has known timestamps spread across days
+    // Seed demo data to get multiple campaigns with known timestamps
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     initDb()
     const campaigns = await fetchCampaigns()
     // Verify the returned list is in non-ascending createdAt order
