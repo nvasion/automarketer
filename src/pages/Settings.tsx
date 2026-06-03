@@ -7,7 +7,6 @@ import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
 import PlatformConnectionModal from '../components/PlatformConnectionModal'
-import DemoBadge from '../components/DemoBadge'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -31,8 +30,8 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
 ]
 
 const CONNECTED: Record<string, boolean> = {
-  linkedin: true,
-  twitter: true,
+  linkedin: false,
+  twitter: false,
   reddit: false,
   facebook: false,
   instagram: false,
@@ -253,29 +252,12 @@ function Settings() {
           {/* ── Profile Tab ──────────────────────────────────────────────── */}
           {activeTab === 'profile' && (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                  Profile Settings
-                </h2>
-                <DemoBadge />
-              </div>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+                Profile Settings
+              </h2>
+              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
                 Update your account information.
               </p>
-              <div
-                style={{
-                  background: '#fef3c7',
-                  border: '1px solid #fde68a',
-                  borderRadius: '8px',
-                  padding: '10px 14px',
-                  marginBottom: '20px',
-                  fontSize: '12px',
-                  color: '#92400e',
-                  lineHeight: 1.5,
-                }}
-              >
-                <strong>Demo data:</strong> The name, email, and company below are prefilled as sample values. Replace them with your real information.
-              </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <div

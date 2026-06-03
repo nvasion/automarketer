@@ -55,6 +55,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 // ─── Workflow 1: Full CRUD lifecycle ─────────────────────────────────────────
@@ -221,7 +222,8 @@ describe('Stats stay in sync with mutations', () => {
     expect((await fetchCampaignStats()).activeCampaigns).toBe(1)
   })
 
-  it('seeded sample data produces non-zero stats', async () => {
+  it('seeded sample data produces non-zero stats when VITE_SEED_DEMO_DATA=true', async () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     initDb()
     const stats = await fetchCampaignStats()
     expect(stats.totalCampaigns).toBeGreaterThan(0)
@@ -233,7 +235,8 @@ describe('Stats stay in sync with mutations', () => {
 // ─── Workflow 4: Database initialisation and seeding ────────────────────────
 
 describe('Database initialisation', () => {
-  it('initDb() seeds sample campaigns on a fresh store', async () => {
+  it('initDb() seeds sample campaigns when VITE_SEED_DEMO_DATA=true', async () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     initDb()
     const campaigns = await fetchCampaigns()
     expect(campaigns.length).toBeGreaterThan(0)
@@ -247,6 +250,7 @@ describe('Database initialisation', () => {
   })
 
   it('initDb() is idempotent — calling it twice does not duplicate records', async () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     initDb()
     const count1 = (await fetchCampaigns()).length
     initDb()
@@ -254,14 +258,13 @@ describe('Database initialisation', () => {
     expect(count2).toBe(count1)
   })
 
-  it('re-seeds when schema version is stale', () => {
+  it('clears stale data when schema version changes', () => {
     localStorage.setItem('automarketer_db_version', '0')
-    localStorage.setItem('automarketer_campaigns', JSON.stringify([{ id: 'stale-record' }]))
+    localStorage.setItem('automarketer_campaigns', JSON.stringify([{ id: 'stale-record', name: 'old' }]))
 
     CampaignModel.init()
     const all = CampaignModel.findAll()
     expect(all.every((c) => c.id !== 'stale-record')).toBe(true)
-    expect(all.length).toBeGreaterThan(0)
   })
 })
 

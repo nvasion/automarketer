@@ -2,9 +2,9 @@ import { useNavigate } from 'react-router-dom'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
-import DemoBadge from '../components/DemoBadge'
 import { useCampaigns, useCampaignStats } from '../hooks/useCampaigns'
 import type { CampaignRecord } from '../db/schema'
+import type { Platform } from '../types'
 
 function CampaignRow({ campaign }: { campaign: CampaignRecord }) {
   const navigate = useNavigate()
@@ -55,8 +55,6 @@ function Dashboard() {
       icon: '📢',
       color: '#6366f1',
       bg: '#eff0ff',
-      change: '+2 this week',
-      positive: true,
     },
     {
       label: 'Posts Published',
@@ -64,8 +62,6 @@ function Dashboard() {
       icon: '✅',
       color: '#10b981',
       bg: '#ecfdf5',
-      change: '+8 this week',
-      positive: true,
     },
     {
       label: 'Total Engagements',
@@ -77,8 +73,6 @@ function Dashboard() {
       icon: '🔥',
       color: '#f59e0b',
       bg: '#fffbeb',
-      change: '+12.4% vs last month',
-      positive: true,
     },
     {
       label: 'Avg. Engagement Rate',
@@ -86,10 +80,23 @@ function Dashboard() {
       icon: '📈',
       color: '#3b82f6',
       bg: '#eff6ff',
-      change: '+0.3% vs last month',
-      positive: true,
     },
   ]
+
+  // Compute platform performance from real campaign data
+  const platformPerformance = PLATFORM_CONFIGS.map((cfg) => {
+    const posts = campaigns.flatMap((c) => c.posts).filter((p) => p.platform === cfg.id)
+    const engagements = posts
+      .filter((p) => p.engagements)
+      .reduce(
+        (sum, p) =>
+          sum + (p.engagements?.likes ?? 0) + (p.engagements?.comments ?? 0) + (p.engagements?.shares ?? 0),
+        0
+      )
+    return { platform: cfg.id as Platform, cfg, posts: posts.length, engagements }
+  }).filter((p) => p.posts > 0)
+
+  const maxEngagements = Math.max(...platformPerformance.map((p) => p.engagements), 1)
 
   return (
     <div style={{ padding: '32px 32px 48px' }}>
@@ -160,12 +167,8 @@ function Dashboard() {
                 {card.icon}
               </span>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>
               {card.value}
-            </div>
-            <div style={{ fontSize: '12px', color: card.positive ? '#16a34a' : '#dc2626', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-              <span>{card.positive ? '↑' : '↓'} {card.change}</span>
-              <DemoBadge size="sm" />
             </div>
           </div>
         ))}
@@ -210,6 +213,16 @@ function Dashboard() {
             <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
               Loading campaigns…
             </div>
+          ) : campaigns.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+              No campaigns yet.{' '}
+              <span
+                onClick={() => navigate('/create')}
+                style={{ color: '#52b788', cursor: 'pointer', fontWeight: 500 }}
+              >
+                Create your first campaign →
+              </span>
+            </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -253,45 +266,43 @@ function Dashboard() {
               padding: '20px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                Platform Performance
-              </h3>
-              <DemoBadge />
-            </div>
-            {[
-              { platform: 'twitter', engagement: 18400, posts: 18, pct: 82 },
-              { platform: 'linkedin', engagement: 8200, posts: 15, pct: 63 },
-              { platform: 'reddit', engagement: 3100, posts: 8, pct: 38 },
-              { platform: 'instagram', engagement: 2100, posts: 6, pct: 28 },
-            ].map(({ platform, engagement, posts, pct }) => {
-              const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)
-              return (
-                <div key={platform} style={{ marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <PlatformBadge platform={platform as never} size="sm" />
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#334155' }}>{cfg?.name}</span>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '16px' }}>
+              Platform Performance
+            </h3>
+            {platformPerformance.length === 0 ? (
+              <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>
+                No engagement data yet.
+              </div>
+            ) : (
+              platformPerformance.map(({ platform, cfg, engagements, posts }) => {
+                const pct = Math.round((engagements / maxEngagements) * 100)
+                return (
+                  <div key={platform} style={{ marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <PlatformBadge platform={platform} size="sm" />
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#334155' }}>{cfg.name}</span>
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                        {engagements >= 1000 ? `${(engagements / 1000).toFixed(1)}k` : engagements} engagements
+                      </span>
                     </div>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>
-                      {engagement >= 1000 ? `${(engagement / 1000).toFixed(1)}k` : engagement} engagements
-                    </span>
+                    <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${pct}%`,
+                          background: cfg.bgColor ?? '#6366f1',
+                          borderRadius: '3px',
+                          transition: 'width 0.8s ease',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>{posts} posts</div>
                   </div>
-                  <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${pct}%`,
-                        background: cfg?.bgColor ?? '#6366f1',
-                        borderRadius: '3px',
-                        transition: 'width 0.8s ease',
-                      }}
-                    />
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>{posts} posts</div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
           </div>
 
           {/* Quick actions */}

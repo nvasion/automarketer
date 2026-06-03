@@ -30,33 +30,40 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 // ─── init() ───────────────────────────────────────────────────────────────────
 
 describe('CampaignModel.init()', () => {
-  it('seeds sample campaigns when store is empty', () => {
+  it('starts with an empty store by default (no VITE_SEED_DEMO_DATA)', () => {
     CampaignModel.init()
-    const all = CampaignModel.findAll()
-    expect(all.length).toBeGreaterThan(0)
+    expect(CampaignModel.count()).toBe(0)
+  })
+
+  it('seeds sample campaigns when VITE_SEED_DEMO_DATA=true', () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
+    CampaignModel.init()
+    expect(CampaignModel.findAll().length).toBeGreaterThan(0)
   })
 
   it('is idempotent — calling init() twice does not duplicate records', () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
     CampaignModel.init()
     const countAfterFirst = CampaignModel.count()
     CampaignModel.init()
     expect(CampaignModel.count()).toBe(countAfterFirst)
   })
 
-  it('re-seeds when schema version is stale', () => {
+  it('clears stale data when schema version changes', () => {
     // Manually set an old version
     localStorage.setItem('automarketer_db_version', '0')
-    // Put some garbage data in the store
-    localStorage.setItem('automarketer_campaigns', JSON.stringify([{ id: 'stale' }]))
+    // Put some data in the store
+    localStorage.setItem('automarketer_campaigns', JSON.stringify([{ id: 'stale', name: 'old' }]))
 
     CampaignModel.init()
     const all = CampaignModel.findAll()
-    // Should have seeded fresh sample data, not kept the stale record
+    // Stale record must be gone after the schema version bump clears the store
     expect(all.every((c) => c.id !== 'stale')).toBe(true)
   })
 })

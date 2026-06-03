@@ -372,14 +372,27 @@ describe('Settings – Connected Platforms tab', () => {
   })
 
   it('Disconnect button immediately disconnects without opening modal', () => {
+    // Use a controllable popup so we can simulate the OAuth completion
+    const popup = { closed: false }
+    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window)
+
     renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
-    // LinkedIn is connected by default
+
+    // First connect LinkedIn via the OAuth flow
+    fireEvent.click(screen.getByTestId('platform-btn-linkedin'))
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) }) // open popup
+    popup.closed = true
+    act(() => { vi.advanceTimersByTime(500) }) // poll detects closed popup → success
+    act(() => { vi.advanceTimersByTime(800) }) // success delay → onConnect fires, modal closes
+
+    // Now LinkedIn shows Disconnect
     expect(screen.getByTestId('platform-btn-linkedin').textContent).toBe('Disconnect')
     fireEvent.click(screen.getByTestId('platform-btn-linkedin'))
-    // No modal
+    // No modal opened for a disconnect action
     expect(screen.queryByTestId('platform-connection-modal')).toBeNull()
-    // Button now says Connect
+    // Button reverts to Connect
     expect(screen.getByTestId('platform-btn-linkedin').textContent).toBe('Connect')
   })
 })

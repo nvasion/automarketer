@@ -170,11 +170,3 @@ export const SAMPLE_CAMPAIGNS: Campaign[] = [
   },
 ]
 
-export const STATS = {
-  totalCampaigns: 12,
-  activeCampaigns: 4,
-  totalPostsPublished: 47,
-  totalEngagements: 128400,
-  avgEngagementRate: 4.2,
-  topPlatform: 'twitter' as const,
-}

@@ -6,7 +6,7 @@ import App from './App'
 import { initDb } from './api/campaigns'
 import './index.css'
 
-// Initialise the local database (seeds sample data on first run).
+// Initialise the local database. Demo data is only seeded when VITE_SEED_DEMO_DATA=true.
 initDb()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
