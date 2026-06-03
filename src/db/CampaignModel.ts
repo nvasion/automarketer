@@ -61,6 +61,21 @@ export class StorageError extends Error {
 
 const CAMPAIGNS_KEY = 'automarketer_campaigns'
 const DB_VERSION_KEY = 'automarketer_db_version'
+/**
+ * Written to localStorage (value "true") whenever `seed()` populates the store.
+ * Read by `init()` to detect and remove demo data when the app is started
+ * without `VITE_SEED_DEMO_DATA=true`, ensuring a production deployment never
+ * surfaces placeholder content left over from a previous demo run.
+ */
+const DEMO_SEEDED_KEY = 'automarketer_demo_seeded'
+
+/**
+ * Fixed IDs of the built-in sample campaigns.
+ * Used as a fallback to detect pre-existing demo data that was seeded before
+ * the `DEMO_SEEDED_KEY` mechanism was introduced (i.e. when the flag is absent
+ * but the store contains only sample records).
+ */
+const SAMPLE_IDS: ReadonlySet<string> = new Set(SAMPLE_CAMPAIGNS.map((c) => c.id))
 
 // ─── UUID helper ──────────────────────────────────────────────────────────────
 
@@ -162,33 +177,62 @@ export class CampaignModel {
    *
    * - If the stored schema version differs from `DB_SCHEMA_VERSION`, wipes the
    *   store so the app always starts with valid data shapes.
-   * - If the store is empty AND the `VITE_SEED_DEMO_DATA` environment variable
-   *   is set to `"true"`, seeds the store with sample campaigns.
-   *   By default (i.e. in production) the app starts with an empty store.
+   * - If the app is NOT running in demo mode (i.e. `VITE_SEED_DEMO_DATA` is not
+   *   `"true"`), any previously-seeded demo data is removed so that a production
+   *   deployment or a fresh non-demo run always starts with an empty store.
+   *   Demo data is detected via two mechanisms:
+   *     (a) the `automarketer_demo_seeded` flag written by `seed()`, or
+   *     (b) all stored records having IDs that match the built-in sample set
+   *         (handles stores seeded before the flag was introduced).
+   * - If the store is empty AND `VITE_SEED_DEMO_DATA=true`, seeds sample data.
    */
   static init(): void {
     const storedVersion = parseInt(localStorage.getItem(DB_VERSION_KEY) ?? '0', 10)
 
     if (storedVersion !== DB_SCHEMA_VERSION) {
-      // Schema changed — clear stale data
+      // Schema changed — clear stale data and the demo flag together.
       localStorage.removeItem(CAMPAIGNS_KEY)
+      localStorage.removeItem(DEMO_SEEDED_KEY)
       localStorage.setItem(DB_VERSION_KEY, String(DB_SCHEMA_VERSION))
     }
 
-    if (readAll().length === 0 && import.meta.env.VITE_SEED_DEMO_DATA === 'true') {
+    const isDemoMode = import.meta.env.VITE_SEED_DEMO_DATA === 'true'
+
+    if (!isDemoMode) {
+      // Remove demo data when the env var is absent or disabled.
+      // This handles two cases:
+      //   (a) Explicit flag: the store was marked as demo-seeded.
+      //   (b) Legacy detection: all stored records match the sample IDs,
+      //       meaning demo data was seeded before the flag existed.
+      const wasMarkedAsDemo = localStorage.getItem(DEMO_SEEDED_KEY) === 'true'
+      const stored = readAll()
+      const allAreSampleRecords =
+        stored.length > 0 && stored.every((c) => SAMPLE_IDS.has(c.id))
+
+      if (wasMarkedAsDemo || allAreSampleRecords) {
+        localStorage.removeItem(CAMPAIGNS_KEY)
+        localStorage.removeItem(DEMO_SEEDED_KEY)
+      }
+    }
+
+    if (readAll().length === 0 && isDemoMode) {
       CampaignModel.seed()
     }
   }
 
   /**
-   * Populate the store with sample campaigns.
+   * Populate the store with sample campaigns and mark the store as demo-seeded.
    *
    * Not called automatically by `init()` unless `VITE_SEED_DEMO_DATA=true`.
    * Call this directly in tests or scripts that need a pre-populated store.
+   *
+   * The `automarketer_demo_seeded` flag is set so that `init()` can identify
+   * and remove this data when the app is later started without the demo env var.
    */
   static seed(): void {
     const records = SAMPLE_CAMPAIGNS.map(sampleToCampaignRecord)
     writeAll(records)
+    localStorage.setItem(DEMO_SEEDED_KEY, 'true')
   }
 
   // ── Read operations ───────────────────────────────────────────────────────────

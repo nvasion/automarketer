@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
 import { useCampaigns } from '../hooks/useCampaigns'
@@ -40,9 +40,9 @@ function getPostsForDay(
 }
 
 function Scheduler() {
-  const today = new Date(2026, 4, 18) // May 18, 2026
-  const [viewYear, setViewYear] = useState(today.getFullYear())
-  const [viewMonth, setViewMonth] = useState(today.getMonth())
+  const today = useMemo(() => new Date(), [])
+  const [viewYear, setViewYear] = useState(() => today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(() => today.getMonth())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const { campaigns } = useCampaigns()
 

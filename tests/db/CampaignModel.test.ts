@@ -66,6 +66,55 @@ describe('CampaignModel.init()', () => {
     // Stale record must be gone after the schema version bump clears the store
     expect(all.every((c) => c.id !== 'stale')).toBe(true)
   })
+
+  it('clears demo data when VITE_SEED_DEMO_DATA is removed after a prior demo run', () => {
+    // First run: demo mode ON — seeds data and sets the flag
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
+    CampaignModel.init()
+    expect(CampaignModel.count()).toBeGreaterThan(0)
+
+    // Second run: demo mode OFF — demo data must be cleared
+    vi.stubEnv('VITE_SEED_DEMO_DATA', '')
+    CampaignModel.init()
+    expect(CampaignModel.count()).toBe(0)
+  })
+
+  it('clears demo data seeded before the flag existed (legacy detection via sample IDs)', () => {
+    // Simulate an old-style seed: write sample records but remove the demo flag
+    CampaignModel.seed()
+    localStorage.removeItem('automarketer_demo_seeded')
+    expect(CampaignModel.count()).toBeGreaterThan(0)
+
+    // init() without demo mode should still detect and remove them by ID match
+    CampaignModel.init()
+    expect(CampaignModel.count()).toBe(0)
+  })
+
+  it('does not clear real user data when VITE_SEED_DEMO_DATA is not set', () => {
+    // Create campaigns that are NOT sample records (different IDs)
+    CampaignModel.create(BASE_INPUT)
+    CampaignModel.create({ ...BASE_INPUT, name: 'Second campaign' })
+
+    CampaignModel.init()
+    // Real user campaigns must be untouched
+    expect(CampaignModel.count()).toBe(2)
+  })
+
+  it('sets the demo-seeded flag after seeding via init()', () => {
+    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
+    CampaignModel.init()
+    expect(localStorage.getItem('automarketer_demo_seeded')).toBe('true')
+  })
+
+  it('clears the demo-seeded flag when schema version changes', () => {
+    // Plant a demo flag in storage
+    localStorage.setItem('automarketer_demo_seeded', 'true')
+    // Force a schema version mismatch
+    localStorage.setItem('automarketer_db_version', '0')
+
+    CampaignModel.init()
+    expect(localStorage.getItem('automarketer_demo_seeded')).toBeNull()
+  })
 })
 
 // ─── seed() ───────────────────────────────────────────────────────────────────

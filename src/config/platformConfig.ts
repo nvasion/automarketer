@@ -16,14 +16,26 @@ export interface PlatformOAuthConfig {
   /** Canonical short marketing name, e.g. "X" (not "X (Twitter)") */
   shortName: string
   /**
-   * OAuth 2.0 authorization endpoint.
-   * In production, replace {CLIENT_ID}, {REDIRECT_URI}, and {STATE} with your
-   * registered app values — these are placeholder URLs for the demo build.
-   *
-   * {STATE} is a cryptographically random value generated at runtime to
-   * prevent CSRF attacks (RFC 6749 §10.12).
+   * OAuth 2.0 authorization endpoint template.
+   * At runtime the following placeholders are substituted before the popup opens:
+   *   {CLIENT_ID}      — value of `clientId` (from the VITE_*_CLIENT_ID env var)
+   *   {REDIRECT_URI}   — URL-encoded `<origin>/oauth/callback`
+   *   {STATE}          — cryptographically random CSRF token (RFC 6749 §10.12)
+   *   {CODE_CHALLENGE} — PKCE S256 challenge derived from a random verifier (RFC 7636)
    */
   authUrl: string
+  /**
+   * OAuth 2.0 client ID for this platform.
+   * Read from the corresponding VITE_*_CLIENT_ID environment variable so the
+   * value is baked into the client bundle at build time without exposing secrets
+   * (client IDs are public; client secrets must never be stored here).
+   */
+  clientId: string
+  /**
+   * Name of the VITE_* environment variable that supplies `clientId`.
+   * Used in developer-facing error messages when the value is missing.
+   */
+  envVarName: string
 }
 
 // ── Per-platform credential field definitions with format validation ───────────
@@ -124,31 +136,46 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
   linkedin: {
     label: 'Sign in with LinkedIn',
     shortName: 'LinkedIn',
+    clientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID ?? '',
+    envVarName: 'VITE_LINKEDIN_CLIENT_ID',
     authUrl:
       'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid%20profile%20email%20w_member_social&state={STATE}',
   },
   twitter: {
     label: 'Sign in with X',
     shortName: 'X',
+    clientId: import.meta.env.VITE_TWITTER_CLIENT_ID ?? '',
+    envVarName: 'VITE_TWITTER_CLIENT_ID',
+    // Twitter/X OAuth 2.0 requires PKCE (RFC 7636).  {CODE_CHALLENGE} is
+    // replaced at runtime with a BASE64URL(SHA-256(code_verifier)) value.
     authUrl:
-      'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge_method=s256&state={STATE}',
+      'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge={CODE_CHALLENGE}&code_challenge_method=s256&state={STATE}',
   },
   reddit: {
     label: 'Sign in with Reddit',
     shortName: 'Reddit',
+    clientId: import.meta.env.VITE_REDDIT_CLIENT_ID ?? '',
+    envVarName: 'VITE_REDDIT_CLIENT_ID',
     authUrl:
       'https://www.reddit.com/api/v1/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=read%20submit&duration=permanent&state={STATE}',
   },
   facebook: {
     label: 'Sign in with Facebook',
     shortName: 'Facebook',
+    clientId: import.meta.env.VITE_FACEBOOK_APP_ID ?? '',
+    envVarName: 'VITE_FACEBOOK_APP_ID',
     authUrl:
       'https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=pages_manage_posts%2Cpages_read_engagement&state={STATE}',
   },
   instagram: {
     label: 'Sign in with Instagram',
     shortName: 'Instagram',
+    // Instagram Graph API access is gated behind Meta's standard OAuth dialog
+    // using the same Meta App ID as Facebook.  The legacy Basic Display API
+    // endpoint (api.instagram.com/oauth/authorize) was removed in Dec 2024.
+    clientId: import.meta.env.VITE_FACEBOOK_APP_ID ?? '',
+    envVarName: 'VITE_FACEBOOK_APP_ID',
     authUrl:
-      'https://api.instagram.com/oauth/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=user_profile%2Cuser_media&state={STATE}',
+      'https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=instagram_basic%2Cinstagram_content_publish%2Cpages_show_list%2Cpages_read_engagement&state={STATE}',
   },
 }

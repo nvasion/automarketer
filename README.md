@@ -1,4 +1,10 @@
-# AutoMarketer
+<div align="center">
+  <img src="public/logo.svg" alt="AutoMarketer" width="120" height="120" />
+  <h1>AutoMarketer</h1>
+  <p><strong>AI-powered social media marketing automation</strong></p>
+</div>
+
+---
 
 An AI-powered social media marketing campaign manager built with React and TypeScript. Create, manage, and analyze marketing campaigns across multiple platforms — LinkedIn, Twitter/X, Reddit, Facebook, and Instagram.
 

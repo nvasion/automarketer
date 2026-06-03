@@ -49,10 +49,42 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
 
   // ── OAuth flow (popup-based) ──────────────────────────────────────────────
 
+  /**
+   * Generate a PKCE (RFC 7636) code_verifier / code_challenge pair using the
+   * Web Cryptography API.  Required by platforms such as Twitter/X that mandate
+   * PKCE for public (non-confidential) OAuth 2.0 clients.
+   */
+  async function generatePKCEChallenge(): Promise<{ codeVerifier: string; codeChallenge: string }> {
+    // 32 random bytes → 43-char Base64url verifier (within the 43-128 char range)
+    const raw = new Uint8Array(32)
+    crypto.getRandomValues(raw)
+    const codeVerifier = btoa(String.fromCharCode(...raw))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier))
+    const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+
+    return { codeVerifier, codeChallenge }
+  }
+
   const handleOAuth = () => {
     if (!oauthConfig) {
       setOauthStep('error')
       setOauthError('OAuth is not configured for this platform.')
+      return
+    }
+
+    if (!oauthConfig.clientId) {
+      setOauthStep('error')
+      setOauthError(
+        `OAuth for ${displayName} is not configured. ` +
+          `Set ${oauthConfig.envVarName} in your environment and rebuild.`
+      )
       return
     }
 
@@ -64,17 +96,28 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
     // platform redirects back to /oauth/callback, which posts a message to
     // window.opener and closes itself.  We also poll as a fallback in case
     // the user closes the popup manually before completing auth.
-    setTimeout(() => {
+    setTimeout(async () => {
       // Substitute URL placeholders with runtime values.
+      // {CLIENT_ID}    — the registered OAuth 2.0 client ID for this app.
       // {REDIRECT_URI} — must exactly match the URI registered in the platform's
       //   developer dashboard (OAuth 2.0 §4.1.1).
       // {STATE}        — a cryptographically random token bound to this request;
       //   validated in onMessage below to prevent CSRF attacks (RFC 6749 §10.12).
+      // {CODE_CHALLENGE} — PKCE S256 challenge (RFC 7636); only present in URLs
+      //   that require PKCE (e.g. Twitter/X).
       const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`)
       const state = crypto.randomUUID()
-      const url = oauthConfig.authUrl
+
+      let url = oauthConfig.authUrl
+        .replace('{CLIENT_ID}', encodeURIComponent(oauthConfig.clientId))
         .replace('{REDIRECT_URI}', redirectUri)
         .replace('{STATE}', state)
+
+      // Generate and inject the PKCE code_challenge for platforms that require it.
+      if (url.includes('{CODE_CHALLENGE}')) {
+        const { codeChallenge } = await generatePKCEChallenge()
+        url = url.replace('{CODE_CHALLENGE}', codeChallenge)
+      }
 
       const popup = window.open(
         url,
