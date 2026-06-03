@@ -117,7 +117,7 @@ export const SAMPLE_CAMPAIGNS: Campaign[] = [
           "📊 Did you know that 80% of people who track their health metrics consistently report better long-term outcomes?\n\nHealthTrack makes it simple to monitor what matters — sleep quality, nutrition, activity, and mental wellness — all in one place.\n\nOur new dashboard gives you a weekly health score with personalized recommendations backed by peer-reviewed research. No fads, no gimmicks.\n\nIf you're serious about your health in 2026, give HealthTrack a try. 14-day free trial, no credit card required.",
         hashtags: ['#HealthTech', '#Wellness', '#DigitalHealth', '#PersonalHealth'],
         status: 'scheduled',
-        scheduledAt: '2026-05-20T09:00:00Z',
+        scheduledAt: '2026-06-10T09:00:00Z',
       },
       {
         id: 'post-002-tw',
@@ -126,7 +126,7 @@ export const SAMPLE_CAMPAIGNS: Campaign[] = [
           "Your health data is scattered across 6 different apps 🤯\n\nHealthTrack brings it all together:\n• Sleep from Apple Watch\n• Nutrition from MyFitnessPal\n• Activity from Strava\n\nOne score. One dashboard. Clearer picture.\n\nFree 14-day trial 👇 healthtrack.app",
         hashtags: ['#health', '#wellness', '#quantifiedself'],
         status: 'scheduled',
-        scheduledAt: '2026-05-20T09:05:00Z',
+        scheduledAt: '2026-06-10T09:05:00Z',
       },
       {
         id: 'post-002-ig',
