@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="AutoMarketer logo">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="megaphoneGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#E0E7FF" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+
+  <!-- Subtle inner glow -->
+  <rect width="512" height="512" rx="96" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+
+  <!-- Megaphone body: mouthpiece rectangle -->
+  <rect x="148" y="214" width="60" height="84" rx="8" fill="url(#megaphoneGrad)"/>
+
+  <!-- Megaphone cone (trapezoid flaring out to the right) -->
+  <polygon points="208,214 352,124 352,388 208,298" fill="url(#megaphoneGrad)"/>
+
+  <!-- Bell rim accent line -->
+  <line x1="352" y1="124" x2="352" y2="388" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
+
+  <!-- Handle / grip below mouthpiece -->
+  <rect x="158" y="298" width="36" height="64" rx="12" fill="url(#megaphoneGrad)"/>
+
+  <!-- Small accent dot at handle base -->
+  <circle cx="176" cy="374" r="8" fill="rgba(255,255,255,0.45)"/>
+
+  <!-- Sound waves (open arcs radiating to the right) -->
+  <!-- Wave 1 — nearest, most opaque -->
+  <path d="M 366,226 C 394,226 394,286 366,286"
+        fill="none" stroke="white" stroke-width="20" stroke-linecap="round" opacity="0.90"/>
+
+  <!-- Wave 2 — medium distance -->
+  <path d="M 374,194 C 414,194 414,318 374,318"
+        fill="none" stroke="white" stroke-width="16" stroke-linecap="round" opacity="0.60"/>
+
+  <!-- Wave 3 — farthest, most transparent -->
+  <path d="M 382,162 C 434,162 434,350 382,350"
+        fill="none" stroke="white" stroke-width="13" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- Small sparkle / automation dot (top-right quadrant accent) -->
+  <circle cx="408" cy="108" r="10" fill="white" opacity="0.50"/>
+  <circle cx="432" cy="88" r="6" fill="white" opacity="0.30"/>
+  <circle cx="386" cy="90" r="5" fill="white" opacity="0.25"/>
+</svg>
