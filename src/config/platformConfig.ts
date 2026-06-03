@@ -17,8 +17,11 @@ export interface PlatformOAuthConfig {
   shortName: string
   /**
    * OAuth 2.0 authorization endpoint.
-   * In production, replace {CLIENT_ID} and {REDIRECT_URI} with your registered
-   * app values — these are placeholder URLs for the demo build.
+   * In production, replace {CLIENT_ID}, {REDIRECT_URI}, and {STATE} with your
+   * registered app values — these are placeholder URLs for the demo build.
+   *
+   * {STATE} is a cryptographically random value generated at runtime to
+   * prevent CSRF attacks (RFC 6749 §10.12).
    */
   authUrl: string
 }
@@ -122,30 +125,30 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     label: 'Sign in with LinkedIn',
     shortName: 'LinkedIn',
     authUrl:
-      'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={CLIENT_ID}&scope=openid%20profile%20email%20w_member_social',
+      'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid%20profile%20email%20w_member_social&state={STATE}',
   },
   twitter: {
     label: 'Sign in with X',
     shortName: 'X',
     authUrl:
-      'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge_method=s256',
+      'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge_method=s256&state={STATE}',
   },
   reddit: {
     label: 'Sign in with Reddit',
     shortName: 'Reddit',
     authUrl:
-      'https://www.reddit.com/api/v1/authorize?response_type=code&client_id={CLIENT_ID}&scope=read%20submit&duration=permanent',
+      'https://www.reddit.com/api/v1/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=read%20submit&duration=permanent&state={STATE}',
   },
   facebook: {
     label: 'Sign in with Facebook',
     shortName: 'Facebook',
     authUrl:
-      'https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id={CLIENT_ID}&scope=pages_manage_posts%2Cpages_read_engagement',
+      'https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=pages_manage_posts%2Cpages_read_engagement&state={STATE}',
   },
   instagram: {
     label: 'Sign in with Instagram',
     shortName: 'Instagram',
     authUrl:
-      'https://api.instagram.com/oauth/authorize?response_type=code&client_id={CLIENT_ID}&scope=user_profile%2Cuser_media',
+      'https://api.instagram.com/oauth/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=user_profile%2Cuser_media&state={STATE}',
   },
 }
