@@ -3,6 +3,23 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import PlatformConnectionModal from '../src/components/PlatformConnectionModal'
 import type { PlatformConfig } from '../src/types'
 
+// ── Mock platform config — supply test client IDs so the OAuth guard doesn't
+// fire and the existing popup-flow tests are unaffected by missing env vars.
+vi.mock('../src/config/platformConfig', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/config/platformConfig')>()
+  return {
+    ...original,
+    PLATFORM_OAUTH_CONFIG: {
+      ...original.PLATFORM_OAUTH_CONFIG,
+      linkedin: { ...original.PLATFORM_OAUTH_CONFIG.linkedin, clientId: 'test-linkedin-client-id' },
+      twitter: { ...original.PLATFORM_OAUTH_CONFIG.twitter, clientId: 'test-twitter-client-id' },
+      reddit: { ...original.PLATFORM_OAUTH_CONFIG.reddit, clientId: 'test-reddit-client-id' },
+      facebook: { ...original.PLATFORM_OAUTH_CONFIG.facebook, clientId: 'test-facebook-app-id' },
+      instagram: { ...original.PLATFORM_OAUTH_CONFIG.instagram, clientId: 'test-facebook-app-id' },
+    },
+  }
+})
+
 const LINKEDIN: PlatformConfig = {
   id: 'linkedin',
   name: 'LinkedIn',
@@ -173,6 +190,34 @@ describe('PlatformConnectionModal', () => {
     expect(calledUrl).toContain('redirect_uri=')
     expect(calledUrl).toContain(encodeURIComponent('/oauth/callback'))
     expect(calledUrl).not.toContain('{REDIRECT_URI}')
+  })
+
+  it('OAuth flow: substitutes {CLIENT_ID} with the platform client ID', () => {
+    renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+    const [calledUrl] = (window.open as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(calledUrl).toContain('client_id=test-linkedin-client-id')
+    expect(calledUrl).not.toContain('{CLIENT_ID}')
+  })
+
+  it('OAuth flow: shows error when the platform has no OAuth config entry', () => {
+    // A platform with an id not present in PLATFORM_OAUTH_CONFIG triggers the
+    // "not configured" guard before any popup is opened.
+    const UNKNOWN: PlatformConfig = {
+      id: 'tiktok',
+      name: 'TikTok',
+      icon: 'TT',
+      color: '#ffffff',
+      bgColor: '#000000',
+      charLimit: 2200,
+      description: 'Short-form video platform',
+    }
+    renderModal({ platform: UNKNOWN })
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    // The guard fires synchronously — no setTimeout needed
+    expect(screen.getByTestId('oauth-status').textContent).toContain('not configured')
+    expect(window.open).not.toHaveBeenCalled()
   })
 
   it('OAuth flow: completes successfully when the callback postMessage is received', () => {
