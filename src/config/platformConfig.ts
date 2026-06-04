@@ -16,14 +16,13 @@ export interface PlatformSetupInstructions {
   /** Human-readable name of the developer portal. */
   portalName: string
   /**
-   * Server-side environment variable that must be set.
-   * This is NOT a VITE_* variable — it lives on the Express server.
-   */
-  envVar: string
-  /**
    * Step-by-step instructions for creating the OAuth app.
    * Use the literal string {REDIRECT_URI} as a placeholder — the component
    * replaces it with the actual `<origin>/oauth/callback` value at render time.
+   *
+   * The final step is always "paste the Client ID into the form below" — it
+   * is rendered by the SetupInstructions component itself rather than being
+   * listed here, so this array should end at the "copy the Client ID" step.
    */
   steps: string[]
 }
@@ -149,13 +148,11 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     setupInstructions: {
       portalUrl: 'https://www.linkedin.com/developers/apps',
       portalName: 'LinkedIn Developer Portal',
-      envVar: 'LINKEDIN_CLIENT_ID',
       steps: [
         'Go to the LinkedIn Developer Portal and click "Create app".',
         'Under the "Auth" tab, add {REDIRECT_URI} as an Authorized Redirect URL.',
         'Under the "Products" tab, request "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect".',
         'Copy the Client ID from the "Auth" tab.',
-        'Add LINKEDIN_CLIENT_ID=<your-client-id> to your server environment and restart.',
       ],
     },
   },
@@ -169,7 +166,6 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     setupInstructions: {
       portalUrl: 'https://developer.twitter.com/en/portal/dashboard',
       portalName: 'X Developer Portal',
-      envVar: 'TWITTER_CLIENT_ID',
       steps: [
         'Go to the X Developer Portal and create a project and app.',
         'Under "User authentication settings", enable OAuth 2.0.',
@@ -177,7 +173,6 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Add {REDIRECT_URI} as a Callback URI.',
         'Enable scopes: tweet.read, tweet.write, users.read, offline.access.',
         'Copy the OAuth 2.0 Client ID (not the API Key / API Key Secret).',
-        'Add TWITTER_CLIENT_ID=<your-client-id> to your server environment and restart.',
       ],
     },
   },
@@ -189,13 +184,11 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     setupInstructions: {
       portalUrl: 'https://www.reddit.com/prefs/apps',
       portalName: 'Reddit App Preferences',
-      envVar: 'REDDIT_CLIENT_ID',
       steps: [
         'Go to Reddit App Preferences and click "create another app".',
         'Select app type "web app".',
         'Set the redirect URI to {REDIRECT_URI}.',
         'After creating, copy the Client ID — it\'s the short string shown directly below the app name.',
-        'Add REDDIT_CLIENT_ID=<your-client-id> to your server environment and restart.',
       ],
     },
   },
@@ -207,14 +200,12 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     setupInstructions: {
       portalUrl: 'https://developers.facebook.com/apps',
       portalName: 'Meta for Developers',
-      envVar: 'FACEBOOK_APP_ID',
       steps: [
         'Go to Meta for Developers and click "Create App".',
         'Add the "Facebook Login" product to your app.',
         'Under Facebook Login → Settings, add {REDIRECT_URI} as a Valid OAuth Redirect URI.',
         'Request the pages_manage_posts and pages_read_engagement permissions.',
         'Copy the App ID from the top of the app dashboard.',
-        'Add FACEBOOK_APP_ID=<your-app-id> to your server environment and restart.',
       ],
     },
   },
@@ -229,15 +220,13 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     setupInstructions: {
       portalUrl: 'https://developers.facebook.com/apps',
       portalName: 'Meta for Developers',
-      envVar: 'FACEBOOK_APP_ID',
       steps: [
         'Go to Meta for Developers and create an app (or use your existing Facebook app — they share the same App ID).',
         'Add the "Instagram Graph API" product to your app.',
         'Under Instagram → Settings, add {REDIRECT_URI} as a Valid OAuth Redirect URI.',
         'Request instagram_basic and instagram_content_publish permissions.',
         'Copy the App ID from the top of the app dashboard.',
-        'Add FACEBOOK_APP_ID=<your-app-id> to your server environment and restart.',
-        'Note: Instagram and Facebook share the same FACEBOOK_APP_ID value.',
+        'Note: Instagram and Facebook share the same Meta App ID — saving one fills in the other automatically.',
       ],
     },
   },

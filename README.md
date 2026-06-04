@@ -208,6 +208,23 @@ The `AIConfig.providers` field is a `Record<InferenceProvider, ProviderConfig>` 
 - A future backend proxy will allow keys to be stored server-side, eliminating this surface. See the security notice in the Settings UI for a live reminder.
 - Custom endpoint URLs are validated to be `http://` or `https://` before saving (SSRF mitigation for a future server-side proxy).
 
+## Connecting Social Platforms
+
+Each user creates their own OAuth app on the relevant developer portal and pastes the resulting **Client ID** into the in-app connection modal — there is no shared global config, no administrator role, and no environment variables to set on the server.
+
+To connect a platform:
+
+1. Sign in to AutoMarketer and open **Settings → Connected Platforms**.
+2. Click **Connect** next to the platform you want to enable.
+3. Follow the platform-specific steps shown in the modal to create an OAuth app on the developer portal (e.g. [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps), [X Developer Portal](https://developer.twitter.com/en/portal/dashboard), [Reddit App Preferences](https://www.reddit.com/prefs/apps), or [Meta for Developers](https://developers.facebook.com/apps)).
+4. Register the Redirect URI displayed in the modal (`<your-origin>/oauth/callback`).
+5. Paste the OAuth **Client ID** into the input field and click **Save Client ID**.
+6. Use the **Sign in with …** button to complete the OAuth flow.
+
+Client IDs are stored per-user in the `user_platform_configs` PostgreSQL table (created automatically on first server start) and never appear in environment variables or build artefacts. Facebook and Instagram share a single Meta App ID — saving one fills in the other automatically. The browser fetches them at runtime via authenticated `GET /api/platform-config`.
+
+> **Note:** Client IDs are public values that appear in every OAuth redirect URL. Client *secrets* belong in a dedicated secret manager and are only used server-side during the authorization-code exchange — never store secrets in this table.
+
 ## Project Structure
 
 ```
@@ -317,6 +334,9 @@ The Express server runs on port `3001` and is proxied by Vite under `/api/*` dur
 | `POST` | `/api/auth/login` | No | Sign in; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
 | `POST` | `/api/auth/logout` | No | Clears the `auth_token` cookie server-side |
 | `GET` | `/api/auth/me` | `auth_token` cookie | Returns the current user's public profile |
+| `GET` | `/api/platform-config` | `auth_token` cookie | Returns the calling user's OAuth client IDs for every supported platform (empty string = not yet configured) |
+| `PUT` | `/api/platform-config/:platform` | `auth_token` cookie | Save the user's OAuth client ID for a platform; body `{ clientId }`. Facebook ↔ Instagram are mirrored automatically |
+| `DELETE` | `/api/platform-config/:platform` | `auth_token` cookie | Clear the user's OAuth client ID for a platform |
 | `GET` | `/api/health` | No | Service health check |
 
 > **Security note:** Tokens are stored exclusively in `httpOnly` cookies set by the server. No token is ever placed in the JSON response body or `localStorage`, which eliminates XSS-based session-hijacking risk. The browser attaches the cookie automatically on every request via `credentials: 'include'`.

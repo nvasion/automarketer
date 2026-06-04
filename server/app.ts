@@ -4,7 +4,6 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRouter from './routes/auth.js';
 import platformConfigRouter from './routes/platformConfig.js';
-import adminPlatformConfigRouter from './routes/adminPlatformConfig.js';
 
 /**
  * Factory function that creates and configures the Express application.
@@ -42,12 +41,9 @@ export function createApp(): express.Application {
   // all auth endpoints before any handler runs — see server/routes/auth.ts.
   app.use('/api/auth', authRouter);
 
-  // Platform OAuth client IDs — public values served without authentication.
+  // Per-user OAuth client IDs (GET/PUT/DELETE) — every endpoint requires
+  // authentication; each account owns its own set of client IDs.
   app.use('/api/platform-config', platformConfigRouter);
-
-  // Admin CRUD for platform client IDs — requires authentication.
-  // Allows authenticated users to set/clear client IDs without redeploying.
-  app.use('/api/admin/platform-config', adminPlatformConfigRouter);
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -20,10 +20,9 @@ if (isNaN(port) || port <= 0 || port > 65535) {
 }
 
 // ── Initialise platform config store ─────────────────────────────────────────
-// Loads OAuth client IDs from the database (platform_configs table) into the
-// in-memory cache so they are immediately available to request handlers.
-// If DATABASE_URL is not configured this is a no-op and env-var defaults are
-// used instead.
+// Ensures the user_platform_configs table exists so per-user OAuth client IDs
+// can be persisted. If DATABASE_URL is not configured this is a no-op and the
+// in-memory cache becomes the only store (dev/test mode).
 platformConfigStore.initialize().catch((err) => {
   console.error('[server] Failed to initialise platform config store:', err);
 });
