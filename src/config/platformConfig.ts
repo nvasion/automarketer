@@ -10,6 +10,24 @@ export interface CredentialField {
   validate?: (value: string) => string | null
 }
 
+export interface PlatformSetupInstructions {
+  /** Link to the developer portal where the OAuth app is created. */
+  portalUrl: string
+  /** Human-readable name of the developer portal. */
+  portalName: string
+  /**
+   * Server-side environment variable that must be set.
+   * This is NOT a VITE_* variable — it lives on the Express server.
+   */
+  envVar: string
+  /**
+   * Step-by-step instructions for creating the OAuth app.
+   * Use the literal string {REDIRECT_URI} as a placeholder — the component
+   * replaces it with the actual `<origin>/oauth/callback` value at render time.
+   */
+  steps: string[]
+}
+
 export interface PlatformOAuthConfig {
   /** Button label, e.g. "Sign in with LinkedIn" */
   label: string
@@ -18,24 +36,14 @@ export interface PlatformOAuthConfig {
   /**
    * OAuth 2.0 authorization endpoint template.
    * At runtime the following placeholders are substituted before the popup opens:
-   *   {CLIENT_ID}      — value of `clientId` (from the VITE_*_CLIENT_ID env var)
+   *   {CLIENT_ID}      — the client ID fetched from GET /api/platform-config
    *   {REDIRECT_URI}   — URL-encoded `<origin>/oauth/callback`
    *   {STATE}          — cryptographically random CSRF token (RFC 6749 §10.12)
    *   {CODE_CHALLENGE} — PKCE S256 challenge derived from a random verifier (RFC 7636)
    */
   authUrl: string
-  /**
-   * OAuth 2.0 client ID for this platform.
-   * Read from the corresponding VITE_*_CLIENT_ID environment variable so the
-   * value is baked into the client bundle at build time without exposing secrets
-   * (client IDs are public; client secrets must never be stored here).
-   */
-  clientId: string
-  /**
-   * Name of the VITE_* environment variable that supplies `clientId`.
-   * Used in developer-facing error messages when the value is missing.
-   */
-  envVarName: string
+  /** Step-by-step guide shown when the client ID has not been configured yet. */
+  setupInstructions: PlatformSetupInstructions
 }
 
 // ── Per-platform credential field definitions with format validation ───────────
@@ -136,36 +144,79 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
   linkedin: {
     label: 'Sign in with LinkedIn',
     shortName: 'LinkedIn',
-    clientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID ?? '',
-    envVarName: 'VITE_LINKEDIN_CLIENT_ID',
     authUrl:
       'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid%20profile%20email%20w_member_social&state={STATE}',
+    setupInstructions: {
+      portalUrl: 'https://www.linkedin.com/developers/apps',
+      portalName: 'LinkedIn Developer Portal',
+      envVar: 'LINKEDIN_CLIENT_ID',
+      steps: [
+        'Go to the LinkedIn Developer Portal and click "Create app".',
+        'Under the "Auth" tab, add {REDIRECT_URI} as an Authorized Redirect URL.',
+        'Under the "Products" tab, request "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect".',
+        'Copy the Client ID from the "Auth" tab.',
+        'Add LINKEDIN_CLIENT_ID=<your-client-id> to your server environment and restart.',
+      ],
+    },
   },
   twitter: {
     label: 'Sign in with X',
     shortName: 'X',
-    clientId: import.meta.env.VITE_TWITTER_CLIENT_ID ?? '',
-    envVarName: 'VITE_TWITTER_CLIENT_ID',
     // Twitter/X OAuth 2.0 requires PKCE (RFC 7636).  {CODE_CHALLENGE} is
     // replaced at runtime with a BASE64URL(SHA-256(code_verifier)) value.
     authUrl:
       'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge={CODE_CHALLENGE}&code_challenge_method=s256&state={STATE}',
+    setupInstructions: {
+      portalUrl: 'https://developer.twitter.com/en/portal/dashboard',
+      portalName: 'X Developer Portal',
+      envVar: 'TWITTER_CLIENT_ID',
+      steps: [
+        'Go to the X Developer Portal and create a project and app.',
+        'Under "User authentication settings", enable OAuth 2.0.',
+        'Set App type to "Web App, Automated App or Bot".',
+        'Add {REDIRECT_URI} as a Callback URI.',
+        'Enable scopes: tweet.read, tweet.write, users.read, offline.access.',
+        'Copy the OAuth 2.0 Client ID (not the API Key / API Key Secret).',
+        'Add TWITTER_CLIENT_ID=<your-client-id> to your server environment and restart.',
+      ],
+    },
   },
   reddit: {
     label: 'Sign in with Reddit',
     shortName: 'Reddit',
-    clientId: import.meta.env.VITE_REDDIT_CLIENT_ID ?? '',
-    envVarName: 'VITE_REDDIT_CLIENT_ID',
     authUrl:
       'https://www.reddit.com/api/v1/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=read%20submit&duration=permanent&state={STATE}',
+    setupInstructions: {
+      portalUrl: 'https://www.reddit.com/prefs/apps',
+      portalName: 'Reddit App Preferences',
+      envVar: 'REDDIT_CLIENT_ID',
+      steps: [
+        'Go to Reddit App Preferences and click "create another app".',
+        'Select app type "web app".',
+        'Set the redirect URI to {REDIRECT_URI}.',
+        'After creating, copy the Client ID — it\'s the short string shown directly below the app name.',
+        'Add REDDIT_CLIENT_ID=<your-client-id> to your server environment and restart.',
+      ],
+    },
   },
   facebook: {
     label: 'Sign in with Facebook',
     shortName: 'Facebook',
-    clientId: import.meta.env.VITE_FACEBOOK_APP_ID ?? '',
-    envVarName: 'VITE_FACEBOOK_APP_ID',
     authUrl:
       'https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=pages_manage_posts%2Cpages_read_engagement&state={STATE}',
+    setupInstructions: {
+      portalUrl: 'https://developers.facebook.com/apps',
+      portalName: 'Meta for Developers',
+      envVar: 'FACEBOOK_APP_ID',
+      steps: [
+        'Go to Meta for Developers and click "Create App".',
+        'Add the "Facebook Login" product to your app.',
+        'Under Facebook Login → Settings, add {REDIRECT_URI} as a Valid OAuth Redirect URI.',
+        'Request the pages_manage_posts and pages_read_engagement permissions.',
+        'Copy the App ID from the top of the app dashboard.',
+        'Add FACEBOOK_APP_ID=<your-app-id> to your server environment and restart.',
+      ],
+    },
   },
   instagram: {
     label: 'Sign in with Instagram',
@@ -173,9 +224,21 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     // Instagram Graph API access is gated behind Meta's standard OAuth dialog
     // using the same Meta App ID as Facebook.  The legacy Basic Display API
     // endpoint (api.instagram.com/oauth/authorize) was removed in Dec 2024.
-    clientId: import.meta.env.VITE_FACEBOOK_APP_ID ?? '',
-    envVarName: 'VITE_FACEBOOK_APP_ID',
     authUrl:
       'https://www.facebook.com/v18.0/dialog/oauth?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=instagram_basic%2Cinstagram_content_publish%2Cpages_show_list%2Cpages_read_engagement&state={STATE}',
+    setupInstructions: {
+      portalUrl: 'https://developers.facebook.com/apps',
+      portalName: 'Meta for Developers',
+      envVar: 'FACEBOOK_APP_ID',
+      steps: [
+        'Go to Meta for Developers and create an app (or use your existing Facebook app — they share the same App ID).',
+        'Add the "Instagram Graph API" product to your app.',
+        'Under Instagram → Settings, add {REDIRECT_URI} as a Valid OAuth Redirect URI.',
+        'Request instagram_basic and instagram_content_publish permissions.',
+        'Copy the App ID from the top of the app dashboard.',
+        'Add FACEBOOK_APP_ID=<your-app-id> to your server environment and restart.',
+        'Note: Instagram and Facebook share the same FACEBOOK_APP_ID value.',
+      ],
+    },
   },
 }
