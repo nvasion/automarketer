@@ -1,24 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import PlatformConnectionModal from '../src/components/PlatformConnectionModal'
 import type { PlatformConfig } from '../src/types'
 
-// ── Mock platform config — supply test client IDs so the OAuth guard doesn't
-// fire and the existing popup-flow tests are unaffected by missing env vars.
-vi.mock('../src/config/platformConfig', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../src/config/platformConfig')>()
-  return {
-    ...original,
-    PLATFORM_OAUTH_CONFIG: {
-      ...original.PLATFORM_OAUTH_CONFIG,
-      linkedin: { ...original.PLATFORM_OAUTH_CONFIG.linkedin, clientId: 'test-linkedin-client-id' },
-      twitter: { ...original.PLATFORM_OAUTH_CONFIG.twitter, clientId: 'test-twitter-client-id' },
-      reddit: { ...original.PLATFORM_OAUTH_CONFIG.reddit, clientId: 'test-reddit-client-id' },
-      facebook: { ...original.PLATFORM_OAUTH_CONFIG.facebook, clientId: 'test-facebook-app-id' },
-      instagram: { ...original.PLATFORM_OAUTH_CONFIG.instagram, clientId: 'test-facebook-app-id' },
-    },
-  }
-})
+// ── Mock the platform config service so tests never hit the network.
+// fetchPlatformClientIds returns fully-configured client IDs by default;
+// individual tests can override this with mockResolvedValueOnce / mockRejectedValueOnce.
+vi.mock('../src/services/platformConfigService', () => ({
+  fetchPlatformClientIds: vi.fn().mockResolvedValue({
+    linkedin: 'test-linkedin-client-id',
+    twitter: 'test-twitter-client-id',
+    reddit: 'test-reddit-client-id',
+    facebook: 'test-facebook-app-id',
+    instagram: 'test-facebook-app-id',
+  }),
+}))
+
+import { fetchPlatformClientIds } from '../src/services/platformConfigService'
+const mockFetchClientIds = fetchPlatformClientIds as ReturnType<typeof vi.fn>
 
 const LINKEDIN: PlatformConfig = {
   id: 'linkedin',
@@ -43,7 +42,12 @@ const TWITTER: PlatformConfig = {
 // Shared mock popup — reset in beforeEach
 const mockPopup = { closed: false }
 
-function renderModal(
+/**
+ * Render the modal and wait for the async platform-config fetch to complete
+ * before returning.  All tests should use this helper so they start with the
+ * modal fully initialised (configLoadState === 'ready').
+ */
+async function renderModal(
   overrides: Partial<{ platform: PlatformConfig; onClose: () => void; onConnect: (id: string) => void }> = {}
 ) {
   const props = {
@@ -52,8 +56,10 @@ function renderModal(
     onConnect: vi.fn(),
     ...overrides,
   }
-  const result = render(<PlatformConnectionModal {...props} />)
-  return { ...result, ...props }
+  render(<PlatformConnectionModal {...props} />)
+  // Flush the fetchPlatformClientIds() Promise so the modal reaches 'ready' state.
+  await act(async () => {})
+  return props
 }
 
 // Known state value injected by the mock so tests can include it in postMessage events.
@@ -67,6 +73,14 @@ describe('PlatformConnectionModal', () => {
     vi.spyOn(window, 'open').mockReturnValue(mockPopup as unknown as Window)
     // Fix the random state so tests can assert on message contents
     vi.spyOn(crypto, 'randomUUID').mockReturnValue(MOCK_OAUTH_STATE as ReturnType<typeof crypto.randomUUID>)
+    // Reset the mock to the default fully-configured response
+    mockFetchClientIds.mockResolvedValue({
+      linkedin: 'test-linkedin-client-id',
+      twitter: 'test-twitter-client-id',
+      reddit: 'test-reddit-client-id',
+      facebook: 'test-facebook-app-id',
+      instagram: 'test-facebook-app-id',
+    })
   })
 
   afterEach(() => {
@@ -76,67 +90,106 @@ describe('PlatformConnectionModal', () => {
 
   // ── Rendering ────────────────────────────────────────────────────────────
 
-  it('renders with platform name in the header', () => {
-    renderModal()
+  it('renders with platform name in the header', async () => {
+    await renderModal()
     expect(screen.getByText('Connect LinkedIn')).toBeDefined()
   })
 
-  it('renders a close button', () => {
-    renderModal()
+  it('renders a close button', async () => {
+    await renderModal()
     expect(screen.getByTestId('modal-close-btn')).toBeDefined()
   })
 
-  it('calls onClose when the close button is clicked', () => {
-    const { onClose } = renderModal()
+  it('calls onClose when the close button is clicked', async () => {
+    const { onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('modal-close-btn'))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('calls onClose when clicking the backdrop', () => {
-    const { onClose } = renderModal()
+  it('calls onClose when clicking the backdrop', async () => {
+    const { onClose } = await renderModal()
     const backdrop = screen.getByTestId('platform-connection-modal')
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call onClose when clicking inside the modal panel (not backdrop)', () => {
-    const { onClose } = renderModal()
+  it('does not call onClose when clicking inside the modal panel (not backdrop)', async () => {
+    const { onClose } = await renderModal()
     const heading = screen.getByText('Connect LinkedIn')
     fireEvent.click(heading)
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('shows OAuth tab as active by default', () => {
-    renderModal()
+  it('shows OAuth tab as active by default', async () => {
+    await renderModal()
     expect(screen.getByTestId('method-tab-oauth')).toBeDefined()
     expect(screen.getByTestId('oauth-connect-btn')).toBeDefined()
   })
 
-  it('shows credentials tab when clicked', () => {
-    renderModal()
+  it('shows credentials tab when clicked', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     expect(screen.getByTestId('credentials-connect-btn')).toBeDefined()
   })
 
+  // ── Loading state ────────────────────────────────────────────────────────
+
+  it('shows a loading indicator while fetching the platform config', () => {
+    // Do NOT flush the Promise — modal should be in loading state
+    render(<PlatformConnectionModal platform={LINKEDIN} onClose={vi.fn()} onConnect={vi.fn()} />)
+    expect(screen.getByTestId('oauth-loading')).toBeDefined()
+  })
+
+  it('shows setup instructions when platform client ID is not configured', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({
+      linkedin: '', // not configured
+      twitter: '',
+      reddit: '',
+      facebook: '',
+      instagram: '',
+    })
+    await renderModal()
+    expect(screen.getByTestId('setup-instructions')).toBeDefined()
+    expect(screen.queryByTestId('oauth-connect-btn')).toBeNull()
+  })
+
+  it('setup instructions show the correct env var name for LinkedIn', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
+    await renderModal()
+    expect(screen.getByText('LINKEDIN_CLIENT_ID')).toBeDefined()
+  })
+
+  it('setup instructions show the redirect URI', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
+    await renderModal()
+    expect(screen.getByTestId('redirect-uri-display').textContent).toContain('/oauth/callback')
+  })
+
+  it('shows the OAuth connect button when client ID is configured', async () => {
+    await renderModal()
+    expect(screen.getByTestId('oauth-connect-btn')).toBeDefined()
+    expect(screen.queryByTestId('setup-instructions')).toBeNull()
+  })
+
   // ── Keyboard accessibility ────────────────────────────────────────────────
 
-  it('closes modal when Escape key is pressed', () => {
-    const { onClose } = renderModal()
+  it('closes modal when Escape key is pressed', async () => {
+    const { onClose } = await renderModal()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('does not close when Escape is pressed while OAuth is in progress', () => {
-    const { onClose } = renderModal()
+  it('does not close when Escape is pressed while OAuth is in progress', async () => {
+    const { onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     // oauthStep is 'opening' → isOAuthConnecting = true
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('closes when Escape is pressed after an OAuth error (not in-progress)', () => {
+  it('closes when Escape is pressed after an OAuth error (not in-progress)', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
-    const { onClose } = renderModal()
+    const { onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // fires setTimeout → popup null → 'error'
     // oauthStep is 'error' → isOAuthConnecting = false → Escape should close
@@ -146,33 +199,33 @@ describe('PlatformConnectionModal', () => {
 
   // ── OAuth flow ────────────────────────────────────────────────────────────
 
-  it('OAuth button shows correct label for LinkedIn', () => {
-    renderModal()
+  it('OAuth button shows correct label for LinkedIn', async () => {
+    await renderModal()
     expect(screen.getByTestId('oauth-connect-btn').textContent).toContain('Sign in with LinkedIn')
   })
 
-  it('OAuth button for Twitter shows "Sign in with X" (consistent branding)', () => {
-    renderModal({ platform: TWITTER })
+  it('OAuth button for Twitter shows "Sign in with X" (consistent branding)', async () => {
+    await renderModal({ platform: TWITTER })
     expect(screen.getByTestId('oauth-connect-btn').textContent).toContain('Sign in with X')
   })
 
-  it('OAuth redirect description uses short platform name', () => {
-    renderModal({ platform: TWITTER })
+  it('OAuth redirect description uses short platform name', async () => {
+    await renderModal({ platform: TWITTER })
     // Should say "X" not "X (Twitter)"
     expect(screen.getByText(/You'll be redirected to X to authorise/).textContent).toContain(
       'You\'ll be redirected to X to authorise'
     )
   })
 
-  it('OAuth flow: shows opening status immediately after click', () => {
-    renderModal()
+  it('OAuth flow: shows opening status immediately after click', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     // Before the 100ms setTimeout fires, state is 'opening'
     expect(screen.getByTestId('oauth-status').textContent).toContain('Opening')
   })
 
-  it('OAuth flow: opens a popup window with the correct OAuth URL', () => {
-    renderModal()
+  it('OAuth flow: opens a popup window with the correct OAuth URL', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     expect(window.open).toHaveBeenCalledWith(
@@ -182,8 +235,8 @@ describe('PlatformConnectionModal', () => {
     )
   })
 
-  it('OAuth flow: substitutes {REDIRECT_URI} with the real /oauth/callback URL', () => {
-    renderModal()
+  it('OAuth flow: substitutes {REDIRECT_URI} with the real /oauth/callback URL', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     const [calledUrl] = (window.open as ReturnType<typeof vi.fn>).mock.calls[0]
@@ -192,8 +245,8 @@ describe('PlatformConnectionModal', () => {
     expect(calledUrl).not.toContain('{REDIRECT_URI}')
   })
 
-  it('OAuth flow: substitutes {CLIENT_ID} with the platform client ID', () => {
-    renderModal()
+  it('OAuth flow: substitutes {CLIENT_ID} with the platform client ID from the server', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     const [calledUrl] = (window.open as ReturnType<typeof vi.fn>).mock.calls[0]
@@ -201,9 +254,9 @@ describe('PlatformConnectionModal', () => {
     expect(calledUrl).not.toContain('{CLIENT_ID}')
   })
 
-  it('OAuth flow: shows error when the platform has no OAuth config entry', () => {
-    // A platform with an id not present in PLATFORM_OAUTH_CONFIG triggers the
-    // "not configured" guard before any popup is opened.
+  it('OAuth flow: shows error when the platform has no OAuth config entry', async () => {
+    // A platform with an id not present in PLATFORM_OAUTH_CONFIG gets the
+    // "not configured" message in the OAuth panel — no connect button appears.
     const UNKNOWN: PlatformConfig = {
       id: 'tiktok',
       name: 'TikTok',
@@ -213,16 +266,15 @@ describe('PlatformConnectionModal', () => {
       charLimit: 2200,
       description: 'Short-form video platform',
     }
-    renderModal({ platform: UNKNOWN })
-    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
-    // The guard fires synchronously — no setTimeout needed
+    await renderModal({ platform: UNKNOWN })
     expect(screen.getByTestId('oauth-status').textContent).toContain('not configured')
+    expect(screen.queryByTestId('oauth-connect-btn')).toBeNull()
     expect(window.open).not.toHaveBeenCalled()
   })
 
-  it('OAuth flow: completes successfully when the callback postMessage is received', () => {
+  it('OAuth flow: completes successfully when the callback postMessage is received', async () => {
     // renderModal() uses the LINKEDIN platform by default (see renderModal helper above)
-    const { onConnect, onClose } = renderModal()
+    const { onConnect, onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // open popup
 
@@ -242,8 +294,8 @@ describe('PlatformConnectionModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('OAuth flow: shows error when the callback postMessage contains an error', () => {
-    renderModal()
+  it('OAuth flow: shows error when the callback postMessage contains an error', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // open popup
 
@@ -260,8 +312,8 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
   })
 
-  it('OAuth flow: ignores postMessage events from other origins', () => {
-    renderModal()
+  it('OAuth flow: ignores postMessage events from other origins', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
 
@@ -277,8 +329,8 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('oauth-status').textContent).toContain('authorisation')
   })
 
-  it('OAuth flow: shows error when postMessage state does not match (CSRF)', () => {
-    renderModal()
+  it('OAuth flow: shows error when postMessage state does not match (CSRF)', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
 
@@ -295,17 +347,17 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
   })
 
-  it('OAuth flow: shows authorizing status once popup opens', () => {
-    renderModal()
+  it('OAuth flow: shows authorizing status once popup opens', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     expect(screen.getByTestId('oauth-status').textContent).toContain('authorisation')
   })
 
-  it('OAuth flow: shows cancellation error when user manually closes the popup', () => {
+  it('OAuth flow: shows cancellation error when user manually closes the popup', async () => {
     // Manually closing the popup means the user abandoned the flow — it is NOT
     // a success.  Success only comes via the postMessage from /oauth/callback.
-    const { onConnect, onClose } = renderModal()
+    const { onConnect, onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // open popup
 
@@ -319,10 +371,10 @@ describe('PlatformConnectionModal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('OAuth flow: popup closed after postMessage does not double-resolve (success wins)', () => {
+  it('OAuth flow: popup closed after postMessage does not double-resolve (success wins)', async () => {
     // When the callback page posts a success message AND then closes the popup,
     // the poll timer fires after `resolved = true` and must be a no-op.
-    const { onConnect } = renderModal()
+    const { onConnect } = await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // open popup
 
@@ -346,18 +398,18 @@ describe('PlatformConnectionModal', () => {
     expect(onConnect).toHaveBeenCalledTimes(1)
   })
 
-  it('OAuth flow: shows error when popup is blocked', () => {
+  it('OAuth flow: shows error when popup is blocked', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
-    renderModal()
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     expect(screen.getByTestId('oauth-status').textContent).toContain('blocked')
     expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
   })
 
-  it('OAuth flow: retry button resets to idle state', () => {
+  it('OAuth flow: retry button resets to idle state', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
-    renderModal()
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     // In error state — click retry
@@ -367,24 +419,24 @@ describe('PlatformConnectionModal', () => {
     expect(screen.queryByTestId('oauth-retry-btn')).toBeNull()
   })
 
-  it('close button is hidden while OAuth flow is in progress', () => {
-    renderModal()
+  it('close button is hidden while OAuth flow is in progress', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     // oauthStep = 'opening' → isOAuthConnecting = true
     expect(screen.queryByTestId('modal-close-btn')).toBeNull()
   })
 
-  it('close button reappears after OAuth error', () => {
+  it('close button reappears after OAuth error', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
-    renderModal()
+    await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) })
     // oauthStep = 'error' → isOAuthConnecting = false
     expect(screen.getByTestId('modal-close-btn')).toBeDefined()
   })
 
-  it('backdrop click is disabled during active OAuth flow', () => {
-    const { onClose } = renderModal()
+  it('backdrop click is disabled during active OAuth flow', async () => {
+    const { onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     const backdrop = screen.getByTestId('platform-connection-modal')
     fireEvent.click(backdrop)
@@ -393,14 +445,14 @@ describe('PlatformConnectionModal', () => {
 
   // ── Credentials flow ──────────────────────────────────────────────────────
 
-  it('renders a credential field for LinkedIn (accessToken)', () => {
-    renderModal()
+  it('renders a credential field for LinkedIn (accessToken)', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     expect(screen.getByTestId('credential-input-accessToken')).toBeDefined()
   })
 
-  it('renders all four credential fields for Twitter', () => {
-    renderModal({ platform: TWITTER })
+  it('renders all four credential fields for Twitter', async () => {
+    await renderModal({ platform: TWITTER })
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     expect(screen.getByTestId('credential-input-apiKey')).toBeDefined()
     expect(screen.getByTestId('credential-input-apiSecret')).toBeDefined()
@@ -408,16 +460,16 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('credential-input-accessTokenSecret')).toBeDefined()
   })
 
-  it('shows validation error when submitting empty credentials', () => {
-    renderModal()
+  it('shows validation error when submitting empty credentials', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     fireEvent.click(screen.getByTestId('credentials-connect-btn'))
     expect(screen.getByTestId('credentials-error')).toBeDefined()
     expect(screen.getByTestId('credentials-error').textContent).toContain('required')
   })
 
-  it('shows format validation error for a token that is too short', () => {
-    renderModal()
+  it('shows format validation error for a token that is too short', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     fireEvent.change(screen.getByTestId('credential-input-accessToken'), {
       target: { value: 'short' }, // < 20 chars → fails validation
@@ -426,8 +478,8 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('credentials-error').textContent).toContain('too short')
   })
 
-  it('calls onConnect + onClose when credentials pass validation', () => {
-    const { onConnect, onClose } = renderModal()
+  it('calls onConnect + onClose when credentials pass validation', async () => {
+    const { onConnect, onClose } = await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     fireEvent.change(screen.getByTestId('credential-input-accessToken'), {
       target: { value: 'AQXaValidLongEnoughToken123' }, // 26 chars → passes validation
@@ -437,8 +489,8 @@ describe('PlatformConnectionModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('clears the error when the user starts typing', () => {
-    renderModal()
+  it('clears the error when the user starts typing', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     // Trigger required-field error
     fireEvent.click(screen.getByTestId('credentials-connect-btn'))
@@ -450,8 +502,8 @@ describe('PlatformConnectionModal', () => {
     expect(screen.queryByTestId('credentials-error')).toBeNull()
   })
 
-  it('shows a security note in the credentials panel', () => {
-    renderModal()
+  it('shows a security note in the credentials panel', async () => {
+    await renderModal()
     fireEvent.click(screen.getByTestId('method-tab-credentials'))
     // Use text unique to the security note box (not the description paragraph)
     expect(screen.getByText(/never logged or stored/i)).toBeDefined()
@@ -479,14 +531,17 @@ const mockAuthContext = {
   logout: vi.fn(),
 }
 
-function renderSettings() {
-  return render(
+async function renderSettings() {
+  render(
     <HashRouter>
       <AuthContext.Provider value={mockAuthContext}>
         <Settings />
       </AuthContext.Provider>
     </HashRouter>
   )
+  // Flush any pending Promises (platform-config fetch inside the modal fires
+  // only after the modal is opened, so this just settles the initial render).
+  await act(async () => {})
 }
 
 describe('Settings – Connected Platforms tab', () => {
@@ -495,6 +550,13 @@ describe('Settings – Connected Platforms tab', () => {
     vi.spyOn(window, 'open').mockReturnValue({ closed: false } as unknown as Window)
     // Fix the random state so tests can include it in postMessage events
     vi.spyOn(crypto, 'randomUUID').mockReturnValue(MOCK_OAUTH_STATE as ReturnType<typeof crypto.randomUUID>)
+    mockFetchClientIds.mockResolvedValue({
+      linkedin: 'test-linkedin-client-id',
+      twitter: 'test-twitter-client-id',
+      reddit: 'test-reddit-client-id',
+      facebook: 'test-facebook-app-id',
+      instagram: 'test-facebook-app-id',
+    })
   })
 
   afterEach(() => {
@@ -502,32 +564,36 @@ describe('Settings – Connected Platforms tab', () => {
     vi.useRealTimers()
   })
 
-  it('navigates to the Platforms tab', () => {
-    renderSettings()
+  it('navigates to the Platforms tab', async () => {
+    await renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
     expect(screen.getByText('Connect your social accounts to publish directly from AutoMarketer.')).toBeDefined()
   })
 
-  it('Connect button opens the connection modal for that platform', () => {
-    renderSettings()
+  it('Connect button opens the connection modal for that platform', async () => {
+    await renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
     // Reddit is not connected by default — click its Connect button
     fireEvent.click(screen.getByTestId('platform-btn-reddit'))
+    // Wait for the modal's async fetch to complete
+    await act(async () => {})
     expect(screen.getByTestId('platform-connection-modal')).toBeDefined()
     expect(screen.getByText('Connect Reddit')).toBeDefined()
   })
 
-  it('modal shows correct platform (Facebook when Facebook Connect is clicked)', () => {
-    renderSettings()
+  it('modal shows correct platform (Facebook when Facebook Connect is clicked)', async () => {
+    await renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
     fireEvent.click(screen.getByTestId('platform-btn-facebook'))
+    await act(async () => {})
     expect(screen.getByText('Connect Facebook')).toBeDefined()
   })
 
-  it('closing the modal does not mark platform as connected', () => {
-    renderSettings()
+  it('closing the modal does not mark platform as connected', async () => {
+    await renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
     fireEvent.click(screen.getByTestId('platform-btn-reddit'))
+    await act(async () => {})
     fireEvent.click(screen.getByTestId('modal-close-btn'))
     // Modal is gone
     expect(screen.queryByTestId('platform-connection-modal')).toBeNull()
@@ -535,12 +601,15 @@ describe('Settings – Connected Platforms tab', () => {
     expect(screen.getByTestId('platform-btn-reddit').textContent).toBe('Connect')
   })
 
-  it('Disconnect button immediately disconnects without opening modal', () => {
-    renderSettings()
+  it('Disconnect button immediately disconnects without opening modal', async () => {
+    await renderSettings()
     fireEvent.click(screen.getByText('Connected Platforms'))
 
     // First connect LinkedIn via the real OAuth success path (postMessage from /oauth/callback)
     fireEvent.click(screen.getByTestId('platform-btn-linkedin'))
+    // Wait for the modal's async fetch to complete
+    await act(async () => {})
+
     fireEvent.click(screen.getByTestId('oauth-connect-btn'))
     act(() => { vi.advanceTimersByTime(100) }) // open popup
 
@@ -563,3 +632,8 @@ describe('Settings – Connected Platforms tab', () => {
     expect(screen.getByTestId('platform-btn-linkedin').textContent).toBe('Connect')
   })
 })
+
+// ── waitFor import for type correctness ──────────────────────────────────────
+// (waitFor is imported above in the RTL import but referenced here to satisfy
+//  TypeScript's strict unused-import checking in some configurations.)
+void waitFor

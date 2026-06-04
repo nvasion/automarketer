@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from './PlatformBadge'
 import { PLATFORM_CREDENTIAL_FIELDS, PLATFORM_OAUTH_CONFIG } from '../config/platformConfig'
+import { fetchPlatformClientIds } from '../services/platformConfigService'
+import type { PlatformClientIds } from '../services/platformConfigService'
 import styles from './PlatformConnectionModal.module.css'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -9,11 +11,110 @@ import styles from './PlatformConnectionModal.module.css'
 type ConnectionMethod = 'oauth' | 'credentials'
 /** 'opening' = popup window is being opened; 'authorizing' = waiting for user; 'error' = blocked/failed */
 type OAuthStep = 'idle' | 'opening' | 'authorizing' | 'success' | 'error'
+type ConfigLoadState = 'loading' | 'ready' | 'error'
 
 interface Props {
   platform: PlatformConfig
   onClose: () => void
   onConnect: (platformId: string) => void
+}
+
+// ── Setup instructions panel ──────────────────────────────────────────────────
+
+interface SetupInstructionsProps {
+  platformId: string
+  platformName: string
+}
+
+function SetupInstructions({ platformId, platformName }: SetupInstructionsProps) {
+  const config = PLATFORM_OAUTH_CONFIG[platformId]
+  const redirectUri = `${window.location.origin}/oauth/callback`
+
+  if (!config) return null
+
+  const { setupInstructions } = config
+
+  return (
+    <div data-testid="setup-instructions">
+      <div
+        style={{
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          marginBottom: '16px',
+          fontSize: '13px',
+          color: '#92400e',
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>{platformName} is not configured yet.</strong> An administrator needs to create an
+        OAuth app and set <code style={{ background: '#fef3c7', padding: '1px 4px', borderRadius: '3px' }}>
+          {setupInstructions.envVar}
+        </code> on the server before users can connect via OAuth.
+      </div>
+
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
+          How to set up {platformName} OAuth:
+        </div>
+        <ol
+          style={{
+            margin: 0,
+            paddingLeft: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+          }}
+        >
+          {setupInstructions.steps.map((step, i) => (
+            <li key={i} style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>
+              {step.replace('{REDIRECT_URI}', redirectUri)}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div
+        style={{
+          background: '#f0fdf4',
+          border: '1px solid #bbf7d0',
+          borderRadius: '8px',
+          padding: '10px 14px',
+          fontSize: '12px',
+          color: '#14532d',
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>Redirect URI to register:</strong>{' '}
+        <code
+          data-testid="redirect-uri-display"
+          style={{ background: '#dcfce7', padding: '2px 6px', borderRadius: '3px', wordBreak: 'break-all' }}
+        >
+          {redirectUri}
+        </code>
+      </div>
+
+      <div style={{ marginTop: '12px' }}>
+        <a
+          href={setupInstructions.portalUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '13px',
+            color: '#2563eb',
+            textDecoration: 'none',
+            fontWeight: 500,
+          }}
+        >
+          Open {setupInstructions.portalName} ↗
+        </a>
+      </div>
+    </div>
+  )
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -26,6 +127,28 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const [credError, setCredError] = useState<string | null>(null)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
 
+  // Platform client IDs are fetched from the server (not baked into the bundle).
+  const [clientIds, setClientIds] = useState<PlatformClientIds | null>(null)
+  const [configLoadState, setConfigLoadState] = useState<ConfigLoadState>('loading')
+
+  useEffect(() => {
+    let cancelled = false
+    fetchPlatformClientIds()
+      .then((ids) => {
+        if (!cancelled) {
+          setClientIds(ids)
+          setConfigLoadState('ready')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setConfigLoadState('error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const clientId = clientIds?.[platform.id] ?? ''
   const fields = PLATFORM_CREDENTIAL_FIELDS[platform.id] ?? []
   const oauthConfig = PLATFORM_OAUTH_CONFIG[platform.id]
   /** True while an OAuth flow is actively in progress (not idle or errored). */
@@ -79,15 +202,6 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
       return
     }
 
-    if (!oauthConfig.clientId) {
-      setOauthStep('error')
-      setOauthError(
-        `OAuth for ${displayName} is not configured. ` +
-          `Set ${oauthConfig.envVarName} in your environment and rebuild.`
-      )
-      return
-    }
-
     setOauthStep('opening')
     setOauthError(null)
 
@@ -109,7 +223,7 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
       const state = crypto.randomUUID()
 
       let url = oauthConfig.authUrl
-        .replace('{CLIENT_ID}', encodeURIComponent(oauthConfig.clientId))
+        .replace('{CLIENT_ID}', encodeURIComponent(clientId))
         .replace('{REDIRECT_URI}', redirectUri)
         .replace('{STATE}', state)
 
@@ -279,66 +393,97 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
           {/* ── OAuth panel ──────────────────────────────────────────────── */}
           {method === 'oauth' && (
             <div className={styles.oauthPanel}>
-              <p className={styles.oauthDescription}>
-                You'll be redirected to {displayName} to authorise AutoMarketer. No password is
-                shared with us — only the permissions you approve.
-              </p>
-
-              {oauthStep === 'idle' && (
-                <button
-                  data-testid="oauth-connect-btn"
-                  onClick={handleOAuth}
-                  style={{
-                    width: '100%',
-                    padding: '11px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: platform.bgColor,
-                    color: platform.color,
-                    fontWeight: 700,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <PlatformBadge platform={platform.id} size="sm" />
-                  {oauthConfig?.label ?? `Connect ${displayName}`}
-                </button>
-              )}
-
-              {(oauthStep === 'opening' || oauthStep === 'authorizing') && (
-                <div data-testid="oauth-status" className={styles.oauthStatus}>
-                  {oauthStep === 'opening'
-                    ? `↗ Opening ${displayName}…`
-                    : '⏳ Waiting for authorisation…'}
+              {/* Loading state */}
+              {configLoadState === 'loading' && (
+                <div data-testid="oauth-loading" style={{ color: '#64748b', fontSize: '13px', padding: '12px 0' }}>
+                  Loading configuration…
                 </div>
               )}
 
-              {oauthStep === 'success' && (
-                <div data-testid="oauth-status" className={styles.oauthStatusSuccess}>
-                  ✓ Connected! Closing…
+              {/* Config fetch error */}
+              {configLoadState === 'error' && (
+                <div style={{ color: '#dc2626', fontSize: '13px', padding: '12px 0' }}>
+                  Could not load platform configuration. Please refresh and try again.
                 </div>
               )}
 
-              {oauthStep === 'error' && (
-                <div>
-                  <div data-testid="oauth-status" className={styles.oauthStatusError}>
-                    ⚠ {oauthError}
-                  </div>
-                  <button
-                    data-testid="oauth-retry-btn"
-                    className={styles.oauthRetryBtn}
-                    onClick={() => {
-                      setOauthStep('idle')
-                      setOauthError(null)
-                    }}
-                  >
-                    Try again
-                  </button>
+              {/* Ready — platform not supported (unknown id) */}
+              {configLoadState === 'ready' && !oauthConfig && (
+                <div data-testid="oauth-status" style={{ color: '#64748b', fontSize: '13px', padding: '12px 0' }}>
+                  OAuth is not configured for this platform.
                 </div>
+              )}
+
+              {/* Ready — platform supported but client ID not yet set up */}
+              {configLoadState === 'ready' && oauthConfig && !clientId && (
+                <SetupInstructions platformId={platform.id} platformName={displayName} />
+              )}
+
+              {/* Ready — fully configured: show the OAuth connect flow */}
+              {configLoadState === 'ready' && oauthConfig && clientId && (
+                <>
+                  <p className={styles.oauthDescription}>
+                    You'll be redirected to {displayName} to authorise AutoMarketer. No password is
+                    shared with us — only the permissions you approve.
+                  </p>
+
+                  {oauthStep === 'idle' && (
+                    <button
+                      data-testid="oauth-connect-btn"
+                      onClick={handleOAuth}
+                      style={{
+                        width: '100%',
+                        padding: '11px 20px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: platform.bgColor,
+                        color: platform.color,
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <PlatformBadge platform={platform.id} size="sm" />
+                      {oauthConfig?.label ?? `Connect ${displayName}`}
+                    </button>
+                  )}
+
+                  {(oauthStep === 'opening' || oauthStep === 'authorizing') && (
+                    <div data-testid="oauth-status" className={styles.oauthStatus}>
+                      {oauthStep === 'opening'
+                        ? `↗ Opening ${displayName}…`
+                        : '⏳ Waiting for authorisation…'}
+                    </div>
+                  )}
+
+                  {oauthStep === 'success' && (
+                    <div data-testid="oauth-status" className={styles.oauthStatusSuccess}>
+                      ✓ Connected! Closing…
+                    </div>
+                  )}
+
+                  {oauthStep === 'error' && (
+                    <div>
+                      <div data-testid="oauth-status" className={styles.oauthStatusError}>
+                        ⚠ {oauthError}
+                      </div>
+                      <button
+                        data-testid="oauth-retry-btn"
+                        className={styles.oauthRetryBtn}
+                        onClick={() => {
+                          setOauthStep('idle')
+                          setOauthError(null)
+                        }}
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
