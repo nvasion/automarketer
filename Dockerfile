@@ -7,13 +7,19 @@ FROM node:20-alpine AS development
 
 WORKDIR /app
 
-# Install deps before copying source — maximises layer cache reuse
+# Install deps before copying source — maximises layer cache reuse.
+# The entrypoint re-runs npm ci at startup so the named node_modules volume
+# stays in sync with package-lock.json across image rebuilds.
 COPY package*.json ./
 RUN npm ci
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Source directory is mounted via docker-compose volume; not copied here
 EXPOSE 5173
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["npm", "run", "dev"]
 
 # ─────────────────────────────────────────────────────────────────────────────
