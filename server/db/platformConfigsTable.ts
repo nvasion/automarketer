@@ -1,51 +1,59 @@
 import type { Pool } from 'pg';
 
-const TABLE = 'platform_configs';
+const TABLE = 'user_platform_configs';
 
 /**
- * Ensure the platform_configs table exists.
+ * Ensure the user_platform_configs table exists.
+ *
+ * Each row is owned by a single user — every account manages its OAuth client
+ * IDs independently, with no shared global config and no administrator role.
  *
  * Using CREATE TABLE IF NOT EXISTS means the server self-provisions the schema
- * on first start without a separate migration runner. The table stores one row
- * per platform so operators can update client IDs through the admin API without
- * redeploying or touching environment variables.
+ * on first start without a separate migration runner.
  */
 export async function ensureTable(pool: Pool): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ${TABLE} (
-      platform   TEXT        PRIMARY KEY,
+      user_id    TEXT        NOT NULL,
+      platform   TEXT        NOT NULL,
       client_id  TEXT        NOT NULL DEFAULT '',
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, platform)
     )
   `);
 }
 
 /**
- * Load all platform configs from the database.
- * Returns an empty object if the table is empty.
+ * Load all platform configs for a single user.
+ * Returns an empty object when the user has no rows yet.
  */
-export async function loadAll(pool: Pool): Promise<Record<string, string>> {
+export async function loadAllForUser(
+  pool: Pool,
+  userId: string,
+): Promise<Record<string, string>> {
   const { rows } = await pool.query<{ platform: string; client_id: string }>(
-    `SELECT platform, client_id FROM ${TABLE}`,
+    `SELECT platform, client_id FROM ${TABLE} WHERE user_id = $1`,
+    [userId],
   );
   return Object.fromEntries(rows.map((r) => [r.platform, r.client_id]));
 }
 
 /**
- * Insert or update a single platform client ID.
+ * Insert or update a single platform client ID for a user.
  * Using UPSERT so callers don't need to track whether the row already exists.
  */
-export async function upsert(
+export async function upsertForUser(
   pool: Pool,
+  userId: string,
   platform: string,
   clientId: string,
 ): Promise<void> {
   await pool.query(
-    `INSERT INTO ${TABLE} (platform, client_id, updated_at)
-     VALUES ($1, $2, NOW())
-     ON CONFLICT (platform) DO UPDATE
+    `INSERT INTO ${TABLE} (user_id, platform, client_id, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (user_id, platform) DO UPDATE
        SET client_id  = EXCLUDED.client_id,
            updated_at = NOW()`,
-    [platform, clientId],
+    [userId, platform, clientId],
   );
 }

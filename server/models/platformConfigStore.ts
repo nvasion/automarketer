@@ -1,125 +1,141 @@
-// ── OAuth platform client ID store ────────────────────────────────────────────
+// ── Per-user OAuth platform client ID store ───────────────────────────────────
+// Every authenticated user owns their own set of OAuth client IDs — one row
+// per (user_id, platform) pair in the user_platform_configs table. There is
+// no shared global config and no administrator role: each account creates
+// its own OAuth apps and pastes the resulting client IDs into the connection
+// modal.
+//
 // Client IDs are PUBLIC values — they appear in OAuth redirect URLs and are
-// safe to serve via the API. Never store client secrets here.
+// safe to serve back to the owning user's browser. Never store client secrets
+// in this table.
 //
-// Storage strategy (in priority order):
-//   1. Database (platform_configs table) — primary, persistent across restarts.
-//      Administrators update values through the authenticated admin API.
-//   2. Environment variables — used to seed the DB on first start so operators
-//      have a fallback without needing to call the API immediately after deploy.
-//   3. In-memory cache — always kept in sync with the DB for fast synchronous
-//      reads. The cache is the only store used when DATABASE_URL is not set
-//      (development / test mode).
-//
-// Supported env vars (none are VITE_* — they live on the server only):
-//   LINKEDIN_CLIENT_ID
-//   TWITTER_CLIENT_ID
-//   REDDIT_CLIENT_ID
-//   FACEBOOK_APP_ID   (shared by both Facebook and Instagram)
+// Storage strategy:
+//   1. Database (user_platform_configs) — primary, persistent across restarts.
+//   2. In-memory cache — keyed by user id, kept in sync with the DB so reads
+//      stay synchronous within a single process. When DATABASE_URL is not
+//      set (development / test mode) the cache is the only store.
 
 import { getPool } from '../db/connection.js';
-import { ensureTable, loadAll, upsert } from '../db/platformConfigsTable.js';
+import { ensureTable, loadAllForUser, upsertForUser } from '../db/platformConfigsTable.js';
 
-const PLATFORMS = ['linkedin', 'twitter', 'reddit', 'facebook', 'instagram'] as const;
+export const SUPPORTED_PLATFORMS = [
+  'linkedin',
+  'twitter',
+  'reddit',
+  'facebook',
+  'instagram',
+] as const;
 
-function envDefaults(): Record<string, string> {
-  const fb = process.env.FACEBOOK_APP_ID ?? '';
-  return {
-    linkedin:  process.env.LINKEDIN_CLIENT_ID ?? '',
-    twitter:   process.env.TWITTER_CLIENT_ID  ?? '',
-    reddit:    process.env.REDDIT_CLIENT_ID   ?? '',
-    facebook:  fb,
-    // Instagram Graph API access uses the same Meta App ID as Facebook.
-    instagram: fb,
-  };
+export type SupportedPlatform = (typeof SUPPORTED_PLATFORMS)[number];
+
+// Per-user in-memory cache. Map<userId, Map<platform, clientId>>.
+// Mirrors the rows we have loaded from the DB so far; users absent from this
+// map have not yet had their config touched in this process.
+const cache = new Map<string, Map<string, string>>();
+
+function getUserMap(userId: string): Map<string, string> {
+  let userMap = cache.get(userId);
+  if (!userMap) {
+    userMap = new Map();
+    cache.set(userId, userMap);
+  }
+  return userMap;
 }
 
-// Mutable in-memory cache — always reflects the latest known state.
-// Seeded from env vars at module load; overwritten by the DB on initialize().
-const cache = new Map<string, string>(Object.entries(envDefaults()));
+/**
+ * Build a complete config record for a user — every supported platform is
+ * represented, with empty strings for platforms the user hasn't configured.
+ * This guarantees the response shape stays stable across users and avoids
+ * leaking the set of configured platforms through key presence.
+ */
+function fillDefaults(partial: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const platform of SUPPORTED_PLATFORMS) {
+    out[platform] = partial[platform] ?? '';
+  }
+  return out;
+}
 
 export const platformConfigStore = {
   /**
-   * Load platform client IDs from the database.
-   *
-   * Call this once at server startup. It:
-   *   1. Creates the platform_configs table if it doesn't exist.
-   *   2. Seeds any missing rows from environment variables so administrators
-   *      can pre-populate values via .env without touching the admin API.
-   *   3. Reads all rows into the in-memory cache so subsequent getAll() /
-   *      getClientId() calls remain synchronous.
-   *
-   * If DATABASE_URL is not set (dev/test mode) this is a no-op and the cache
-   * retains the env-var defaults loaded at module import time.
+   * Ensure the underlying table exists. Call once at server startup.
+   * No-op when DATABASE_URL is not set (the in-memory cache is then the
+   * only store, which is fine for dev/test).
    */
   async initialize(): Promise<void> {
     const pool = getPool();
-    if (!pool) return; // no database configured — use env-var defaults
-
+    if (!pool) return;
     await ensureTable(pool);
-
-    // Read whatever's already in the DB.
-    const dbValues = await loadAll(pool);
-
-    // For each platform, seed the DB row from env vars if the row is absent or
-    // empty (e.g. first deployment). DB value wins if it's already populated.
-    const defaults = envDefaults();
-    for (const platform of PLATFORMS) {
-      const dbValue = dbValues[platform];
-      if (dbValue !== undefined && dbValue !== '') {
-        // DB has a real value — trust it.
-        cache.set(platform, dbValue);
-      } else {
-        // DB row is missing or empty — seed from env var.
-        const envValue = defaults[platform] ?? '';
-        cache.set(platform, envValue);
-        await upsert(pool, platform, envValue);
-      }
-    }
-  },
-
-  /** Returns all platform client IDs. Empty string means not yet configured. */
-  getAll(): Record<string, string> {
-    return Object.fromEntries(cache);
-  },
-
-  /** Returns the client ID for a specific platform, or '' if not configured. */
-  getClientId(platform: string): string {
-    return cache.get(platform) ?? '';
   },
 
   /**
-   * Update the in-memory cache immediately (synchronous).
-   *
-   * Use this together with saveToDb() in production code so the new value is
-   * served instantly AND persisted across restarts. In tests, calling only
-   * setClientId() is sufficient because there is no database.
+   * Load (or refresh) a user's platform configs from the database into the
+   * in-memory cache. Safe to call repeatedly; each call replaces the cached
+   * entry for this user. No-op when DATABASE_URL is not set.
    */
-  setClientId(platform: string, clientId: string): void {
-    cache.set(platform, clientId);
-  },
-
-  /**
-   * Persist a client ID to the database (asynchronous).
-   *
-   * This is a no-op when DATABASE_URL is not set. Always call setClientId()
-   * first to update the in-memory cache, then call saveToDb() to persist.
-   */
-  async saveToDb(platform: string, clientId: string): Promise<void> {
+  async loadForUser(userId: string): Promise<void> {
     const pool = getPool();
     if (!pool) return;
-    await upsert(pool, platform, clientId);
+    const dbValues = await loadAllForUser(pool, userId);
+    const userMap = new Map<string, string>();
+    for (const platform of SUPPORTED_PLATFORMS) {
+      userMap.set(platform, dbValues[platform] ?? '');
+    }
+    cache.set(userId, userMap);
   },
 
   /**
-   * Reset the cache to the current environment-variable defaults.
+   * Returns the user's full platform-config map (one entry per supported
+   * platform, empty string when unconfigured).
+   *
+   * Reads from the in-memory cache only — callers that need fresh DB values
+   * should `await loadForUser(userId)` first.
+   */
+  getAllForUser(userId: string): Record<string, string> {
+    const userMap = cache.get(userId);
+    if (!userMap) return fillDefaults({});
+    return fillDefaults(Object.fromEntries(userMap));
+  },
+
+  /**
+   * Returns a single platform client ID for a user, or '' when not set.
+   * Reads from the in-memory cache only.
+   */
+  getClientIdForUser(userId: string, platform: string): string {
+    return cache.get(userId)?.get(platform) ?? '';
+  },
+
+  /**
+   * Update the in-memory cache for a user/platform pair (synchronous).
+   *
+   * Pair with saveToDbForUser() in production code so the new value is served
+   * immediately AND persisted across restarts. In tests, calling only this
+   * method is sufficient because there is no database.
+   */
+  setClientIdForUser(userId: string, platform: string, clientId: string): void {
+    getUserMap(userId).set(platform, clientId);
+  },
+
+  /**
+   * Persist a single client ID to the database for a user. No-op when
+   * DATABASE_URL is not set.
+   */
+  async saveToDbForUser(
+    userId: string,
+    platform: string,
+    clientId: string,
+  ): Promise<void> {
+    const pool = getPool();
+    if (!pool) return;
+    await upsertForUser(pool, userId, platform, clientId);
+  },
+
+  /**
+   * Clear the in-memory cache for ALL users.
    *
    * FOR USE IN TESTS ONLY — never call this in production code.
    */
-  _reset(): void {
+  _clear(): void {
     cache.clear();
-    for (const [k, v] of Object.entries(envDefaults())) {
-      cache.set(k, v);
-    }
   },
 };

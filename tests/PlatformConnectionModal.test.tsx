@@ -6,6 +6,7 @@ import type { PlatformConfig } from '../src/types'
 // ── Mock the platform config service so tests never hit the network.
 // fetchPlatformClientIds returns fully-configured client IDs by default;
 // individual tests can override this with mockResolvedValueOnce / mockRejectedValueOnce.
+// savePlatformClientId / deletePlatformClientId resolve successfully by default.
 vi.mock('../src/services/platformConfigService', () => ({
   fetchPlatformClientIds: vi.fn().mockResolvedValue({
     linkedin: 'test-linkedin-client-id',
@@ -14,10 +15,16 @@ vi.mock('../src/services/platformConfigService', () => ({
     facebook: 'test-facebook-app-id',
     instagram: 'test-facebook-app-id',
   }),
+  savePlatformClientId: vi.fn().mockResolvedValue(undefined),
+  deletePlatformClientId: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { fetchPlatformClientIds } from '../src/services/platformConfigService'
+import {
+  fetchPlatformClientIds,
+  savePlatformClientId,
+} from '../src/services/platformConfigService'
 const mockFetchClientIds = fetchPlatformClientIds as ReturnType<typeof vi.fn>
+const mockSaveClientId = savePlatformClientId as ReturnType<typeof vi.fn>
 
 const LINKEDIN: PlatformConfig = {
   id: 'linkedin',
@@ -81,6 +88,7 @@ describe('PlatformConnectionModal', () => {
       facebook: 'test-facebook-app-id',
       instagram: 'test-facebook-app-id',
     })
+    mockSaveClientId.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -153,16 +161,65 @@ describe('PlatformConnectionModal', () => {
     expect(screen.queryByTestId('oauth-connect-btn')).toBeNull()
   })
 
-  it('setup instructions show the correct env var name for LinkedIn', async () => {
+  it('setup instructions do NOT mention environment variables', async () => {
     mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
     await renderModal()
-    expect(screen.getByText('LINKEDIN_CLIENT_ID')).toBeDefined()
+    const instructions = screen.getByTestId('setup-instructions')
+    // No env-var name (LINKEDIN_CLIENT_ID) and no "your server environment" phrasing.
+    expect(instructions.textContent).not.toMatch(/LINKEDIN_CLIENT_ID/)
+    expect(instructions.textContent).not.toMatch(/server environment/i)
   })
 
   it('setup instructions show the redirect URI', async () => {
     mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
     await renderModal()
     expect(screen.getByTestId('redirect-uri-display').textContent).toContain('/oauth/callback')
+  })
+
+  it('setup instructions render an inline Save Client ID form', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
+    await renderModal()
+    expect(screen.getByTestId('client-id-input')).toBeDefined()
+    expect(screen.getByTestId('save-client-id-btn')).toBeDefined()
+  })
+
+  it('save form rejects an empty Client ID', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
+    await renderModal()
+    fireEvent.click(screen.getByTestId('save-client-id-btn'))
+    expect(screen.getByTestId('client-id-error').textContent).toContain('Paste')
+    expect(mockSaveClientId).not.toHaveBeenCalled()
+  })
+
+  it('save form persists the Client ID and switches to the OAuth connect button', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
+    await renderModal()
+
+    fireEvent.change(screen.getByTestId('client-id-input'), {
+      target: { value: '  pasted-linkedin-id  ' },
+    })
+    fireEvent.click(screen.getByTestId('save-client-id-btn'))
+
+    // Wait for the savePlatformClientId Promise to settle and the modal to re-render.
+    await act(async () => {})
+
+    expect(mockSaveClientId).toHaveBeenCalledWith('linkedin', 'pasted-linkedin-id')
+    // Setup form is gone; OAuth connect button is now available.
+    expect(screen.queryByTestId('setup-instructions')).toBeNull()
+    expect(screen.getByTestId('oauth-connect-btn')).toBeDefined()
+  })
+
+  it('save form surfaces server-side errors instead of advancing', async () => {
+    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
+    mockSaveClientId.mockRejectedValueOnce(new Error('Invalid client ID'))
+    await renderModal()
+
+    fireEvent.change(screen.getByTestId('client-id-input'), { target: { value: 'bad-id' } })
+    fireEvent.click(screen.getByTestId('save-client-id-btn'))
+    await act(async () => {})
+
+    expect(screen.getByTestId('client-id-error').textContent).toContain('Invalid client ID')
+    expect(screen.getByTestId('setup-instructions')).toBeDefined()
   })
 
   it('shows the OAuth connect button when client ID is configured', async () => {

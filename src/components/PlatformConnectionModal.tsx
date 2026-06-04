@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from './PlatformBadge'
 import { PLATFORM_CREDENTIAL_FIELDS, PLATFORM_OAUTH_CONFIG } from '../config/platformConfig'
-import { fetchPlatformClientIds } from '../services/platformConfigService'
+import {
+  fetchPlatformClientIds,
+  savePlatformClientId,
+} from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
 import styles from './PlatformConnectionModal.module.css'
 
@@ -19,23 +22,47 @@ interface Props {
   onConnect: (platformId: string) => void
 }
 
-// ── Setup instructions panel ──────────────────────────────────────────────────
+// ── Setup instructions + inline client-ID save ────────────────────────────────
 
 interface SetupInstructionsProps {
   platformId: string
   platformName: string
+  /** Called with the freshly saved client ID after a successful PUT. */
+  onSaved: (clientId: string) => void
 }
 
-function SetupInstructions({ platformId, platformName }: SetupInstructionsProps) {
+function SetupInstructions({ platformId, platformName, onSaved }: SetupInstructionsProps) {
   const config = PLATFORM_OAUTH_CONFIG[platformId]
   const redirectUri = `${window.location.origin}/oauth/callback`
+
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!config) return null
 
   const { setupInstructions } = config
 
+  const handleSave = async () => {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      setError('Paste your Client ID before saving.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await savePlatformClientId(platformId, trimmed)
+      onSaved(trimmed)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save client ID.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <div data-testid="setup-instructions">
+    <div data-testid="setup-instructions" style={{ textAlign: 'left' }}>
       <div
         style={{
           background: '#fffbeb',
@@ -48,10 +75,9 @@ function SetupInstructions({ platformId, platformName }: SetupInstructionsProps)
           lineHeight: 1.5,
         }}
       >
-        <strong>{platformName} is not configured yet.</strong> An administrator needs to create an
-        OAuth app and set <code style={{ background: '#fef3c7', padding: '1px 4px', borderRadius: '3px' }}>
-          {setupInstructions.envVar}
-        </code> on the server before users can connect via OAuth.
+        <strong>{platformName} is not configured yet.</strong> Create an OAuth app on the
+        {' '}{setupInstructions.portalName} and paste the Client ID below — it's saved to your
+        account, no environment variables or server restarts required.
       </div>
 
       <div style={{ marginBottom: '12px' }}>
@@ -72,6 +98,9 @@ function SetupInstructions({ platformId, platformName }: SetupInstructionsProps)
               {step.replace('{REDIRECT_URI}', redirectUri)}
             </li>
           ))}
+          <li style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>
+            Paste the Client ID into the field below and click <strong>Save</strong>.
+          </li>
         </ol>
       </div>
 
@@ -84,6 +113,7 @@ function SetupInstructions({ platformId, platformName }: SetupInstructionsProps)
           fontSize: '12px',
           color: '#14532d',
           lineHeight: 1.5,
+          marginBottom: '14px',
         }}
       >
         <strong>Redirect URI to register:</strong>{' '}
@@ -95,7 +125,7 @@ function SetupInstructions({ platformId, platformName }: SetupInstructionsProps)
         </code>
       </div>
 
-      <div style={{ marginTop: '12px' }}>
+      <div style={{ marginBottom: '12px' }}>
         <a
           href={setupInstructions.portalUrl}
           target="_blank"
@@ -113,6 +143,45 @@ function SetupInstructions({ platformId, platformName }: SetupInstructionsProps)
           Open {setupInstructions.portalName} ↗
         </a>
       </div>
+
+      {/* Inline save form */}
+      <div>
+        <label className={styles.fieldLabel} htmlFor={`client-id-input-${platformId}`}>
+          {platformName} Client ID
+        </label>
+        <input
+          id={`client-id-input-${platformId}`}
+          data-testid="client-id-input"
+          className={styles.fieldInput}
+          type="text"
+          placeholder="Paste your OAuth Client ID"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value)
+            if (error) setError(null)
+          }}
+          autoComplete="off"
+          disabled={saving}
+        />
+        {error && (
+          <p
+            data-testid="client-id-error"
+            className={styles.credentialsError}
+            style={{ marginTop: '10px', marginBottom: 0 }}
+          >
+            {error}
+          </p>
+        )}
+        <button
+          data-testid="save-client-id-btn"
+          className={styles.connectBtn}
+          style={{ marginTop: '12px' }}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Save Client ID'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -127,7 +196,7 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const [credError, setCredError] = useState<string | null>(null)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
 
-  // Platform client IDs are fetched from the server (not baked into the bundle).
+  // The signed-in user's client IDs, fetched from the server.
   const [clientIds, setClientIds] = useState<PlatformClientIds | null>(null)
   const [configLoadState, setConfigLoadState] = useState<ConfigLoadState>('loading')
 
@@ -153,6 +222,30 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const oauthConfig = PLATFORM_OAUTH_CONFIG[platform.id]
   /** True while an OAuth flow is actively in progress (not idle or errored). */
   const isOAuthConnecting = oauthStep !== 'idle' && oauthStep !== 'error'
+
+  // Update local state after the user saves their client ID inline so the
+  // OAuth connect button becomes available without a page refresh.
+  const handleClientIdSaved = useCallback(
+    (savedClientId: string) => {
+      setClientIds((prev) => {
+        // Facebook and Instagram share one Meta App ID — the server mirrors
+        // the value automatically, so reflect that in the local cache too.
+        const next: PlatformClientIds = {
+          linkedin: '',
+          twitter: '',
+          reddit: '',
+          facebook: '',
+          instagram: '',
+          ...(prev ?? {}),
+        }
+        next[platform.id] = savedClientId
+        if (platform.id === 'facebook') next.instagram = savedClientId
+        if (platform.id === 'instagram') next.facebook = savedClientId
+        return next
+      })
+    },
+    [platform.id]
+  )
 
   // ── Keyboard accessibility: close on Escape ──────────────────────────────
 
@@ -414,9 +507,13 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
                 </div>
               )}
 
-              {/* Ready — platform supported but client ID not yet set up */}
+              {/* Ready — platform supported but the user hasn't saved a client ID yet */}
               {configLoadState === 'ready' && oauthConfig && !clientId && (
-                <SetupInstructions platformId={platform.id} platformName={displayName} />
+                <SetupInstructions
+                  platformId={platform.id}
+                  platformName={displayName}
+                  onSaved={handleClientIdSaved}
+                />
               )}
 
               {/* Ready — fully configured: show the OAuth connect flow */}
