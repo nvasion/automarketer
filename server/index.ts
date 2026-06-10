@@ -1,6 +1,7 @@
 import { app } from './app.js';
 import { jwtSecret } from './utils/config.js';
 import { platformConfigStore } from './models/platformConfigStore.js';
+import { userStore } from './models/userStore.js';
 
 // ── Security guard ────────────────────────────────────────────────────────────
 // Calling jwtSecret() here triggers a hard crash in production when JWT_SECRET
@@ -25,6 +26,13 @@ if (isNaN(port) || port <= 0 || port > 65535) {
 // in-memory cache becomes the only store (dev/test mode).
 platformConfigStore.initialize().catch((err) => {
   console.error('[server] Failed to initialise platform config store:', err);
+});
+
+// ── Initialise user store ────────────────────────────────────────────────────
+// Ensures the users table exists and loads existing users into the in-memory
+// cache. If DATABASE_URL is not configured this is a no-op.
+userStore.initialize().catch((err) => {
+  console.error('[server] Failed to initialise user store:', err);
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────

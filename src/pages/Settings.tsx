@@ -321,9 +321,28 @@ function Settings() {
           {/* ── Platforms Tab ─────────────────────────────────────────────── */}
           {activeTab === 'platforms' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-                Connected Platforms
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+                  Connected Platforms
+                </h2>
+                {Object.values(connections).some(Boolean) && (
+                  <button
+                    onClick={() => setConnections({ linkedin: false, twitter: false, reddit: false, facebook: false, instagram: false })}
+                    style={{
+                      background: 'white',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Disconnect All
+                  </button>
+                )}
+              </div>
               <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
                 Connect your social accounts to publish directly from AutoMarketer.
               </p>

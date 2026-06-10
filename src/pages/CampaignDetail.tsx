@@ -154,6 +154,7 @@ function CampaignDetail() {
               </button>
             )}
             <button
+              onClick={() => navigate(`/campaigns/${campaign.id}/edit`)}
               style={{
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0',

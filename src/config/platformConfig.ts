@@ -152,6 +152,7 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Go to the LinkedIn Developer Portal and click "Create app".',
         'Under the "Auth" tab, add {REDIRECT_URI} as an Authorized Redirect URL.',
         'Under the "Products" tab, request "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect".',
+        '⚠️ Important: After adding products, you may need to complete app verification or wait for LinkedIn approval before OAuth will work. If you get an "invalid_scope_error", check that both products are approved in your app dashboard.',
         'Copy the Client ID from the "Auth" tab.',
       ],
     },

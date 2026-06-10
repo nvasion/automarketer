@@ -6,7 +6,9 @@ import rateLimit from 'express-rate-limit';
 import { userStore } from '../models/userStore.js';
 import { requireAuth } from '../middleware/auth.js';
 import { jwtSecret } from '../utils/config.js';
-import type { PublicUser } from '../types.js';
+import type { PublicUser, User } from '../types.js';
+import { getPool } from '../db/connection.js';
+import { emailExists as dbEmailExists } from '../db/usersTable.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BCRYPT_ROUNDS = 12; // OWASP minimum is 10; 12 gives a comfortable margin
@@ -90,13 +92,28 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     });
     return;
   }
-  if (userStore.emailExists(email)) {
+
+  // Check if email exists in DB (if available) or in-memory cache
+  const pool = getPool();
+  if (pool) {
+    const exists = await dbEmailExists(pool, email);
+    if (exists) {
+      res.status(409).json({ error: 'An account with that email already exists.', code: 'DUPLICATE_EMAIL' });
+      return;
+    }
+  } else if (userStore.emailExists(email)) {
     res.status(409).json({ error: 'An account with that email already exists.', code: 'DUPLICATE_EMAIL' });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const user = userStore.create(email, passwordHash);
+  
+  // Persist to database if available
+  if (pool) {
+    await userStore.saveToDb(user);
+  }
+  
   const token = signToken(user.id, user.email);
 
   res.cookie('auth_token', token, cookieOptions());
@@ -124,7 +141,19 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const user = userStore.findByEmail(email);
+  // Try DB first if available, otherwise fall back to in-memory cache
+  const pool = getPool();
+  let user: User | undefined;
+  
+  if (pool) {
+    const { findByEmail: dbFindByEmail } = await import('../db/usersTable.js');
+    user = await dbFindByEmail(pool, email);
+  }
+  
+  if (!user) {
+    user = userStore.findByEmail(email);
+  }
+  
   if (!user) {
     // Return a generic message to prevent user-enumeration attacks
     res.status(401).json({ error: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
