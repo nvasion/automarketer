@@ -7,19 +7,68 @@ import { PLATFORM_CONFIGS } from '../data/sampleData'
 interface Props {
   post: PostRecord
   onStatusChange?: (id: string, status: PostRecord['status']) => void
+  onRepublish?: (id: string) => void | Promise<void>
+  publishing?: boolean
+  publishError?: string
+  /**
+   * Whether the post's target platform account is connected. When false, the
+   * publish and republish buttons are greyed out and disabled. Defaults to
+   * true so callers that don't track connection state keep the old behaviour.
+   */
+  platformConnected?: boolean
 }
 
-function PostCard({ post, onStatusChange }: Props) {
+function PostCard({
+  post,
+  onStatusChange,
+  onRepublish,
+  publishing = false,
+  publishError = '',
+  platformConnected = true,
+}: Props) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [republishing, setRepublishing] = useState(false)
   const config = PLATFORM_CONFIGS.find((p) => p.id === post.platform)
   const isLong = post.content.length > 280
+  const isPublishing = publishing && post.status !== 'published'
+  const publishDisabled = isPublishing || !platformConnected
+  const notConnectedTitle = `Connect ${config?.name ?? post.platform} in Settings to publish`
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     const fullText = post.content + (post.hashtags?.length ? '\n\n' + post.hashtags.join(' ') : '')
-    navigator.clipboard.writeText(fullText).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(fullText)
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textarea = document.createElement('textarea')
+        textarea.value = fullText
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('[PostCard] Failed to copy:', err)
+      // Show error feedback
+      setCopied(false)
+    }
+  }
+
+  const handleRepublish = async () => {
+    if (!onRepublish || post.status !== 'published' || !platformConnected) return
+    setRepublishing(true)
+    try {
+      await onRepublish(post.id)
+    } finally {
+      setRepublishing(false)
+    }
   }
 
   const displayContent = expanded || !isLong ? post.content : post.content.slice(0, 280) + '…'
@@ -74,6 +123,26 @@ function PostCard({ post, onStatusChange }: Props) {
           >
             {copied ? '✓ Copied' : 'Copy'}
           </button>
+          {post.status === 'published' && (
+            <button
+              onClick={handleRepublish}
+              disabled={republishing || !platformConnected}
+              title={!platformConnected ? notConnectedTitle : undefined}
+              style={{
+                background: republishing || !platformConnected ? '#e2e8f0' : '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '12px',
+                color: republishing || !platformConnected ? '#94a3b8' : '#64748b',
+                cursor: republishing || !platformConnected ? 'not-allowed' : 'pointer',
+                fontWeight: 500,
+                transition: 'all 0.15s',
+              }}
+            >
+              {republishing ? 'Republishing…' : 'Republish'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -195,6 +264,7 @@ function PostCard({ post, onStatusChange }: Props) {
             display: 'flex',
             gap: '8px',
             justifyContent: 'flex-end',
+            alignItems: 'center',
           }}
         >
           {post.status === 'draft' && (
@@ -215,38 +285,63 @@ function PostCard({ post, onStatusChange }: Props) {
               </button>
               <button
                 onClick={() => onStatusChange?.(post.id, 'published')}
+                disabled={publishDisabled}
+                title={!platformConnected ? notConnectedTitle : undefined}
                 style={{
-                  background: '#6366f1',
+                  background: publishDisabled ? '#9ca3af' : '#6366f1',
                   border: 'none',
                   borderRadius: '6px',
                   padding: '6px 14px',
                   fontSize: '13px',
                   color: 'white',
-                  cursor: 'pointer',
+                  cursor: publishDisabled ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
+                  opacity: publishDisabled ? 0.7 : 1,
                 }}
               >
-                Publish Now
+                {isPublishing ? 'Publishing…' : 'Publish Now'}
               </button>
             </>
           )}
           {post.status === 'scheduled' && (
             <button
               onClick={() => onStatusChange?.(post.id, 'published')}
+              disabled={publishDisabled}
+              title={!platformConnected ? notConnectedTitle : undefined}
               style={{
-                background: '#6366f1',
+                background: publishDisabled ? '#9ca3af' : '#6366f1',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '6px 14px',
                 fontSize: '13px',
                 color: 'white',
-                cursor: 'pointer',
+                cursor: publishDisabled ? 'not-allowed' : 'pointer',
                 fontWeight: 600,
+                opacity: publishDisabled ? 0.7 : 1,
               }}
             >
-              Publish Now
+              {isPublishing ? 'Publishing…' : 'Publish Now'}
             </button>
           )}
+          {publishError && (
+            <span style={{ color: '#dc2626', fontSize: '12px', marginRight: '8px' }}>
+              ⚠ {publishError}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Republish errors — the actions footer above only renders for
+          unpublished posts, so surface failures here for published ones. */}
+      {post.status === 'published' && publishError && (
+        <div
+          style={{
+            padding: '10px 16px',
+            borderTop: '1px solid #f1f5f9',
+            textAlign: 'right',
+          }}
+        >
+          <span style={{ color: '#dc2626', fontSize: '12px' }}>⚠ {publishError}</span>
         </div>
       )}
     </div>

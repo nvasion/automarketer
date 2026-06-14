@@ -55,8 +55,12 @@ export interface SocialPostRequest {
   }
   /** Reddit-specific options. */
   reddit?: {
-    /** Target subreddit name (without "r/"), e.g. "programming". */
-    subreddit: string
+    /**
+     * Target subreddit(s) to submit the post to. Accepts a single subreddit
+     * name or an array of names. "r/" prefixes are tolerated and stripped,
+     * e.g. "programming", "r/programming", or ["startups", "SaaS"].
+     */
+    subreddit: string | string[]
     /** Post title (required for Reddit self-posts). */
     title: string
     /** Whether the post contains NSFW content. Defaults to false. */
@@ -88,6 +92,13 @@ export interface SocialPostResult {
   postId?: string
   /** Direct URL to the published post, if available. */
   url?: string
+  /**
+   * Per-target results when a single request fans out to multiple targets
+   * (e.g. a Reddit post submitted to several subreddits). Present only when
+   * more than one target was posted to; `postId`/`url` then reflect the
+   * first submission.
+   */
+  submissions?: Array<{ target: string; postId?: string; url?: string }>
 }
 
 // ─── Credentials ──────────────────────────────────────────────────────────────

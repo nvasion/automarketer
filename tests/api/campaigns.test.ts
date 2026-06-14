@@ -246,6 +246,27 @@ describe('createCampaign()', () => {
       statusCode: 400,
     })
   })
+
+  // ── Subreddit validation ────────────────────────────────────────────────────
+
+  it('accepts a single subreddit string and normalizes it', async () => {
+    setSession()
+    const record = await createCampaign({ ...SAMPLE_INPUT, subreddits: 'r/startups' })
+    expect(record.subreddits).toEqual(['startups'])
+  })
+
+  it('accepts an array of subreddits', async () => {
+    setSession()
+    const record = await createCampaign({ ...SAMPLE_INPUT, subreddits: ['startups', 'SaaS'] })
+    expect(record.subreddits).toEqual(['startups', 'SaaS'])
+  })
+
+  it('throws ApiError(400) for a malformed subreddit name', async () => {
+    setSession()
+    await expect(
+      createCampaign({ ...SAMPLE_INPUT, subreddits: 'https://evil.example' })
+    ).rejects.toMatchObject({ statusCode: 400 })
+  })
 })
 
 // ─── updateCampaign() ─────────────────────────────────────────────────────────

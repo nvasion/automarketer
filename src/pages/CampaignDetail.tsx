@@ -1,22 +1,53 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import type { PostRecord } from '../db/schema'
 import type { Platform } from '../types'
 import { useCampaign } from '../hooks/useCampaign'
+import { useAuth } from '../contexts/AuthContext'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
 import PostCard from '../components/PostCard'
+import { publishService, PublishError } from '../services/publishService'
+import { fetchPlatformClientIds } from '../services/platformConfigService'
+import type { PlatformClientIds } from '../services/platformConfigService'
 
 function CampaignDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { campaign, loading, error, update } = useCampaign(id)
   const [posts, setPosts] = useState<PostRecord[] | null>(null)
   const [activeTab, setActiveTab] = useState<Platform | 'all'>('all')
+  const [publishing, setPublishing] = useState<Record<string, boolean>>({})
+  const [publishError, setPublishError] = useState<Record<string, string>>({})
+  const [platformConnections, setPlatformConnections] = useState<PlatformClientIds | null>(null)
+
+  // Load the server's configured platforms so publish/republish buttons can be
+  // greyed out for platforms that aren't set up (no OAuth app configured).
+  // A non-empty client ID means the platform is available to publish to; the
+  // per-user access-token check still happens server-side at publish time.
+  useEffect(() => {
+    let cancelled = false
+    fetchPlatformClientIds()
+      .then((ids) => {
+        if (!cancelled) setPlatformConnections(ids)
+      })
+      .catch((err) => {
+        console.warn('[CampaignDetail] Failed to load platform connections:', err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Use local post state if updated, otherwise use posts from the loaded campaign
   const activePosts = posts ?? campaign?.posts ?? []
+
+  // While connection state is still loading (null) the buttons stay enabled —
+  // the publish-time connection check below remains the safety net.
+  const isPlatformConnected = (platform: Platform): boolean =>
+    platformConnections === null || Boolean(platformConnections[platform])
 
   if (loading) {
     return (
@@ -50,14 +81,128 @@ function CampaignDetail() {
     )
   }
 
+  /**
+   * Publish (or republish) a post to its platform API and persist the
+   * resulting status/timestamp. Shared by "Publish Now" and "Republish".
+   */
+  const publishPost = async (post: PostRecord) => {
+    setPublishing((prev) => ({ ...prev, [post.id]: true }))
+    setPublishError((prev) => ({ ...prev, [post.id]: '' }))
+
+    console.info(`[CampaignDetail] Publishing post ${post.id} to ${post.platform}…`)
+
+    try {
+      // Get the user's platform client IDs to check if connected
+      const clientIds = await fetchPlatformClientIds()
+      if (!clientIds[post.platform] || clientIds[post.platform] === '') {
+        console.error(
+          `[CampaignDetail] ${post.platform} has no client ID configured — aborting publish. ` +
+            'Connect the platform in Settings → Connected Platforms.'
+        )
+        throw new Error(
+          `${post.platform.charAt(0).toUpperCase() + post.platform.slice(1)} is not connected. Please connect your account in Settings.`
+        )
+      }
+
+      // Build platform-specific options
+      let platformOptions: Record<string, unknown> | undefined
+
+      if (post.platform === 'linkedin') {
+        // The member URN is stored in localStorage by the connection modal
+        // when the OAuth flow completes (the server resolves it from
+        // LinkedIn's userinfo endpoint and returns it as `authorId`).
+        const authorIdKey = `linkedin_authorId_${user?.id ?? 'default'}`
+        const authorId = localStorage.getItem(authorIdKey)
+        if (!authorId) {
+          console.error(
+            `[CampaignDetail] No LinkedIn author ID in localStorage (key=${authorIdKey}). ` +
+              'It is stored during the OAuth connect flow — disconnect and reconnect LinkedIn in Settings. ' +
+              'If reconnecting does not help, check the server [oauth] logs for the userinfo failure reason.'
+          )
+          throw new Error(
+            'LinkedIn author ID not found. Disconnect and reconnect your LinkedIn account in Settings to refresh it.'
+          )
+        }
+        console.info('[CampaignDetail] LinkedIn author ID found — publishing as', authorId)
+        platformOptions = { authorId }
+      }
+
+      if (post.platform === 'reddit') {
+        // Reddit submissions need target subreddit(s) and a title; both come
+        // from the campaign (the campaign name doubles as the post title).
+        const subreddits = campaign?.subreddits ?? []
+        if (subreddits.length === 0) {
+          throw new Error(
+            'No subreddits configured for this campaign. Add at least one subreddit via Edit Campaign.'
+          )
+        }
+        platformOptions = { subreddit: subreddits, title: campaign?.name ?? '' }
+      }
+
+      // Call the publish API
+      const result = await publishService.publish(
+        post.platform,
+        post.content,
+        post.hashtags ?? [],
+        platformOptions,
+      )
+
+      // Update the post with published status and timestamp
+      const updatedPosts = activePosts.map((p) =>
+        p.id === post.id
+          ? {
+              ...p,
+              status: 'published' as const,
+              publishedAt: new Date().toISOString(),
+            }
+          : p,
+      )
+      setPosts(updatedPosts)
+      await update({ posts: updatedPosts }).catch(() => {
+        setPosts(activePosts)
+      })
+
+      console.info('[CampaignDetail] Published successfully:', result)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to publish'
+      setPublishError((prev) => ({ ...prev, [post.id]: message }))
+      if (err instanceof PublishError) {
+        console.error(
+          `[CampaignDetail] Publish failed for post ${post.id} (${post.platform}): ` +
+            `HTTP ${err.httpStatus ?? '?'} code=${err.code ?? 'unknown'} — ${err.message}. ` +
+            'The server [publish] logs have the full platform response.'
+        )
+      } else {
+        console.error(`[CampaignDetail] Publish failed for post ${post.id} (${post.platform}):`, err)
+      }
+      // Don't revert - let the user retry
+    } finally {
+      setPublishing((prev) => ({ ...prev, [post.id]: false }))
+    }
+  }
+
   const handleStatusChange = async (postId: string, status: PostRecord['status']) => {
-    const updatedPosts = activePosts.map((p) => (p.id === postId ? { ...p, status } : p))
-    setPosts(updatedPosts)
-    // Persist the change
-    await update({ posts: updatedPosts }).catch(() => {
-      // Revert on failure
-      setPosts(activePosts)
-    })
+    const post = activePosts.find((p) => p.id === postId)
+    if (!post) return
+
+    // If changing to 'published', actually publish to the platform API
+    if (status === 'published' && post.status !== 'published') {
+      await publishPost(post)
+    } else {
+      // For other status changes, just update locally
+      const updatedPosts = activePosts.map((p) => (p.id === postId ? { ...p, status } : p))
+      setPosts(updatedPosts)
+      await update({ posts: updatedPosts }).catch(() => {
+        setPosts(activePosts)
+      })
+    }
+  }
+
+  /** Re-run the platform publish for a post that is already published. */
+  const handleRepublish = async (postId: string) => {
+    const post = activePosts.find((p) => p.id === postId)
+    if (!post || post.status !== 'published') return
+    await publishPost(post)
   }
 
   const filteredPosts =
@@ -154,6 +299,7 @@ function CampaignDetail() {
               </button>
             )}
             <button
+              onClick={() => navigate(`/campaigns/${campaign.id}/edit`)}
               style={{
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0',
@@ -301,7 +447,15 @@ function CampaignDetail() {
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {filteredPosts.length > 0 ? (
             filteredPosts.map((post) => (
-              <PostCard key={post.id} post={post} onStatusChange={handleStatusChange} />
+              <PostCard
+                key={post.id}
+                post={post}
+                onStatusChange={handleStatusChange}
+                onRepublish={handleRepublish}
+                publishing={publishing[post.id]}
+                publishError={publishError[post.id]}
+                platformConnected={isPlatformConnected(post.platform)}
+              />
             ))
           ) : (
             <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>

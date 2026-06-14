@@ -1,9 +1,10 @@
 // ── Platform config service ────────────────────────────────────────────────────
-// Reads and writes the signed-in user's OAuth client IDs. Each user owns
-// their own configuration — there is no shared global config and no
-// administrator role.
+// Reads the server's OAuth client IDs (shared-app model). AutoMarketer owns one
+// OAuth app per platform, configured via <PLATFORM>_CLIENT_ID environment
+// variables; the same config is served to every user. Client IDs are public
+// (they appear in OAuth redirect URLs); secrets are never sent to the browser.
 //
-// All endpoints require authentication: the browser sends the httpOnly
+// The endpoint requires authentication: the browser sends the httpOnly
 // auth_token cookie automatically when we pass `credentials: 'include'`.
 
 export interface PlatformClientIds {
@@ -31,12 +32,11 @@ async function readJsonError(res: Response): Promise<string> {
 }
 
 /**
- * Fetch the signed-in user's OAuth client IDs for every supported platform.
+ * Fetch the server's configured OAuth client IDs for every supported platform.
  *
- * Client IDs are public values — they appear in every OAuth redirect URL —
- * but are scoped to a single user account so each customer manages their
- * own OAuth apps. An empty string for a platform means the user hasn't
- * configured it yet; the UI should show the setup form.
+ * An empty string for a platform means it is not configured on the server
+ * (its <PLATFORM>_CLIENT_ID / <PLATFORM>_CLIENT_SECRET env vars aren't set), so
+ * the UI should show "not configured" instead of a Connect button.
  */
 export async function fetchPlatformClientIds(): Promise<PlatformClientIds> {
   const res = await fetch('/api/platform-config', {
@@ -46,39 +46,4 @@ export async function fetchPlatformClientIds(): Promise<PlatformClientIds> {
     throw new Error(await readJsonError(res))
   }
   return res.json() as Promise<PlatformClientIds>
-}
-
-/**
- * Save (create or update) the signed-in user's client ID for a platform.
- *
- * The server trims whitespace and validates length / control characters. It
- * also mirrors facebook ↔ instagram automatically because they share a
- * single Meta App ID.
- */
-export async function savePlatformClientId(
-  platform: string,
-  clientId: string,
-): Promise<void> {
-  const res = await fetch(`/api/platform-config/${encodeURIComponent(platform)}`, {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clientId }),
-  })
-  if (!res.ok) {
-    throw new Error(await readJsonError(res))
-  }
-}
-
-/**
- * Clear the signed-in user's client ID for a platform.
- */
-export async function deletePlatformClientId(platform: string): Promise<void> {
-  const res = await fetch(`/api/platform-config/${encodeURIComponent(platform)}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    throw new Error(await readJsonError(res))
-  }
 }

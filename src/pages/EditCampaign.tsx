@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import type { Platform, Tone, Screenshot } from '../types'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
 import { loadAIConfig } from '../config/aiConfig'
 import { useContentGeneration } from '../hooks/useContentGeneration'
-import { createCampaign } from '../api/campaigns'
+import { updateCampaign } from '../api/campaigns'
+import { useCampaign } from '../hooks/useCampaign'
 import PlatformBadge from '../components/PlatformBadge'
 
 type Step = 1 | 2 | 3 | 4
@@ -70,8 +71,10 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-function CreateCampaign() {
+function EditCampaign() {
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { campaign, loading: campaignLoading, error: campaignError } = useCampaign(id)
   const { generate, error: generationError, clearError } = useContentGeneration()
 
   // Form fields
@@ -99,6 +102,27 @@ function CreateCampaign() {
   const canGenerate =
     selectedPlatforms.length > 0 &&
     (!selectedPlatforms.includes('reddit') || subreddits.trim().length > 0)
+
+  // Load existing campaign data into form fields
+  useEffect(() => {
+    if (campaign) {
+      setCampaignName(campaign.name)
+      setWebsiteUrl(campaign.websiteUrl)
+      setDescription(campaign.description)
+      setTargetAudience(campaign.targetAudience)
+      setSelectedPlatforms(campaign.platforms)
+      setTone(campaign.tone)
+      setScreenshots(campaign.screenshots)
+      setSubreddits((campaign.subreddits ?? []).join(', '))
+      // Pre-populate generated posts from existing campaign
+      const posts: Partial<Record<Platform, string>> = {}
+      campaign.posts.forEach((post) => {
+        posts[post.platform] = post.content
+      })
+      setGeneratedPosts(posts)
+      setGenerated(true)
+    }
+  }, [campaign])
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -187,14 +211,21 @@ function CreateCampaign() {
     setSaving(true)
     setSaveError(null)
     try {
-      const posts = selectedPlatforms.map((platform, idx) => ({
-        id: `post-new-${Date.now()}-${idx}`,
-        platform,
-        content: generatedPosts[platform] ?? '',
-        hashtags: [] as string[],
-        status: 'draft' as const,
-      }))
-      const record = await createCampaign({
+      const posts = selectedPlatforms.map((platform, idx) => {
+        // Preserve existing post if it exists, otherwise create new
+        const existingPost = campaign?.posts.find((p) => p.platform === platform)
+        return {
+          id: existingPost?.id ?? `post-new-${Date.now()}-${idx}`,
+          platform,
+          content: generatedPosts[platform] ?? '',
+          hashtags: existingPost?.hashtags ?? [] as string[],
+          status: existingPost?.status ?? 'draft' as const,
+          scheduledAt: existingPost?.scheduledAt,
+          publishedAt: existingPost?.publishedAt,
+          engagements: existingPost?.engagements,
+        }
+      })
+      const record = await updateCampaign(id!, {
         name: campaignName,
         websiteUrl,
         description,
@@ -239,11 +270,43 @@ function CreateCampaign() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  if (campaignLoading) {
+    return (
+      <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+        <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+        <p>Loading campaign…</p>
+      </div>
+    )
+  }
+
+  if (campaignError || !campaign) {
+    return (
+      <div style={{ padding: '32px', textAlign: 'center' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>😕</div>
+        <h2 style={{ color: '#1e293b', marginBottom: '8px' }}>Campaign not found</h2>
+        <button
+          onClick={() => navigate('/campaigns')}
+          style={{
+            background: '#52b788',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '10px 24px',
+            color: 'white',
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          ← Back to Campaigns
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '32px', maxWidth: '800px' }}>
       <div style={{ marginBottom: '8px' }}>
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate(`/campaigns/${id}`)}
           style={{
             background: 'none',
             border: 'none',
@@ -257,13 +320,13 @@ function CreateCampaign() {
             marginBottom: '16px',
           }}
         >
-          ← Back to Dashboard
+          ← Back to Campaign
         </button>
         <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-          Create Campaign
+          Edit Campaign
         </h1>
         <p style={{ color: '#64748b', fontSize: '14px' }}>
-          Enter your website details and let AI craft the perfect posts for each platform.
+          Update your campaign details and regenerate posts.
         </p>
       </div>
 
@@ -566,7 +629,7 @@ function CreateCampaign() {
               </div>
             </div>
 
-            {/* Generation error banner (shown after a failed attempt) */}
+            {/* Generation error banner */}
             {generationError && (
               <div
                 style={{
@@ -586,24 +649,6 @@ function CreateCampaign() {
                     Generation failed
                   </div>
                   <div style={{ color: '#b91c1c', fontSize: '13px' }}>{generationError}</div>
-                  <div style={{ color: '#7f1d1d', fontSize: '12px', marginTop: '6px' }}>
-                    Check your API key in{' '}
-                    <button
-                      onClick={() => navigate('/settings')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#7f1d1d',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        padding: 0,
-                        fontSize: '12px',
-                      }}
-                    >
-                      Settings → AI Settings
-                    </button>{' '}
-                    or retry below.
-                  </div>
                 </div>
               </div>
             )}
@@ -712,22 +757,7 @@ function CreateCampaign() {
                         Using template content
                       </div>
                       <div style={{ color: '#a16207', fontSize: '12px' }}>
-                        These are generic drafts. Add an OpenRouter API key in{' '}
-                        <button
-                          onClick={() => navigate('/settings')}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#a16207',
-                            textDecoration: 'underline',
-                            cursor: 'pointer',
-                            padding: 0,
-                            fontSize: '12px',
-                          }}
-                        >
-                          Settings → AI Settings
-                        </button>{' '}
-                        for campaign-specific, personalised posts.
+                        These are generic drafts. Add an OpenRouter API key for campaign-specific posts.
                       </div>
                     </div>
                   </div>
@@ -764,6 +794,7 @@ function CreateCampaign() {
                       <div style={{ padding: '16px' }}>
                         <textarea
                           defaultValue={content}
+                          onChange={(e) => setGeneratedPosts((prev) => ({ ...prev, [platform]: e.target.value }))}
                           style={{
                             width: '100%',
                             border: 'none',
@@ -820,7 +851,7 @@ function CreateCampaign() {
           }}
         >
           <button
-            onClick={() => (step > 1 ? setStep((prev) => (prev - 1) as Step) : navigate('/'))}
+            onClick={() => (step > 1 ? setStep((prev) => (prev - 1) as Step) : navigate(`/campaigns/${id}`))}
             disabled={generating}
             style={{
               background: '#f8fafc',
@@ -881,7 +912,7 @@ function CreateCampaign() {
                   gap: '8px',
                 }}
               >
-                <span>✨</span> Generate with AI
+                <span>✨</span> Regenerate with AI
               </button>
             )}
 
@@ -906,7 +937,7 @@ function CreateCampaign() {
                     boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                   }}
                 >
-                  {saving ? 'Saving…' : 'Save Campaign ✓'}
+                  {saving ? 'Saving…' : 'Save Changes ✓'}
                 </button>
               </>
             )}
@@ -917,4 +948,4 @@ function CreateCampaign() {
   )
 }
 
-export default CreateCampaign
+export default EditCampaign

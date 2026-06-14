@@ -216,6 +216,26 @@ describe('CampaignModel.create()', () => {
     CampaignModel.create(BASE_INPUT)
     expect(CampaignModel.count()).toBe(1)
   })
+
+  it('normalizes a single subreddit string into an array', () => {
+    const record = CampaignModel.create({ ...BASE_INPUT, subreddits: 'r/startups' })
+    expect(record.subreddits).toEqual(['startups'])
+  })
+
+  it('normalizes a comma-separated subreddit list', () => {
+    const record = CampaignModel.create({ ...BASE_INPUT, subreddits: 'r/startups, SaaS' })
+    expect(record.subreddits).toEqual(['startups', 'SaaS'])
+  })
+
+  it('accepts an array of subreddits', () => {
+    const record = CampaignModel.create({ ...BASE_INPUT, subreddits: ['startups', 'r/SaaS'] })
+    expect(record.subreddits).toEqual(['startups', 'SaaS'])
+  })
+
+  it('omits subreddits when the input is empty', () => {
+    const record = CampaignModel.create({ ...BASE_INPUT, subreddits: '  ' })
+    expect(record.subreddits).toBeUndefined()
+  })
 })
 
 // ─── update() ─────────────────────────────────────────────────────────────────
@@ -261,6 +281,24 @@ describe('CampaignModel.update()', () => {
     CampaignModel.update(record.id, { name: 'Persisted' })
     const found = CampaignModel.findById(record.id)
     expect(found!.name).toBe('Persisted')
+  })
+
+  it('normalizes subreddits supplied in a patch', () => {
+    const record = CampaignModel.create(BASE_INPUT)
+    const updated = CampaignModel.update(record.id, { subreddits: 'r/startups, SaaS' })
+    expect(updated!.subreddits).toEqual(['startups', 'SaaS'])
+  })
+
+  it('clears subreddits when patched with an empty value', () => {
+    const record = CampaignModel.create({ ...BASE_INPUT, subreddits: ['startups'] })
+    const updated = CampaignModel.update(record.id, { subreddits: '' })
+    expect(updated!.subreddits).toEqual([])
+  })
+
+  it('keeps stored subreddits when the patch omits them', () => {
+    const record = CampaignModel.create({ ...BASE_INPUT, subreddits: ['startups'] })
+    const updated = CampaignModel.update(record.id, { name: 'Changed' })
+    expect(updated!.subreddits).toEqual(['startups'])
   })
 })
 

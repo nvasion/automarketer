@@ -3,6 +3,7 @@ import { BaseSocialConnector } from '../BaseSocialConnector'
 import type { CredentialProvider, SocialPostRequest, SocialPostResult } from '../types'
 import { SocialError } from '../types'
 import { parseJsonBody } from '../../../utils/http'
+import { normalizeSubreddits } from '../../../utils/subreddits'
 
 /**
  * Reddit connector — submits self (text) posts via the Reddit OAuth API.
@@ -20,18 +21,21 @@ export class RedditConnector extends BaseSocialConnector {
   readonly charLimit = REDDIT_CHAR_LIMIT
 
   /**
-   * Submit a self (text) post to a Reddit subreddit.
+   * Submit a self (text) post to one or more subreddits.
    *
-   * @param request     Must include `request.reddit.subreddit` and
-   *                    `request.reddit.title`.
+   * @param request     Must include `request.reddit.subreddit` (a single
+   *                    subreddit name or an array of names) and
+   *                    `request.reddit.title`. When multiple subreddits are
+   *                    given, the post is submitted to each in turn and the
+   *                    result lists every submission in `result.submissions`.
    * @param credentials Credential provider supplying a submit-scope access token.
    */
   async post(request: SocialPostRequest, credentials: CredentialProvider): Promise<SocialPostResult> {
-    const subreddit = request.reddit?.subreddit
+    const subreddits = normalizeSubreddits(request.reddit?.subreddit)
     const title = request.reddit?.title
-    if (!subreddit) {
+    if (subreddits.length === 0) {
       throw new SocialError(
-        'Reddit post requires request.reddit.subreddit',
+        'Reddit post requires request.reddit.subreddit (a subreddit name or non-empty array of names)',
         { platform: 'reddit' }
       )
     }
@@ -50,7 +54,50 @@ export class RedditConnector extends BaseSocialConnector {
       request.hashtags ?? []
     )
     const text = this.buildCombinedText(content, hashtags)
+    const nsfw = request.reddit?.nsfw ?? false
 
+    const submissions: Array<{ target: string; postId?: string; url?: string }> = []
+    for (const subreddit of subreddits) {
+      try {
+        const { postId, url } = await this.submit(subreddit, title, text, nsfw, accessToken)
+        submissions.push({ target: subreddit, postId, url })
+      } catch (err) {
+        // A retry after a partial failure would re-submit (and duplicate) the
+        // subreddits that already succeeded, so surface the failure as
+        // non-retryable with the successful targets listed.
+        if (submissions.length > 0 && err instanceof SocialError) {
+          throw new SocialError(
+            `${err.message} (already submitted to: ${submissions.map((s) => s.target).join(', ')})`,
+            {
+              httpStatus: err.httpStatus,
+              platform: 'reddit',
+              apiErrorCode: err.apiErrorCode,
+              retryable: false,
+              rawResponse: err.rawResponse,
+            }
+          )
+        }
+        throw err
+      }
+    }
+
+    return {
+      success: true,
+      platform: 'reddit',
+      postId: submissions[0].postId,
+      url: submissions[0].url,
+      ...(submissions.length > 1 && { submissions }),
+    }
+  }
+
+  /** Submit a single self post to one subreddit and parse the response. */
+  private async submit(
+    subreddit: string,
+    title: string,
+    text: string,
+    nsfw: boolean,
+    accessToken: string
+  ): Promise<{ postId?: string; url?: string }> {
     // Reddit's submit endpoint uses application/x-www-form-urlencoded
     const params = new URLSearchParams({
       api_type: 'json',
@@ -58,7 +105,7 @@ export class RedditConnector extends BaseSocialConnector {
       sr: subreddit,
       title,
       text,
-      nsfw: String(request.reddit?.nsfw ?? false),
+      nsfw: String(nsfw),
     })
 
     let response: Response
@@ -118,14 +165,9 @@ export class RedditConnector extends BaseSocialConnector {
       )
     }
 
-    const postId = data.json?.data?.id
-    const url = data.json?.data?.url
-
     return {
-      success: true,
-      platform: 'reddit',
-      postId,
-      url,
+      postId: data.json?.data?.id,
+      url: data.json?.data?.url,
     }
   }
 }

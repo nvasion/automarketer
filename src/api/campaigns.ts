@@ -32,6 +32,7 @@
  */
 
 import { CampaignModel, StorageError } from '../db/CampaignModel'
+import { isValidSubredditName, normalizeSubreddits } from '../utils/subreddits'
 import type {
   CampaignRecord,
   CreateCampaignInput,
@@ -54,27 +55,9 @@ export class ApiError extends Error {
 
 // ─── Authentication guard ─────────────────────────────────────────────────────
 
-/**
- * Storage key where the auth service writes the current session token.
- * Must match the key used in the authentication service (PRD task #2).
- */
-export const AUTH_SESSION_KEY = 'automarketer_auth_session'
-
-/**
- * Assert that the caller has an active session.
- *
- * Throws ApiError(401) if no session token is found in localStorage.
- * Once the JWT auth service is complete, replace this check with
- * `authService.validateSession(token)`.
- */
-function assertAuthenticated(): void {
-  const hasSession =
-    typeof localStorage !== 'undefined' &&
-    Boolean(localStorage.getItem(AUTH_SESSION_KEY))
-  if (!hasSession) {
-    throw new ApiError('Unauthorized', 401)
-  }
-}
+// Authentication is now handled exclusively by the server-side JWT middleware.
+// The localStorage-based guard was removed because the auth service uses
+// httpOnly cookies, not localStorage.
 
 // ─── Input validation ─────────────────────────────────────────────────────────
 
@@ -119,6 +102,21 @@ function validateStringLength(field: keyof typeof FIELD_MAX_LENGTHS, value: stri
 }
 
 /**
+ * Validate subreddit input (single name or array). Names are checked after
+ * normalization so "r/" prefixes and comma-separated lists are accepted.
+ */
+function validateSubreddits(input: string | string[]): void {
+  for (const name of normalizeSubreddits(input)) {
+    if (!isValidSubredditName(name)) {
+      throw new ApiError(
+        `Invalid subreddit "${name}": names may only contain letters, digits, and underscores (max 21 characters)`,
+        400
+      )
+    }
+  }
+}
+
+/**
  * Validate a full CreateCampaignInput payload.
  * Throws ApiError(400) on the first violation found.
  */
@@ -131,6 +129,9 @@ function validateCreateInput(input: CreateCampaignInput): void {
   validateStringLength('targetAudience', input.targetAudience)
   if (input.websiteUrl) {
     validateWebsiteUrl(input.websiteUrl)
+  }
+  if (input.subreddits !== undefined) {
+    validateSubreddits(input.subreddits)
   }
 }
 
@@ -154,6 +155,9 @@ function validateUpdateInput(patch: UpdateCampaignInput): void {
   }
   if (patch.websiteUrl !== undefined) {
     validateWebsiteUrl(patch.websiteUrl)
+  }
+  if (patch.subreddits !== undefined) {
+    validateSubreddits(patch.subreddits)
   }
 }
 
@@ -226,13 +230,11 @@ export function fetchCampaignStats(): Promise<CampaignStats> {
  * Creates a new campaign and returns the persisted record (with generated id
  * and timestamps).
  *
- * Rejects with ApiError(401) if unauthenticated.
  * Rejects with ApiError(400) for invalid payloads.
  * Rejects with ApiError(507) if storage is full.
  */
 export function createCampaign(input: CreateCampaignInput): Promise<CampaignRecord> {
   try {
-    assertAuthenticated()
     validateCreateInput(input)
     return Promise.resolve(withStorageErrorHandling(() => CampaignModel.create(input)))
   } catch (err) {
@@ -244,14 +246,12 @@ export function createCampaign(input: CreateCampaignInput): Promise<CampaignReco
  * PATCH /api/campaigns/:id
  *
  * Applies a partial update to an existing campaign.
- * Rejects with ApiError(401) if unauthenticated.
  * Rejects with ApiError(400) for invalid patch fields.
  * Rejects with ApiError(404) if the campaign does not exist.
  * Rejects with ApiError(507) if storage is full.
  */
 export function updateCampaign(id: string, patch: UpdateCampaignInput): Promise<CampaignRecord> {
   try {
-    assertAuthenticated()
     validateUpdateInput(patch)
     const updated = withStorageErrorHandling(() => CampaignModel.update(id, patch))
     if (!updated) {
@@ -268,13 +268,11 @@ export function updateCampaign(id: string, patch: UpdateCampaignInput): Promise<
  * DELETE /api/campaigns/:id
  *
  * Deletes the campaign with the given id.
- * Rejects with ApiError(401) if unauthenticated.
  * Rejects with ApiError(404) if the campaign does not exist.
  * Rejects with ApiError(507) if storage is full.
  */
 export function deleteCampaign(id: string): Promise<void> {
   try {
-    assertAuthenticated()
     const deleted = withStorageErrorHandling(() => CampaignModel.delete(id))
     if (!deleted) {
       console.warn('[campaigns] deleteCampaign: record not found, id=%s', id)
