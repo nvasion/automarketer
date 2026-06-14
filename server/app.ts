@@ -4,6 +4,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRouter from './routes/auth.js';
 import platformConfigRouter from './routes/platformConfig.js';
+import publishRouter from './routes/publish.js';
+import oauthCallbackRouter from './routes/oauthCallback.js';
 
 /**
  * Factory function that creates and configures the Express application.
@@ -44,6 +46,12 @@ export function createApp(): express.Application {
   // Per-user OAuth client IDs (GET/PUT/DELETE) — every endpoint requires
   // authentication; each account owns its own set of client IDs.
   app.use('/api/platform-config', platformConfigRouter);
+
+  // Publish posts to social platforms
+  app.use('/api/publish', publishRouter);
+
+  // OAuth callback handler
+  app.use('/api/oauth', oauthCallbackRouter);
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

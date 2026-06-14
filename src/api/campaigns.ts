@@ -32,6 +32,7 @@
  */
 
 import { CampaignModel, StorageError } from '../db/CampaignModel'
+import { isValidSubredditName, normalizeSubreddits } from '../utils/subreddits'
 import type {
   CampaignRecord,
   CreateCampaignInput,
@@ -101,6 +102,21 @@ function validateStringLength(field: keyof typeof FIELD_MAX_LENGTHS, value: stri
 }
 
 /**
+ * Validate subreddit input (single name or array). Names are checked after
+ * normalization so "r/" prefixes and comma-separated lists are accepted.
+ */
+function validateSubreddits(input: string | string[]): void {
+  for (const name of normalizeSubreddits(input)) {
+    if (!isValidSubredditName(name)) {
+      throw new ApiError(
+        `Invalid subreddit "${name}": names may only contain letters, digits, and underscores (max 21 characters)`,
+        400
+      )
+    }
+  }
+}
+
+/**
  * Validate a full CreateCampaignInput payload.
  * Throws ApiError(400) on the first violation found.
  */
@@ -113,6 +129,9 @@ function validateCreateInput(input: CreateCampaignInput): void {
   validateStringLength('targetAudience', input.targetAudience)
   if (input.websiteUrl) {
     validateWebsiteUrl(input.websiteUrl)
+  }
+  if (input.subreddits !== undefined) {
+    validateSubreddits(input.subreddits)
   }
 }
 
@@ -136,6 +155,9 @@ function validateUpdateInput(patch: UpdateCampaignInput): void {
   }
   if (patch.websiteUrl !== undefined) {
     validateWebsiteUrl(patch.websiteUrl)
+  }
+  if (patch.subreddits !== undefined) {
+    validateSubreddits(patch.subreddits)
   }
 }
 

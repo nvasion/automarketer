@@ -86,6 +86,7 @@ function EditCampaign() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['linkedin', 'twitter'])
   const [tone, setTone] = useState<Tone>('professional')
   const [screenshots, setScreenshots] = useState<Screenshot[]>([])
+  const [subreddits, setSubreddits] = useState('')
 
   // Generation state
   const [generating, setGenerating] = useState(false)
@@ -97,6 +98,11 @@ function EditCampaign() {
 
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Reddit campaigns need at least one target subreddit before generation
+  const canGenerate =
+    selectedPlatforms.length > 0 &&
+    (!selectedPlatforms.includes('reddit') || subreddits.trim().length > 0)
+
   // Load existing campaign data into form fields
   useEffect(() => {
     if (campaign) {
@@ -107,6 +113,7 @@ function EditCampaign() {
       setSelectedPlatforms(campaign.platforms)
       setTone(campaign.tone)
       setScreenshots(campaign.screenshots)
+      setSubreddits((campaign.subreddits ?? []).join(', '))
       // Pre-populate generated posts from existing campaign
       const posts: Partial<Record<Platform, string>> = {}
       campaign.posts.forEach((post) => {
@@ -226,6 +233,7 @@ function EditCampaign() {
         tone,
         status: 'ready',
         platforms: selectedPlatforms,
+        subreddits,
         screenshots,
         posts,
       })
@@ -574,6 +582,21 @@ function EditCampaign() {
               </div>
             </div>
 
+            {selectedPlatforms.includes('reddit') && (
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Subreddits *</label>
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. startups or r/startups, r/SaaS"
+                  value={subreddits}
+                  onChange={(e) => setSubreddits(e.target.value)}
+                />
+                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  A single subreddit or a comma-separated list — Reddit posts will be submitted to each.
+                </p>
+              </div>
+            )}
+
             <div style={fieldStyle}>
               <label style={labelStyle}>Writing Tone</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
@@ -872,7 +895,7 @@ function EditCampaign() {
             {step === 3 && (
               <button
                 onClick={handleGenerate}
-                disabled={selectedPlatforms.length === 0 || generating}
+                disabled={!canGenerate || generating}
                 style={{
                   background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
@@ -880,9 +903,9 @@ function EditCampaign() {
                   padding: '10px 24px',
                   fontSize: '14px',
                   color: 'white',
-                  cursor: selectedPlatforms.length === 0 || generating ? 'not-allowed' : 'pointer',
+                  cursor: !canGenerate || generating ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
-                  opacity: selectedPlatforms.length === 0 || generating ? 0.5 : 1,
+                  opacity: !canGenerate || generating ? 0.5 : 1,
                   boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                   display: 'flex',
                   alignItems: 'center',

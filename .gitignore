@@ -33,3 +33,6 @@ build/
 
 # Env
 .env
+
+# Claude
+.claude/

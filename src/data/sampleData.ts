@@ -59,6 +59,7 @@ export const SAMPLE_CAMPAIGNS: Campaign[] = [
     tone: 'excited',
     targetAudience: 'Startup founders and product managers',
     platforms: ['linkedin', 'twitter', 'reddit'],
+    subreddits: ['startups', 'SaaS'],
     screenshots: [
       { id: 'ss-1', name: 'dashboard.png', url: '', type: 'image/png' },
       { id: 'ss-2', name: 'features.png', url: '', type: 'image/png' },
@@ -148,6 +149,7 @@ export const SAMPLE_CAMPAIGNS: Campaign[] = [
     tone: 'casual',
     targetAudience: 'Software developers and DevOps engineers',
     platforms: ['twitter', 'reddit'],
+    subreddits: ['programming'],
     screenshots: [],
     posts: [
       {

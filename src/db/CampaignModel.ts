@@ -41,6 +41,7 @@ import type {
 import { DB_SCHEMA_VERSION } from './schema'
 import type { Platform } from '../types'
 import { SAMPLE_CAMPAIGNS } from '../data/sampleData'
+import { normalizeSubreddits } from '../utils/subreddits'
 
 // ─── Storage error type ───────────────────────────────────────────────────────
 
@@ -153,6 +154,7 @@ function sampleToCampaignRecord(c: (typeof SAMPLE_CAMPAIGNS)[number]): CampaignR
     tone: c.tone,
     targetAudience: c.targetAudience,
     platforms: c.platforms,
+    subreddits: c.subreddits,
     screenshots: c.screenshots,
     posts: c.posts,
     createdAt: c.createdAt,
@@ -262,8 +264,11 @@ export class CampaignModel {
    */
   static create(input: CreateCampaignInput): CampaignRecord {
     const now = new Date().toISOString()
+    const { subreddits, ...rest } = input
+    const normalizedSubreddits = normalizeSubreddits(subreddits)
     const record: CampaignRecord = {
-      ...input,
+      ...rest,
+      ...(normalizedSubreddits.length > 0 && { subreddits: normalizedSubreddits }),
       id: generateId(),
       createdAt: now,
       updatedAt: now,
@@ -283,9 +288,13 @@ export class CampaignModel {
     const idx = all.findIndex((c) => c.id === id)
     if (idx === -1) return null
 
+    const { subreddits, ...rest } = patch
     const updated: CampaignRecord = {
       ...all[idx],
-      ...patch,
+      ...rest,
+      // Normalize subreddit input when present in the patch; an empty value
+      // clears the stored list.
+      ...(subreddits !== undefined && { subreddits: normalizeSubreddits(subreddits) }),
       id, // prevent callers from changing the id
       createdAt: all[idx].createdAt, // creation time is immutable
       updatedAt: new Date().toISOString(),

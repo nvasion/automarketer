@@ -42,6 +42,11 @@ export interface Campaign {
   posts: GeneratedPost[]
   tone: Tone
   targetAudience: string
+  /**
+   * Subreddits to post to when the campaign targets Reddit (bare names,
+   * without "r/"). Required before a Reddit post can be published.
+   */
+  subreddits?: string[]
 }
 
 export interface PlatformConfig {
