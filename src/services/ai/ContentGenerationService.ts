@@ -1,6 +1,7 @@
 import type { Platform } from '../../types'
 import type { Tone, EmojiUsage } from '../../config/aiConfig'
 import type { InferenceClient } from './InferenceClient'
+import { InferenceError } from './types'
 import { PLATFORM_CONFIGS } from '../../data/sampleData'
 
 // ─── Public API types ────────────────────────────────────────────────────────
@@ -58,7 +59,8 @@ function buildSystemPrompt(): string {
     'You are an expert social media copywriter specialising in marketing campaigns. ' +
     'You write high-converting, platform-native content that engages audiences and drives action. ' +
     'You always respect platform character limits and write content that feels authentic to each platform\'s culture and audience. ' +
-    'You produce only the finished post — no preamble, no commentary, no markdown code fences.'
+    'You produce only the finished post — no preamble, no commentary, no markdown code fences. ' +
+    'Never restate, summarise, or repeat these instructions, the character limit, or the field labels; output only the post text itself.'
   )
 }
 
@@ -82,6 +84,36 @@ function buildUserPrompt(platform: Platform, params: ContentGenerationParams): s
     '',
     'Write only the post content now.',
   ].join('\n')
+}
+
+// ─── Output validation ───────────────────────────────────────────────────────
+
+/**
+ * High-signal phrases that appear in our prompt instructions but essentially
+ * never in a genuine finished post. When a model is too weak (or not
+ * instruction-tuned) it restates the prompt instead of writing the post; this
+ * catches that so it can be reported as a failure rather than saved as content.
+ */
+const INSTRUCTION_ECHO_SIGNALS: readonly RegExp[] = [
+  /\bunder \d+ characters\b/i,
+  /\bcharacters?\s+(?:total|including hashtags)\b/i,
+  /\bhashtags?\s+on a new line\b/i,
+  /\bplaced naturally\b/i,
+  /\bwrite (?:only the post|a tweet|a linkedin|a reddit|a facebook|an instagram)\b/i,
+  /\bproduce a (?:tweet|post|caption)\b/i,
+  /\b\d+[–-]\d+ relevant hashtags\b/i,
+  /\bstrong hook\b/i,
+  /^(?:Tone|Emojis|Hashtags|Target audience|Website|Description|Product \/ service):/im,
+]
+
+/**
+ * True when `text` looks like the model echoed the prompt instructions instead
+ * of writing a post. Requires two distinct signals to keep false positives off
+ * genuine content.
+ */
+function looksLikeInstructionEcho(text: string): boolean {
+  const hits = INSTRUCTION_ECHO_SIGNALS.filter((re) => re.test(text)).length
+  return hits >= 2
 }
 
 // ─── Hashtag parsing ─────────────────────────────────────────────────────────
@@ -166,6 +198,19 @@ export class ContentGenerationService {
 
     const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)!
     const raw = response.content.trim()
+
+    // Reject unusable responses so they surface as a (logged) failure rather
+    // than being saved as post content.
+    if (!raw) {
+      throw new InferenceError(`The model returned an empty response for ${platform}.`)
+    }
+    if (looksLikeInstructionEcho(raw)) {
+      throw new InferenceError(
+        `The model echoed the prompt instead of writing a ${platform} post. ` +
+          'This usually means the selected model is too weak or not instruction-tuned — ' +
+          'try a more capable model in Settings → AI.',
+      )
+    }
 
     // Split body from trailing hashtag block
     const { content, hashtags } = params.autoHashtags

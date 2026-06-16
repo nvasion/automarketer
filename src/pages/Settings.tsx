@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { parseUserDetailsFromEmail } from '../utils/userDisplay'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
-import { loadAIConfig, saveAIConfig, validateEndpointUrl } from '../config/aiConfig'
+import { loadAIConfig, saveAIConfig, syncAiPrefsFromServer, validateEndpointUrl } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
 import PlatformConnectionModal from '../components/PlatformConnectionModal'
+import { fetchConnectedPlatforms, disconnectPlatform } from '../services/platformConfigService'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -102,11 +103,43 @@ function Settings() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATIONS)
 
-  // AI config — loaded from localStorage on mount
+  // AI config — loaded from localStorage on mount, then refreshed from the
+  // server so generation preferences saved on another browser show up here.
   const [aiConfig, setAiConfig] = useState<AIConfig>(loadAIConfig)
   const [showApiKey, setShowApiKey] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void syncAiPrefsFromServer()
+      .then(() => {
+        if (!cancelled) setAiConfig(loadAIConfig())
+      })
+      .catch(() => {
+        /* non-fatal — keep locally-loaded config */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const [showCustomApiKey, setShowCustomApiKey] = useState(false)
   const [endpointUrlError, setEndpointUrlError] = useState<string | null>(null)
+
+  // Load real connection state from the server so connected platforms stay
+  // connected across reloads (they were previously reset to all-disconnected).
+  useEffect(() => {
+    let cancelled = false
+    fetchConnectedPlatforms()
+      .then((status) => {
+        if (!cancelled) setConnections((prev) => ({ ...prev, ...status }))
+      })
+      .catch(() => {
+        /* non-fatal — leave the default disconnected state */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -144,7 +177,12 @@ function Settings() {
   }
 
   const handleDisconnect = (platformId: string) => {
+    // Optimistically flip to disconnected, then delete the token server-side.
+    // Revert on failure so the UI keeps matching real state.
     setConnections((prev) => ({ ...prev, [platformId]: false }))
+    disconnectPlatform(platformId).catch(() => {
+      setConnections((prev) => ({ ...prev, [platformId]: true }))
+    })
   }
 
   // Helpers for updating nested AI config
@@ -327,7 +365,12 @@ function Settings() {
                 </h2>
                 {Object.values(connections).some(Boolean) && (
                   <button
-                    onClick={() => setConnections({ linkedin: false, twitter: false, reddit: false, facebook: false, instagram: false })}
+                    onClick={() => {
+                      // Disconnect every currently-connected platform server-side.
+                      Object.entries(connections)
+                        .filter(([, isConnected]) => isConnected)
+                        .forEach(([platformId]) => handleDisconnect(platformId))
+                    }}
                     style={{
                       background: 'white',
                       border: '1px solid #fecaca',

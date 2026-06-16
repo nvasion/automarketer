@@ -171,9 +171,13 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
         .replace('{STATE}', state)
 
       // Generate and inject the PKCE code_challenge for platforms that require it.
+      // The matching code_verifier must be kept and sent to the server at token
+      // exchange (RFC 7636 §4.5), so it is held in this closure for onMessage.
+      let codeVerifier = ''
       if (url.includes('{CODE_CHALLENGE}')) {
-        const { codeChallenge } = await generatePKCEChallenge()
-        url = url.replace('{CODE_CHALLENGE}', codeChallenge)
+        const pkce = await generatePKCEChallenge()
+        codeVerifier = pkce.codeVerifier
+        url = url.replace('{CODE_CHALLENGE}', pkce.codeChallenge)
       }
 
       const popup = window.open(
@@ -247,8 +251,13 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
         // and stored the token — report failure otherwise, so the UI never
         // shows "Connected" for a connection that doesn't exist server-side.
         try {
+          // Forward the PKCE code_verifier when one was generated (Twitter/X);
+          // the server needs it to complete the token exchange.
+          const verifierParam = codeVerifier
+            ? `&code_verifier=${encodeURIComponent(codeVerifier)}`
+            : ''
           const res = await fetch(
-            `/api/oauth/callback?code=${encodeURIComponent(e.data.code)}&platform=${encodeURIComponent(platform.id)}&state=${encodeURIComponent(state)}`,
+            `/api/oauth/callback?code=${encodeURIComponent(e.data.code)}&platform=${encodeURIComponent(platform.id)}&state=${encodeURIComponent(state)}${verifierParam}`,
             { credentials: 'include' }
           )
           const body = (await res.json().catch(() => ({}))) as {

@@ -1,16 +1,21 @@
 /**
- * End-to-end tests for the database (localStorage ORM) workflow.
+ * End-to-end tests for the campaign data workflow through the API service.
  *
- * These tests exercise the full data lifecycle from the API layer down to
- * the CampaignModel ORM and localStorage persistence, verifying that:
+ * Campaigns are now persisted server-side. These tests run the server-backed
+ * client (src/api/campaigns.ts) against a fetch mock that emulates the API on
+ * top of the localStorage-backed CampaignModel (see tests/helpers), verifying:
  *   - CRUD operations chain together correctly
  *   - Stats stay in sync after mutations
- *   - Authentication guards protect write operations
- *   - Data survives simulated "page reloads" (clear module state, re-init)
- *   - Storage quota errors surface as user-friendly ApiErrors
+ *   - Seeding / initialisation behaves
+ *   - Input validation rejects unsafe payloads
+ *   - Unknown ids surface as ApiError(404) without leaking the id
+ *
+ * Server-side authentication (401 without a cookie) is covered by
+ * tests/api/campaignsRoute.test.ts. Client-side localStorage quota errors no
+ * longer apply because the client no longer writes campaigns to localStorage.
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   initDb,
   fetchCampaigns,
@@ -20,20 +25,12 @@ import {
   updateCampaign,
   deleteCampaign,
   ApiError,
-  AUTH_SESSION_KEY,
 } from '../../src/api/campaigns'
 import { CampaignModel } from '../../src/db/CampaignModel'
 import type { CreateCampaignInput } from '../../src/db/schema'
+import { installMockCampaignsApi, uninstallMockCampaignsApi } from '../helpers/mockCampaignsApi'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function setSession(): void {
-  localStorage.setItem(AUTH_SESSION_KEY, 'test-session-token')
-}
-
-function clearSession(): void {
-  localStorage.removeItem(AUTH_SESSION_KEY)
-}
 
 const BASE_CAMPAIGN: CreateCampaignInput = {
   name: 'E2E Test Campaign',
@@ -51,9 +48,11 @@ const BASE_CAMPAIGN: CreateCampaignInput = {
 
 beforeEach(() => {
   localStorage.clear()
+  installMockCampaignsApi()
 })
 
 afterEach(() => {
+  uninstallMockCampaignsApi()
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
 })
@@ -62,9 +61,6 @@ afterEach(() => {
 
 describe('Full CRUD lifecycle', () => {
   it('creates, reads, updates, and deletes a campaign in one chain', async () => {
-    setSession()
-
-    // CREATE
     const created = await createCampaign(BASE_CAMPAIGN)
     expect(created.id).toBeTruthy()
     expect(created.name).toBe('E2E Test Campaign')
@@ -75,18 +71,15 @@ describe('Full CRUD lifecycle', () => {
     expect(typeof created.createdAt).toBe('string')
     expect(typeof created.updatedAt).toBe('string')
 
-    // READ — verify it's retrievable
     const fetched = await fetchCampaign(created.id)
     expect(fetched.id).toBe(created.id)
     expect(fetched.name).toBe('E2E Test Campaign')
 
-    // LIST — verify it appears in the list
     const all = await fetchCampaigns()
     const found = all.find((c) => c.id === created.id)
     expect(found).toBeDefined()
     expect(found!.name).toBe('E2E Test Campaign')
 
-    // UPDATE
     const updated = await updateCampaign(created.id, {
       name: 'Updated Campaign',
       status: 'ready',
@@ -96,37 +89,29 @@ describe('Full CRUD lifecycle', () => {
     expect(updated.name).toBe('Updated Campaign')
     expect(updated.status).toBe('ready')
     expect(updated.description).toBe('Updated description')
-    // Untouched fields survive the patch
     expect(updated.websiteUrl).toBe('https://e2e-test.example.com')
     expect(updated.tone).toBe('professional')
 
-    // Verify update is persisted
     const refetched = await fetchCampaign(created.id)
     expect(refetched.name).toBe('Updated Campaign')
 
-    // DELETE
     await deleteCampaign(created.id)
 
-    // Verify deletion
     await expect(fetchCampaign(created.id)).rejects.toMatchObject({ statusCode: 404 })
     const afterDelete = await fetchCampaigns()
     expect(afterDelete.find((c) => c.id === created.id)).toBeUndefined()
   })
 
   it('timestamps are set on create and updatedAt changes on update', async () => {
-    setSession()
-
     const created = await createCampaign(BASE_CAMPAIGN)
     const originalCreatedAt = created.createdAt
     const originalUpdatedAt = created.updatedAt
     expect(originalCreatedAt).toBe(originalUpdatedAt)
 
-    // Wait a tick to ensure the next timestamp differs
     await new Promise((r) => setTimeout(r, 5))
 
     const updated = await updateCampaign(created.id, { name: 'Changed' })
     expect(updated.createdAt).toBe(originalCreatedAt) // immutable
-    // updatedAt should be >= createdAt (may equal on very fast machines)
     expect(new Date(updated.updatedAt).getTime()).toBeGreaterThanOrEqual(
       new Date(originalUpdatedAt).getTime()
     )
@@ -137,8 +122,6 @@ describe('Full CRUD lifecycle', () => {
 
 describe('Multiple campaigns', () => {
   it('returns all campaigns sorted by createdAt descending', async () => {
-    setSession()
-
     await createCampaign({ ...BASE_CAMPAIGN, name: 'Alpha' })
     await createCampaign({ ...BASE_CAMPAIGN, name: 'Beta' })
     await createCampaign({ ...BASE_CAMPAIGN, name: 'Gamma' })
@@ -153,8 +136,6 @@ describe('Multiple campaigns', () => {
   })
 
   it('deleting one campaign does not affect others', async () => {
-    setSession()
-
     const a = await createCampaign({ ...BASE_CAMPAIGN, name: 'Keep A' })
     const b = await createCampaign({ ...BASE_CAMPAIGN, name: 'Delete B' })
     const c = await createCampaign({ ...BASE_CAMPAIGN, name: 'Keep C' })
@@ -169,8 +150,6 @@ describe('Multiple campaigns', () => {
   })
 
   it('updating one campaign does not affect others', async () => {
-    setSession()
-
     const a = await createCampaign({ ...BASE_CAMPAIGN, name: 'Campaign A' })
     const b = await createCampaign({ ...BASE_CAMPAIGN, name: 'Campaign B' })
 
@@ -185,8 +164,6 @@ describe('Multiple campaigns', () => {
 
 describe('Stats stay in sync with mutations', () => {
   it('totalCampaigns increments on create and decrements on delete', async () => {
-    setSession()
-
     const s0 = await fetchCampaignStats()
     expect(s0.totalCampaigns).toBe(0)
 
@@ -201,8 +178,6 @@ describe('Stats stay in sync with mutations', () => {
   })
 
   it('activeCampaigns counts only ready and generating statuses', async () => {
-    setSession()
-
     await createCampaign({ ...BASE_CAMPAIGN, status: 'draft' })
     await createCampaign({ ...BASE_CAMPAIGN, status: 'ready' })
     await createCampaign({ ...BASE_CAMPAIGN, status: 'generating' })
@@ -213,8 +188,6 @@ describe('Stats stay in sync with mutations', () => {
   })
 
   it('stats reflect a status change via update', async () => {
-    setSession()
-
     const c = await createCampaign({ ...BASE_CAMPAIGN, status: 'draft' })
     expect((await fetchCampaignStats()).activeCampaigns).toBe(0)
 
@@ -240,7 +213,6 @@ describe('Database initialisation', () => {
     initDb()
     const campaigns = await fetchCampaigns()
     expect(campaigns.length).toBeGreaterThan(0)
-    // All seeded campaigns must have well-formed fields
     for (const c of campaigns) {
       expect(typeof c.id).toBe('string')
       expect(typeof c.name).toBe('string')
@@ -268,40 +240,9 @@ describe('Database initialisation', () => {
   })
 })
 
-// ─── Workflow 5: Authentication guards ───────────────────────────────────────
-
-describe('Authentication guard on write operations', () => {
-  it('createCampaign throws 401 when no session is set', async () => {
-    await expect(createCampaign(BASE_CAMPAIGN)).rejects.toMatchObject({ statusCode: 401 })
-  })
-
-  it('updateCampaign throws 401 when session is cleared mid-session', async () => {
-    setSession()
-    const created = await createCampaign(BASE_CAMPAIGN)
-    clearSession()
-    await expect(updateCampaign(created.id, { name: 'Hack' })).rejects.toMatchObject({
-      statusCode: 401,
-    })
-  })
-
-  it('deleteCampaign throws 401 when no session is set', async () => {
-    await expect(deleteCampaign('any-id')).rejects.toMatchObject({ statusCode: 401 })
-  })
-
-  it('read operations do not require a session', async () => {
-    // fetchCampaigns and fetchCampaignStats are read-only and session-agnostic
-    const campaigns = await fetchCampaigns()
-    expect(Array.isArray(campaigns)).toBe(true)
-    const stats = await fetchCampaignStats()
-    expect(typeof stats.totalCampaigns).toBe('number')
-  })
-})
-
-// ─── Workflow 6: Input validation on create ──────────────────────────────────
+// ─── Workflow 5: Input validation on create ──────────────────────────────────
 
 describe('Input validation — createCampaign', () => {
-  beforeEach(() => { setSession() })
-
   it('rejects a javascript: websiteUrl with 400', async () => {
     await expect(
       createCampaign({ ...BASE_CAMPAIGN, websiteUrl: 'javascript:alert(1)' })
@@ -352,7 +293,7 @@ describe('Input validation — createCampaign', () => {
   })
 })
 
-// ─── Workflow 7: Error scenarios ─────────────────────────────────────────────
+// ─── Workflow 6: Error scenarios ─────────────────────────────────────────────
 
 describe('Error handling', () => {
   it('fetchCampaign throws ApiError(404) for unknown id', async () => {
@@ -367,42 +308,20 @@ describe('Error handling', () => {
   })
 
   it('updateCampaign throws ApiError(404) for unknown id', async () => {
-    setSession()
     await expect(updateCampaign('ghost-id', { name: 'x' })).rejects.toMatchObject({
       statusCode: 404,
     })
   })
 
   it('deleteCampaign throws ApiError(404) for unknown id', async () => {
-    setSession()
     await expect(deleteCampaign('ghost-id')).rejects.toMatchObject({ statusCode: 404 })
-  })
-
-  it('createCampaign maps storage quota overflow to ApiError(507)', async () => {
-    setSession()
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('QuotaExceededError')
-    })
-    await expect(createCampaign(BASE_CAMPAIGN)).rejects.toMatchObject({ statusCode: 507 })
-  })
-
-  it('updateCampaign maps storage quota overflow to ApiError(507)', async () => {
-    setSession()
-    const created = await createCampaign(BASE_CAMPAIGN)
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('QuotaExceededError')
-    })
-    await expect(updateCampaign(created.id, { name: 'Boom' })).rejects.toMatchObject({
-      statusCode: 507,
-    })
   })
 })
 
-// ─── Workflow 8: Data integrity across API boundaries ────────────────────────
+// ─── Workflow 7: Data integrity across API boundaries ────────────────────────
 
 describe('Data integrity across API boundaries', () => {
   it('all input fields are round-tripped correctly through create → fetch', async () => {
-    setSession()
     const input: CreateCampaignInput = {
       name: 'Round-Trip Campaign',
       websiteUrl: 'https://round-trip.example.com',
@@ -430,14 +349,12 @@ describe('Data integrity across API boundaries', () => {
   })
 
   it('partial update does not overwrite unspecified fields', async () => {
-    setSession()
     const created = await createCampaign({
       ...BASE_CAMPAIGN,
       platforms: ['reddit', 'facebook'],
       tone: 'informative',
     })
 
-    // Only update the name
     const updated = await updateCampaign(created.id, { name: 'Partial Update' })
 
     expect(updated.name).toBe('Partial Update')

@@ -11,6 +11,7 @@
 // but you SHOULD add encryption before deploying to production.
 
 import { getPool } from '../db/connection.js';
+import { refreshAccessToken } from '../utils/tokenRefresh.js';
 
 interface TokenEntry {
   accessToken: string;
@@ -151,6 +152,75 @@ export const accessTokenStore = {
     }
 
     return entry.accessToken;
+  },
+
+  /**
+   * Return the platforms the user is connected to. A platform counts as
+   * connected when its token is unexpired OR it has a refresh token (so the
+   * access token can be renewed on demand at publish time). Callers needing
+   * fresh data after a server restart should `await loadForUser(userId)` first.
+   */
+  listConnectedPlatforms(userId: string): string[] {
+    const userMap = cache.get(userId);
+    if (!userMap) return [];
+    const now = Date.now();
+    const connected: string[] = [];
+    for (const [platform, entry] of userMap) {
+      const expired = Boolean(entry.expiresAt) && now >= new Date(entry.expiresAt!).getTime();
+      // Expired AND no way to renew → truly disconnected.
+      if (expired && !entry.refreshToken) continue;
+      connected.push(platform);
+    }
+    return connected;
+  },
+
+  /**
+   * Get a USABLE access token for a user/platform pair, refreshing it via the
+   * stored refresh token when the current one is expired (or within 60s of it).
+   * Warms the cache from the database on a miss. Returns null when there is no
+   * token, or it is expired and cannot be refreshed (user must reconnect).
+   */
+  async getValidAccessToken(userId: string, platform: string): Promise<string | null> {
+    let entry = cache.get(userId)?.get(platform);
+    if (!entry) {
+      await this.loadForUser(userId);
+      entry = cache.get(userId)?.get(platform);
+    }
+    if (!entry) {
+      console.warn(`[accessTokenStore] miss: no ${platform} token for user=${userId} — reconnect required.`);
+      return null;
+    }
+
+    // Renew slightly before expiry to avoid races with in-flight requests.
+    const SKEW_MS = 60_000;
+    const expiringSoon = entry.expiresAt
+      ? Date.now() + SKEW_MS >= new Date(entry.expiresAt).getTime()
+      : false;
+
+    if (!expiringSoon) return entry.accessToken;
+
+    if (!entry.refreshToken) {
+      console.warn(
+        `[accessTokenStore] ${platform} token for user=${userId} expired and no refresh token is stored — reconnect required.`,
+      );
+      return null;
+    }
+
+    console.log(`[accessTokenStore] refreshing expired ${platform} token for user=${userId}`);
+    const refreshed = await refreshAccessToken(platform, entry.refreshToken);
+    if (!refreshed) {
+      console.warn(`[accessTokenStore] ${platform} token refresh failed for user=${userId} — reconnect required.`);
+      return null;
+    }
+
+    // Persist the new token. Keep the old refresh token when the provider did
+    // not rotate it (Reddit/LinkedIn); store the new one when it did (X).
+    await this.setAccessToken(userId, platform, refreshed.accessToken, {
+      expiresAt: refreshed.expiresAt,
+      refreshToken: refreshed.refreshToken ?? entry.refreshToken,
+    });
+    console.log(`[accessTokenStore] ${platform} token refreshed for user=${userId} (expires ${refreshed.expiresAt ?? 'unknown'})`);
+    return refreshed.accessToken;
   },
 
   /**

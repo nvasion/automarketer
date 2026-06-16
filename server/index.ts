@@ -2,6 +2,8 @@ import { app } from './app.js';
 import { jwtSecret } from './utils/config.js';
 import { userStore } from './models/userStore.js';
 import { accessTokenStore } from './models/accessTokenStore.js';
+import { campaignStore } from './db/campaignsTable.js';
+import { aiPrefsStore } from './db/aiPrefsTable.js';
 
 // ── Security guard ────────────────────────────────────────────────────────────
 // Calling jwtSecret() here triggers a hard crash in production when JWT_SECRET
@@ -31,6 +33,15 @@ userStore.initialize().catch((err) => {
 // Ensures the user_access_tokens table exists for storing OAuth tokens.
 accessTokenStore.initialize().catch((err) => {
   console.error('[server] Failed to initialise access token store:', err);
+});
+
+// ── Initialise campaign + AI-prefs stores ────────────────────────────────────
+// Ensure the campaigns and user_ai_prefs tables exist. No-ops without a database.
+campaignStore.initialize().catch((err) => {
+  console.error('[server] Failed to initialise campaign store:', err);
+});
+aiPrefsStore.initialize().catch((err) => {
+  console.error('[server] Failed to initialise AI prefs store:', err);
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────

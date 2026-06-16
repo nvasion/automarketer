@@ -47,3 +47,31 @@ export async function fetchPlatformClientIds(): Promise<PlatformClientIds> {
   }
   return res.json() as Promise<PlatformClientIds>
 }
+
+/**
+ * Fetch which platforms the current user is actually connected to (has a valid
+ * stored token for), so the UI reflects real connection state across reloads.
+ * Returns a map of platform id → connected boolean.
+ */
+export async function fetchConnectedPlatforms(): Promise<Record<string, boolean>> {
+  const res = await fetch('/api/oauth/connections', {
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    throw new Error(await readJsonError(res))
+  }
+  return res.json() as Promise<Record<string, boolean>>
+}
+
+/**
+ * Disconnect a platform by deleting its stored token server-side.
+ */
+export async function disconnectPlatform(platform: string): Promise<void> {
+  const res = await fetch(`/api/oauth/connections/${encodeURIComponent(platform)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    throw new Error(await readJsonError(res))
+  }
+}

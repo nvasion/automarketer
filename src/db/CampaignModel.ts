@@ -162,6 +162,62 @@ function sampleToCampaignRecord(c: (typeof SAMPLE_CAMPAIGNS)[number]): CampaignR
   }
 }
 
+// ─── Stats computation ──────────────────────────────────────────────────────
+
+/**
+ * Compute summary statistics from a list of campaign records.
+ *
+ * Pure function (no storage access) so it can be reused by both the
+ * localStorage-backed `CampaignModel.getStats()` and the server-backed
+ * `fetchCampaignStats()` in the API layer.
+ *
+ * Derives `avgEngagementRate` as total engagements / total views × 100,
+ * expressed as a percentage rounded to one decimal place.
+ */
+export function computeStats(all: CampaignRecord[]): CampaignStats {
+  const activeCampaigns = all.filter(
+    (c) => c.status === 'ready' || c.status === 'generating'
+  ).length
+
+  let totalPostsPublished = 0
+  let totalEngagements = 0
+  let totalViews = 0
+  const engagementsByPlatform: Record<string, number> = {}
+
+  for (const campaign of all) {
+    for (const post of campaign.posts) {
+      if (post.status === 'published') totalPostsPublished++
+      if (post.engagements) {
+        const e = post.engagements
+        const postEngagements = e.likes + e.comments + e.shares
+        totalEngagements += postEngagements
+        totalViews += e.views
+        engagementsByPlatform[post.platform] =
+          (engagementsByPlatform[post.platform] ?? 0) + postEngagements
+      }
+    }
+  }
+
+  const avgEngagementRate =
+    totalViews > 0
+      ? Math.round((totalEngagements / totalViews) * 1000) / 10
+      : 0
+
+  const topPlatform =
+    Object.keys(engagementsByPlatform).length > 0
+      ? (Object.entries(engagementsByPlatform).sort(([, a], [, b]) => b - a)[0][0] as Platform)
+      : null
+
+  return {
+    totalCampaigns: all.length,
+    activeCampaigns,
+    totalPostsPublished,
+    totalEngagements,
+    avgEngagementRate,
+    topPlatform,
+  }
+}
+
 // ─── ORM class ────────────────────────────────────────────────────────────────
 
 /**
@@ -327,48 +383,6 @@ export class CampaignModel {
    * expressed as a percentage rounded to one decimal place.
    */
   static getStats(): CampaignStats {
-    const all = readAll()
-
-    const activeCampaigns = all.filter(
-      (c) => c.status === 'ready' || c.status === 'generating'
-    ).length
-
-    let totalPostsPublished = 0
-    let totalEngagements = 0
-    let totalViews = 0
-    const engagementsByPlatform: Record<string, number> = {}
-
-    for (const campaign of all) {
-      for (const post of campaign.posts) {
-        if (post.status === 'published') totalPostsPublished++
-        if (post.engagements) {
-          const e = post.engagements
-          const postEngagements = e.likes + e.comments + e.shares
-          totalEngagements += postEngagements
-          totalViews += e.views
-          engagementsByPlatform[post.platform] =
-            (engagementsByPlatform[post.platform] ?? 0) + postEngagements
-        }
-      }
-    }
-
-    const avgEngagementRate =
-      totalViews > 0
-        ? Math.round((totalEngagements / totalViews) * 1000) / 10
-        : 0
-
-    const topPlatform =
-      Object.keys(engagementsByPlatform).length > 0
-        ? (Object.entries(engagementsByPlatform).sort(([, a], [, b]) => b - a)[0][0] as Platform)
-        : null
-
-    return {
-      totalCampaigns: all.length,
-      activeCampaigns,
-      totalPostsPublished,
-      totalEngagements,
-      avgEngagementRate,
-      topPlatform,
-    }
+    return computeStats(readAll())
   }
 }

@@ -1,5 +1,6 @@
 import type { InferenceProvider } from '../services/ai/types'
 import { parseJsonBody } from '../utils/http'
+import { fetchAiPrefs, saveAiPrefs } from '../services/aiPrefsService'
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -214,17 +215,8 @@ export function loadAIConfig(): AIConfig {
   }
 }
 
-/**
- * Persist an `AIConfig` to `localStorage`.
- *
- * Returns `{ success: true }` on success, or `{ success: false, error }` when
- * `localStorage` is unavailable (e.g. Safari private-browsing mode, exceeded
- * storage quota). Callers should surface the `error` message to the user.
- *
- * **Security note:** API keys are stored as plaintext. A future backend
- * integration should store credentials server-side instead.
- */
-export function saveAIConfig(config: AIConfig): { success: boolean; error?: string } {
+/** Write the full config (including API keys) to localStorage only. */
+function writeLocalConfig(config: AIConfig): { success: boolean; error?: string } {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
     return { success: true }
@@ -232,6 +224,50 @@ export function saveAIConfig(config: AIConfig): { success: boolean; error?: stri
     const message = err instanceof Error ? err.message : 'Failed to save settings'
     return { success: false, error: message }
   }
+}
+
+/**
+ * Persist an `AIConfig`.
+ *
+ * The full config — including API keys — is written to `localStorage`. The
+ * non-sensitive generation defaults (`config.defaults`) are additionally synced
+ * to the server (fire-and-forget) so they follow the account across browsers.
+ * API keys are NEVER sent to the server.
+ *
+ * Returns `{ success: true }` on success, or `{ success: false, error }` when
+ * `localStorage` is unavailable (e.g. Safari private-browsing mode, exceeded
+ * storage quota). Callers should surface the `error` message to the user.
+ *
+ * **Security note:** API keys are stored as plaintext in localStorage, which is
+ * accessible to any same-origin JavaScript. Keeping them out of the server is a
+ * deliberate trade-off; users should set spending limits on their keys.
+ */
+export function saveAIConfig(config: AIConfig): { success: boolean; error?: string } {
+  const result = writeLocalConfig(config)
+  if (!result.success) return result
+
+  // Sync only the non-sensitive generation defaults to the server.
+  void saveAiPrefs(config.defaults).catch((err) => {
+    console.warn(
+      '[aiConfig] could not sync preferences to the server:',
+      err instanceof Error ? err.message : String(err)
+    )
+  })
+
+  return result
+}
+
+/**
+ * Pull the user's saved generation preferences from the server and merge them
+ * into the locally-stored config (preserving local API keys). Call after login
+ * so settings follow the account into a new browser. No-op when the user is not
+ * authenticated or has no server-side preferences yet.
+ */
+export async function syncAiPrefsFromServer(): Promise<void> {
+  const prefs = await fetchAiPrefs()
+  if (!prefs) return
+  const merged = mergeConfig(loadAIConfig(), { defaults: prefs } as Partial<AIConfig>)
+  writeLocalConfig(merged)
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────

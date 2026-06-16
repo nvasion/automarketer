@@ -163,6 +163,27 @@ describe('useContentGeneration', () => {
     expect(result.current.error).toContain('unexpected error')
   })
 
+  it('logs the failure with provider/model/status context (no API key leaked)', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockGeneratePosts.mockRejectedValueOnce(new InferenceError('Invalid API key', 401, 'openrouter'))
+    const { result } = renderHook(() => useContentGeneration())
+
+    await act(async () => {
+      try { await result.current.generate(BASE_OPTIONS) } catch { /* expected */ }
+    })
+
+    expect(errorSpy).toHaveBeenCalledTimes(1)
+    const logged = String(errorSpy.mock.calls[0][0])
+    expect(logged).toContain('Content generation FAILED')
+    expect(logged).toContain('provider=openrouter')
+    expect(logged).toContain('model=gpt-4o-mini')
+    expect(logged).toContain('status=401')
+    expect(logged).toContain('Invalid API key')
+    // The API key must never appear in the log.
+    expect(logged).not.toContain('test-key')
+    errorSpy.mockRestore()
+  })
+
   it('sets loading=false after a failed generation', async () => {
     mockGeneratePosts.mockRejectedValueOnce(new Error('fail'))
     const { result } = renderHook(() => useContentGeneration())
