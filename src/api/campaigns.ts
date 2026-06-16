@@ -1,37 +1,33 @@
 /**
- * Campaign API service — async wrapper around the CampaignModel ORM.
+ * Campaign API service — talks to the server-side campaign store.
  *
- * These functions provide a Promise-based interface that mirrors the contract
- * a REST backend would expose.  All I/O currently goes through localStorage
- * (via CampaignModel), but callers do not need to know that detail — they
- * simply await these functions.
+ * Campaigns are persisted per-user in the server database (see
+ * server/routes/campaigns.ts), so they follow the account across browsers and
+ * devices instead of living only in this browser's localStorage.
  *
- * Switching to a real backend later requires updating only this file:
- *   - Replace `CampaignModel.*` calls with `fetch('/api/campaigns/...')`
- *   - All React hooks and pages continue to work without modification.
+ * The exported function signatures are unchanged from the previous
+ * localStorage-backed implementation, so all React hooks and pages continue to
+ * work without modification.
+ *
+ * One-time migration
+ * ──────────────────
+ * Earlier versions stored campaigns in localStorage only. On first use after
+ * upgrading, any campaigns found in this browser's localStorage are uploaded to
+ * the server once (see `ensureMigrated`), so existing data is preserved. The
+ * upload is idempotent (upsert by id), so it is safe to retry.
  *
  * Error handling
  * ──────────────
- * Functions throw an `ApiError` when the underlying operation fails.  All
- * client-facing error messages are generic (no internal IDs or stack traces)
- * to avoid leaking implementation details; detailed context is written to the
- * browser console for local debugging.
+ * Functions throw an `ApiError` carrying the server's message and HTTP status.
+ * Client-side validation runs first for fast feedback before any network call.
  *
  * Authentication
  * ──────────────
- * Write operations enforce an authentication guard via `assertAuthenticated()`.
- * The guard checks for a session token written by the auth service on login.
- * Replace the localStorage check with a proper JWT-validation call once the
- * full auth service is wired in (PRD task #2).
- *
- * Input validation
- * ────────────────
- * User-supplied payloads are validated before reaching the storage layer to
- * prevent URI injection, stored XSS, and oversized payloads from corrupting
- * the record store.  Only `http` and `https` URL schemes are accepted.
+ * The browser's httpOnly `auth_token` cookie is sent automatically via
+ * `credentials: 'include'`; the server scopes every operation to that user.
  */
 
-import { CampaignModel, StorageError } from '../db/CampaignModel'
+import { CampaignModel, computeStats } from '../db/CampaignModel'
 import { isValidSubredditName, normalizeSubreddits } from '../utils/subreddits'
 import type {
   CampaignRecord,
@@ -53,21 +49,14 @@ export class ApiError extends Error {
   }
 }
 
-// ─── Authentication guard ─────────────────────────────────────────────────────
-
-// Authentication is now handled exclusively by the server-side JWT middleware.
-// The localStorage-based guard was removed because the auth service uses
-// httpOnly cookies, not localStorage.
-
 // ─── Input validation ─────────────────────────────────────────────────────────
 
 /** Only these URL schemes are permitted in websiteUrl fields. */
 const ALLOWED_URL_SCHEMES: ReadonlySet<string> = new Set(['http:', 'https:'])
 
 /**
- * Maximum allowed character lengths for string fields.
- * Prevents oversized payloads from degrading localStorage performance or
- * enabling DoS-style data-corruption attacks.
+ * Maximum allowed character lengths for string fields. Prevents oversized
+ * payloads. The server enforces the same limits as the security boundary.
  */
 const FIELD_MAX_LENGTHS = {
   name: 200,
@@ -116,10 +105,7 @@ function validateSubreddits(input: string | string[]): void {
   }
 }
 
-/**
- * Validate a full CreateCampaignInput payload.
- * Throws ApiError(400) on the first violation found.
- */
+/** Validate a full CreateCampaignInput payload. Throws ApiError(400) on the first violation. */
 function validateCreateInput(input: CreateCampaignInput): void {
   if (!input.name || input.name.trim().length === 0) {
     throw new ApiError('Invalid name: campaign name is required', 400)
@@ -135,11 +121,7 @@ function validateCreateInput(input: CreateCampaignInput): void {
   }
 }
 
-/**
- * Validate a partial UpdateCampaignInput patch.
- * Only validates fields that are present in the patch.
- * Throws ApiError(400) on the first violation found.
- */
+/** Validate a partial UpdateCampaignInput patch. Throws ApiError(400) on the first violation. */
 function validateUpdateInput(patch: UpdateCampaignInput): void {
   if (patch.name !== undefined) {
     if (patch.name.trim().length === 0) {
@@ -161,28 +143,113 @@ function validateUpdateInput(patch: UpdateCampaignInput): void {
   }
 }
 
-// ─── Storage error mapping ────────────────────────────────────────────────────
+// ─── HTTP helper ────────────────────────────────────────────────────────────
+
+const BASE = '/api/campaigns'
 
 /**
- * Wrap the given operation, converting any StorageError from the ORM layer
- * into an ApiError(507 Insufficient Storage).
+ * Fetch wrapper that sends the auth cookie, parses JSON, and converts non-2xx
+ * responses (and network failures) into `ApiError` with the server's message.
  */
-function withStorageErrorHandling<T>(fn: () => T): T {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response
   try {
-    return fn()
-  } catch (err) {
-    if (err instanceof StorageError) {
-      throw new ApiError('Insufficient storage: unable to save campaign data', 507)
-    }
-    throw err
+    res = await fetch(path, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+    })
+  } catch {
+    throw new ApiError('Could not reach the server. Check your connection and try again.', 0)
   }
+
+  if (res.status === 204) return undefined as T
+
+  const text = await res.text()
+  let body: unknown = null
+  if (text) {
+    try {
+      body = JSON.parse(text)
+    } catch {
+      body = null
+    }
+  }
+
+  if (!res.ok) {
+    const message =
+      body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
+        ? (body as { error: string }).error
+        : `Request failed (HTTP ${res.status})`
+    throw new ApiError(message, res.status)
+  }
+
+  return body as T
+}
+
+// ─── One-time localStorage → server migration ────────────────────────────────
+
+const MIGRATED_FLAG = 'automarketer_campaigns_migrated'
+let migrationPromise: Promise<void> | null = null
+
+async function runMigration(): Promise<void> {
+  if (localStorage.getItem(MIGRATED_FLAG) === 'true') return
+
+  let local: CampaignRecord[]
+  try {
+    local = CampaignModel.findAll()
+  } catch {
+    local = []
+  }
+
+  if (local.length === 0) {
+    try {
+      localStorage.setItem(MIGRATED_FLAG, 'true')
+    } catch {
+      /* ignore quota / private-mode errors */
+    }
+    return
+  }
+
+  // Idempotent bulk upsert — preserves ids/timestamps. Throws on auth/network
+  // failure so the flag is left unset and migration is retried on a later call.
+  await apiFetch(`${BASE}/import`, {
+    method: 'POST',
+    body: JSON.stringify({ campaigns: local }),
+  })
+
+  try {
+    localStorage.setItem(MIGRATED_FLAG, 'true')
+  } catch {
+    /* ignore */
+  }
+  console.info('[campaigns] migrated %d local campaign(s) to the server', local.length)
+}
+
+/**
+ * Ensure the one-time migration has run before any read/write. Never throws:
+ * on failure it logs and lets the operation proceed (the next call retries the
+ * migration). Concurrent callers share a single in-flight attempt.
+ */
+function ensureMigrated(): Promise<void> {
+  if (localStorage.getItem(MIGRATED_FLAG) === 'true') return Promise.resolve()
+  if (!migrationPromise) {
+    migrationPromise = runMigration().catch((err) => {
+      migrationPromise = null // allow a later retry
+      console.warn(
+        '[campaigns] migration deferred:',
+        err instanceof Error ? err.message : String(err)
+      )
+    })
+  }
+  return migrationPromise
 }
 
 // ─── Initialisation ───────────────────────────────────────────────────────────
 
 /**
- * Initialise the local database.  Call once at app startup (e.g. in main.tsx).
- * Idempotent — safe to call multiple times.
+ * Initialise local state. Call once at app startup (e.g. in main.tsx).
+ * Runs the localStorage schema/demo cleanup so that only the user's real
+ * campaigns are later migrated to the server. Idempotent.
  */
 export function initDb(): void {
   CampaignModel.init()
@@ -190,96 +257,49 @@ export function initDb(): void {
 
 // ─── Read routes ──────────────────────────────────────────────────────────────
 
-/**
- * GET /api/campaigns
- *
- * Returns all campaigns sorted by createdAt descending.
- */
-export function fetchCampaigns(): Promise<CampaignRecord[]> {
-  return Promise.resolve(CampaignModel.findAll())
+/** GET /api/campaigns — all campaigns sorted by createdAt descending. */
+export async function fetchCampaigns(): Promise<CampaignRecord[]> {
+  await ensureMigrated()
+  return apiFetch<CampaignRecord[]>(BASE)
 }
 
-/**
- * GET /api/campaigns/:id
- *
- * Returns the campaign with the given id, or throws ApiError(404).
- */
-export function fetchCampaign(id: string): Promise<CampaignRecord> {
-  const record = CampaignModel.findById(id)
-  if (!record) {
-    console.warn('[campaigns] fetchCampaign: record not found, id=%s', id)
-    return Promise.reject(new ApiError('Campaign not found', 404))
-  }
-  return Promise.resolve(record)
+/** GET /api/campaigns/:id — the campaign, or throws ApiError(404). */
+export async function fetchCampaign(id: string): Promise<CampaignRecord> {
+  await ensureMigrated()
+  return apiFetch<CampaignRecord>(`${BASE}/${encodeURIComponent(id)}`)
 }
 
-/**
- * GET /api/campaigns/stats
- *
- * Returns aggregate statistics across all campaigns.
- */
-export function fetchCampaignStats(): Promise<CampaignStats> {
-  return Promise.resolve(CampaignModel.getStats())
+/** Aggregate statistics across all campaigns (computed from the list). */
+export async function fetchCampaignStats(): Promise<CampaignStats> {
+  await ensureMigrated()
+  const campaigns = await apiFetch<CampaignRecord[]>(BASE)
+  return computeStats(campaigns)
 }
 
 // ─── Write routes ─────────────────────────────────────────────────────────────
 
-/**
- * POST /api/campaigns
- *
- * Creates a new campaign and returns the persisted record (with generated id
- * and timestamps).
- *
- * Rejects with ApiError(400) for invalid payloads.
- * Rejects with ApiError(507) if storage is full.
- */
-export function createCampaign(input: CreateCampaignInput): Promise<CampaignRecord> {
-  try {
-    validateCreateInput(input)
-    return Promise.resolve(withStorageErrorHandling(() => CampaignModel.create(input)))
-  } catch (err) {
-    return Promise.reject(err)
-  }
+/** POST /api/campaigns — create a campaign; the server assigns id + timestamps. */
+export async function createCampaign(input: CreateCampaignInput): Promise<CampaignRecord> {
+  validateCreateInput(input)
+  await ensureMigrated()
+  return apiFetch<CampaignRecord>(BASE, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }
 
-/**
- * PATCH /api/campaigns/:id
- *
- * Applies a partial update to an existing campaign.
- * Rejects with ApiError(400) for invalid patch fields.
- * Rejects with ApiError(404) if the campaign does not exist.
- * Rejects with ApiError(507) if storage is full.
- */
-export function updateCampaign(id: string, patch: UpdateCampaignInput): Promise<CampaignRecord> {
-  try {
-    validateUpdateInput(patch)
-    const updated = withStorageErrorHandling(() => CampaignModel.update(id, patch))
-    if (!updated) {
-      console.warn('[campaigns] updateCampaign: record not found, id=%s', id)
-      return Promise.reject(new ApiError('Campaign not found', 404))
-    }
-    return Promise.resolve(updated)
-  } catch (err) {
-    return Promise.reject(err)
-  }
+/** PATCH /api/campaigns/:id — partial update; throws ApiError(404) if missing. */
+export async function updateCampaign(id: string, patch: UpdateCampaignInput): Promise<CampaignRecord> {
+  validateUpdateInput(patch)
+  await ensureMigrated()
+  return apiFetch<CampaignRecord>(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
 }
 
-/**
- * DELETE /api/campaigns/:id
- *
- * Deletes the campaign with the given id.
- * Rejects with ApiError(404) if the campaign does not exist.
- * Rejects with ApiError(507) if storage is full.
- */
-export function deleteCampaign(id: string): Promise<void> {
-  try {
-    const deleted = withStorageErrorHandling(() => CampaignModel.delete(id))
-    if (!deleted) {
-      console.warn('[campaigns] deleteCampaign: record not found, id=%s', id)
-      return Promise.reject(new ApiError('Campaign not found', 404))
-    }
-    return Promise.resolve()
-  } catch (err) {
-    return Promise.reject(err)
-  }
+/** DELETE /api/campaigns/:id — throws ApiError(404) if the campaign does not exist. */
+export async function deleteCampaign(id: string): Promise<void> {
+  await ensureMigrated()
+  await apiFetch<void>(`${BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

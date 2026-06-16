@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService, type PublicUser } from '../services/authService';
+import { syncAiPrefsFromServer } from '../config/aiConfig';
 
 interface AuthContextValue {
   user: PublicUser | null;
@@ -26,6 +27,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  // Whenever a user becomes authenticated (rehydrate, login, or register),
+  // pull their server-side AI generation preferences into local storage so
+  // settings follow the account across browsers. API keys stay local.
+  useEffect(() => {
+    if (user) {
+      void syncAiPrefsFromServer().catch(() => {
+        /* non-fatal — local defaults remain in effect */
+      });
+    }
+  }, [user]);
 
   const login = async (email: string, password: string): Promise<void> => {
     const { user: u } = await authService.login(email, password);

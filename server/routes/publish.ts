@@ -5,6 +5,7 @@ import { accessTokenStore } from '../models/accessTokenStore.js';
 import { resolveLinkedInAuthorId } from '../utils/platformOAuth.js';
 import { LinkedInConnector } from '../../src/services/social/platforms/LinkedInConnector.js';
 import { RedditConnector } from '../../src/services/social/platforms/RedditConnector.js';
+import { TwitterConnector } from '../../src/services/social/platforms/TwitterConnector.js';
 import { StaticCredentialProvider } from '../../src/services/social/types.js';
 import type { SocialPostRequest } from '../../src/services/social/types.js';
 
@@ -68,15 +69,10 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
   }
 
   try {
-    // Get the access token for this user/platform. The cache is per-process,
-    // so after a server restart it is cold — reload from the database before
-    // concluding the user is disconnected.
-    let accessToken = accessTokenStore.getAccessToken(userId, platform);
-    if (!accessToken) {
-      console.log(`[publish] token cache miss for user=${userId} platform=${platform} — reloading from database`);
-      await accessTokenStore.loadForUser(userId);
-      accessToken = accessTokenStore.getAccessToken(userId, platform);
-    }
+    // Get a usable access token. This warms the cache from the database on a
+    // miss and transparently refreshes an expired token via its refresh token,
+    // so the user does not have to reconnect when the short-lived token lapses.
+    const accessToken = await accessTokenStore.getValidAccessToken(userId, platform);
     if (!accessToken) {
       console.error(
         `[publish] no usable ${platform} token for user=${userId} — returning 401 MISSING_TOKEN. ` +
@@ -172,7 +168,16 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
         postId = result.postId;
         break;
       }
-      // TODO: Add other platform connectors
+      case 'twitter': {
+        // X/Twitter needs no extra fields — the tweet is content + hashtags,
+        // posted as the authenticated account. The connector enforces the
+        // 280-character limit before sending.
+        const connector = new TwitterConnector();
+        const result = await connector.post(postRequest, credentials);
+        postId = result.postId;
+        break;
+      }
+      // TODO: Add Facebook and Instagram connectors
       default:
         res.status(400).json({
           error: `Publishing to ${platform} is not yet implemented`,

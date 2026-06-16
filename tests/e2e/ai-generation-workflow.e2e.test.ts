@@ -230,12 +230,14 @@ describe('Hashtag extraction and auto-hashtag pipeline', () => {
     expect(combined.length).toBeLessThanOrEqual(linkedinLimit)
   })
 
-  it('handles empty AI response gracefully', async () => {
+  it('rejects an empty AI response as a failure', async () => {
     const client = makeStubClient('')
     const svc = new ContentGenerationService(client)
-    const draft = await svc.generatePost('linkedin', { ...BASE_PARAMS, autoHashtags: false })
-    expect(draft.content).toBe('')
-    expect(draft.hashtags).toHaveLength(0)
+    // Empty output is unusable and now surfaces as an InferenceError so the
+    // failure is logged and shown, rather than saved as a blank post.
+    await expect(
+      svc.generatePost('linkedin', { ...BASE_PARAMS, autoHashtags: false })
+    ).rejects.toBeInstanceOf(InferenceError)
   })
 })
 

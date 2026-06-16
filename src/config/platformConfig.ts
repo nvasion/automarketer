@@ -163,7 +163,7 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     // Twitter/X OAuth 2.0 requires PKCE (RFC 7636).  {CODE_CHALLENGE} is
     // replaced at runtime with a BASE64URL(SHA-256(code_verifier)) value.
     authUrl:
-      'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge={CODE_CHALLENGE}&code_challenge_method=s256&state={STATE}',
+      'https://x.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge={CODE_CHALLENGE}&code_challenge_method=S256&state={STATE}',
     setupInstructions: {
       portalUrl: 'https://developer.twitter.com/en/portal/dashboard',
       portalName: 'X Developer Portal',

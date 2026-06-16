@@ -2,11 +2,12 @@
  * Tests for the useCampaigns and useCampaignStats hooks.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useCampaigns, useCampaignStats } from '../../src/hooks/useCampaigns'
 import { CampaignModel } from '../../src/db/CampaignModel'
 import type { CreateCampaignInput } from '../../src/db/schema'
+import { installMockCampaignsApi, uninstallMockCampaignsApi } from '../helpers/mockCampaignsApi'
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,11 @@ const SAMPLE_INPUT: CreateCampaignInput = {
 
 beforeEach(() => {
   localStorage.clear()
+  installMockCampaignsApi()
+})
+
+afterEach(() => {
+  uninstallMockCampaignsApi()
 })
 
 // ─── useCampaigns ─────────────────────────────────────────────────────────────

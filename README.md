@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.svg" alt="AutoMarketer" width="120" height="120" />
+  <img src="public/automarketer.png" alt="AutoMarketer" width="120" height="120" />
   <h1>AutoMarketer</h1>
   <p><strong>AI-powered social media marketing automation</strong></p>
 </div>
@@ -205,9 +205,10 @@ The `AIConfig.providers` field is a `Record<InferenceProvider, ProviderConfig>` 
 
 ### Security
 
-- API keys are entered by users in **Settings → AI Settings** and stored in browser `localStorage`.
+- API keys are entered by users in **Settings → AI Settings** and stored in browser `localStorage` — they are **never** sent to AutoMarketer's servers, by design.
 - `localStorage` is readable by any same-origin JavaScript (XSS risk). Users should set **spending limits** on their API keys to cap potential exposure.
-- A future backend proxy will allow keys to be stored server-side, eliminating this surface. See the security notice in the Settings UI for a live reminder.
+- Only the **non-sensitive** generation preferences (tone, emoji usage, auto-hashtags, max tokens, temperature) are synced server-side via `/api/ai-prefs`, so settings follow the account across browsers while keys stay local.
+- A future backend proxy will allow keys to be stored server-side too, eliminating the localStorage surface. See the security notice in the Settings UI for a live reminder.
 - Custom endpoint URLs are validated to be `http://` or `https://` before saving (SSRF mitigation for a future server-side proxy).
 
 ## Connecting Social Platforms
@@ -350,9 +351,31 @@ The Express server runs on port `3001` and is proxied by Vite under `/api/*` dur
 | `GET` | `/api/platform-config` | `auth_token` cookie | Returns the server's configured OAuth client IDs for every supported platform (empty string = not configured on the server) |
 | `GET` | `/api/oauth/callback` | `auth_token` cookie | Completes an OAuth flow: exchanges the authorization code for an access token and stores it for the user |
 | `POST` | `/api/publish/:platform` | `auth_token` cookie | Publishes a post to the platform using the user's stored access token |
+| `GET` | `/api/campaigns` | `auth_token` cookie | Lists the current user's campaigns (newest first) |
+| `GET` | `/api/campaigns/:id` | `auth_token` cookie | Returns a single campaign, or 404 |
+| `POST` | `/api/campaigns` | `auth_token` cookie | Creates a campaign (server assigns id + timestamps) |
+| `PATCH` | `/api/campaigns/:id` | `auth_token` cookie | Partial update of a campaign |
+| `DELETE` | `/api/campaigns/:id` | `auth_token` cookie | Deletes a campaign |
+| `POST` | `/api/campaigns/import` | `auth_token` cookie | Bulk-upserts campaigns; used for the one-time localStorage → server migration |
+| `GET` | `/api/ai-prefs` | `auth_token` cookie | Returns the user's saved AI generation preferences, or `null` |
+| `PUT` | `/api/ai-prefs` | `auth_token` cookie | Saves the user's AI generation preferences (never API keys) |
 | `GET` | `/api/health` | No | Service health check |
 
 > **Security note:** Tokens are stored exclusively in `httpOnly` cookies set by the server. No token is ever placed in the JSON response body or `localStorage`, which eliminates XSS-based session-hijacking risk. The browser attaches the cookie automatically on every request via `credentials: 'include'`.
+
+### Data persistence
+
+Data is persisted **per-user in the server database** (PostgreSQL) so it follows the account across browsers and devices — not just the browser it was created in:
+
+| Data | Storage | Survives a new browser? |
+|------|---------|--------------------------|
+| User accounts | `users` table | ✅ |
+| Platform OAuth tokens + LinkedIn author URN | `user_access_tokens` table | ✅ |
+| Campaigns | `campaigns` table (JSONB document per campaign) | ✅ |
+| AI generation preferences (tone, emoji, hashtags, tokens, temperature) | `user_ai_prefs` table | ✅ |
+| AI provider **API keys** | browser `localStorage` only (never sent to the server) | ❌ (by design) |
+
+Tables are auto-provisioned on server start via `CREATE TABLE IF NOT EXISTS`. When `DATABASE_URL` is not set, the stores fall back to an in-memory map so local development works within a session (data is lost on restart). Campaigns created in an older localStorage-only build are migrated to the server automatically on first load (a one-time, idempotent upload via `POST /api/campaigns/import`).
 
 ### Authentication rate limiting
 

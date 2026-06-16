@@ -9,7 +9,7 @@
  * - Month navigation (prev/next) works correctly
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { HashRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
@@ -17,6 +17,7 @@ import Scheduler from '../src/pages/Scheduler'
 import { CampaignModel } from '../src/db/CampaignModel'
 import type { PublicUser } from '../src/services/authService'
 import type { CreateCampaignInput } from '../src/db/schema'
+import { installMockCampaignsApi, uninstallMockCampaignsApi } from './helpers/mockCampaignsApi'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,11 @@ function pastDateIso(daysAgo: number): string {
 
 beforeEach(() => {
   localStorage.clear()
+  installMockCampaignsApi()
+})
+
+afterEach(() => {
+  uninstallMockCampaignsApi()
 })
 
 // ─── Real datetime — calendar header ─────────────────────────────────────────
