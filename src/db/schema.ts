@@ -16,6 +16,7 @@
  *   ├─ tone              Writing style: professional | casual | excited | informative.
  *   ├─ targetAudience    Intended audience description.
  *   ├─ platforms         Array of target social platform IDs.
+ *   ├─ subreddits        Array of target subreddit names (Reddit campaigns).
  *   ├─ screenshots       Array of uploaded screenshot metadata.
  *   ├─ posts             Array of generated post drafts.
  *   ├─ createdAt         ISO-8601 creation timestamp.
@@ -100,6 +101,11 @@ export interface CampaignRecord {
   targetAudience: string
   /** Array of platform IDs this campaign targets. */
   platforms: Platform[]
+  /**
+   * Subreddits to post to when the campaign targets Reddit. Stored as bare
+   * names (no "r/" prefix). Absent for campaigns that do not target Reddit.
+   */
+  subreddits?: string[]
   screenshots: ScreenshotRecord[]
   posts: PostRecord[]
   /** ISO-8601 timestamp — set on creation, never modified. */
@@ -110,11 +116,20 @@ export interface CampaignRecord {
 
 // ─── Input types for ORM operations ──────────────────────────────────────────
 
-/** Fields required to create a new campaign. */
-export type CreateCampaignInput = Omit<CampaignRecord, 'id' | 'createdAt' | 'updatedAt'>
+/**
+ * Fields required to create a new campaign.
+ *
+ * `subreddits` accepts a single subreddit or an array; the ORM normalizes
+ * the value (strips "r/" prefixes, trims, dedupes) before persisting.
+ */
+export type CreateCampaignInput = Omit<CampaignRecord, 'id' | 'createdAt' | 'updatedAt' | 'subreddits'> & {
+  subreddits?: string | string[]
+}
 
 /** Fields that may be patched on an existing campaign. */
-export type UpdateCampaignInput = Partial<Omit<CampaignRecord, 'id' | 'createdAt'>>
+export type UpdateCampaignInput = Partial<Omit<CampaignRecord, 'id' | 'createdAt' | 'subreddits'>> & {
+  subreddits?: string | string[]
+}
 
 // ─── Aggregate types ──────────────────────────────────────────────────────────
 

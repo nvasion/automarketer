@@ -152,6 +152,7 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Go to the LinkedIn Developer Portal and click "Create app".',
         'Under the "Auth" tab, add {REDIRECT_URI} as an Authorized Redirect URL.',
         'Under the "Products" tab, request "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect".',
+        '⚠️ Important: After adding products, you may need to complete app verification or wait for LinkedIn approval before OAuth will work. If you get an "invalid_scope_error", check that both products are approved in your app dashboard.',
         'Copy the Client ID from the "Auth" tab.',
       ],
     },
@@ -162,7 +163,7 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
     // Twitter/X OAuth 2.0 requires PKCE (RFC 7636).  {CODE_CHALLENGE} is
     // replaced at runtime with a BASE64URL(SHA-256(code_verifier)) value.
     authUrl:
-      'https://twitter.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge={CODE_CHALLENGE}&code_challenge_method=s256&state={STATE}',
+      'https://x.com/i/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge={CODE_CHALLENGE}&code_challenge_method=S256&state={STATE}',
     setupInstructions: {
       portalUrl: 'https://developer.twitter.com/en/portal/dashboard',
       portalName: 'X Developer Portal',
@@ -206,6 +207,7 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Under Facebook Login → Settings, add {REDIRECT_URI} as a Valid OAuth Redirect URI.',
         'Request the pages_manage_posts and pages_read_engagement permissions.',
         'Copy the App ID from the top of the app dashboard.',
+        'Note: This same Meta App ID works for both Facebook and Instagram — configure it once under META_CLIENT_ID.',
       ],
     },
   },
@@ -226,7 +228,7 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Under Instagram → Settings, add {REDIRECT_URI} as a Valid OAuth Redirect URI.',
         'Request instagram_basic and instagram_content_publish permissions.',
         'Copy the App ID from the top of the app dashboard.',
-        'Note: Instagram and Facebook share the same Meta App ID — saving one fills in the other automatically.',
+        'Note: Instagram and Facebook share the same Meta App ID — configure META_CLIENT_ID once for both platforms.',
       ],
     },
   },

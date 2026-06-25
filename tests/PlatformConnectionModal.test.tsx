@@ -4,9 +4,9 @@ import PlatformConnectionModal from '../src/components/PlatformConnectionModal'
 import type { PlatformConfig } from '../src/types'
 
 // ── Mock the platform config service so tests never hit the network.
-// fetchPlatformClientIds returns fully-configured client IDs by default;
-// individual tests can override this with mockResolvedValueOnce / mockRejectedValueOnce.
-// savePlatformClientId / deletePlatformClientId resolve successfully by default.
+// fetchPlatformClientIds returns the server's configured (shared-app) client
+// IDs. By default every platform is configured; individual tests override with
+// mockResolvedValueOnce to simulate an unconfigured platform.
 vi.mock('../src/services/platformConfigService', () => ({
   fetchPlatformClientIds: vi.fn().mockResolvedValue({
     linkedin: 'test-linkedin-client-id',
@@ -15,16 +15,10 @@ vi.mock('../src/services/platformConfigService', () => ({
     facebook: 'test-facebook-app-id',
     instagram: 'test-facebook-app-id',
   }),
-  savePlatformClientId: vi.fn().mockResolvedValue(undefined),
-  deletePlatformClientId: vi.fn().mockResolvedValue(undefined),
 }))
 
-import {
-  fetchPlatformClientIds,
-  savePlatformClientId,
-} from '../src/services/platformConfigService'
+import { fetchPlatformClientIds } from '../src/services/platformConfigService'
 const mockFetchClientIds = fetchPlatformClientIds as ReturnType<typeof vi.fn>
-const mockSaveClientId = savePlatformClientId as ReturnType<typeof vi.fn>
 
 const LINKEDIN: PlatformConfig = {
   id: 'linkedin',
@@ -72,14 +66,37 @@ async function renderModal(
 // Known state value injected by the mock so tests can include it in postMessage events.
 const MOCK_OAUTH_STATE = 'test-oauth-state-uuid'
 
+/**
+ * Stub the global fetch used by the modal to notify /api/oauth/callback.
+ * Defaults to a successful response that includes a LinkedIn author ID.
+ */
+function stubOAuthCallbackFetch(
+  response: { ok: boolean; status?: number; body?: Record<string, unknown> } = {
+    ok: true,
+    body: { success: true, platform: 'linkedin', authorId: 'urn:li:person:test123' },
+  }
+) {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: response.ok,
+    status: response.status ?? (response.ok ? 200 : 500),
+    json: () => Promise.resolve(response.body ?? {}),
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
 describe('PlatformConnectionModal', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    localStorage.clear()
     mockPopup.closed = false
     // Default: popup opens successfully
     vi.spyOn(window, 'open').mockReturnValue(mockPopup as unknown as Window)
     // Fix the random state so tests can assert on message contents
     vi.spyOn(crypto, 'randomUUID').mockReturnValue(MOCK_OAUTH_STATE as ReturnType<typeof crypto.randomUUID>)
+    // The modal confirms the OAuth callback with the server before reporting
+    // success — default to a server that accepts it.
+    stubOAuthCallbackFetch()
     // Reset the mock to the default fully-configured response
     mockFetchClientIds.mockResolvedValue({
       linkedin: 'test-linkedin-client-id',
@@ -88,10 +105,10 @@ describe('PlatformConnectionModal', () => {
       facebook: 'test-facebook-app-id',
       instagram: 'test-facebook-app-id',
     })
-    mockSaveClientId.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.useRealTimers()
   })
@@ -148,84 +165,46 @@ describe('PlatformConnectionModal', () => {
     expect(screen.getByTestId('oauth-loading')).toBeDefined()
   })
 
-  it('shows setup instructions when platform client ID is not configured', async () => {
+  it('shows the "not configured" notice when the platform has no server client ID', async () => {
     mockFetchClientIds.mockResolvedValueOnce({
-      linkedin: '', // not configured
+      linkedin: '', // not configured on the server
       twitter: '',
       reddit: '',
       facebook: '',
       instagram: '',
     })
     await renderModal()
-    expect(screen.getByTestId('setup-instructions')).toBeDefined()
+    expect(screen.getByTestId('platform-not-configured')).toBeDefined()
     expect(screen.queryByTestId('oauth-connect-btn')).toBeNull()
   })
 
-  it('setup instructions do NOT mention environment variables', async () => {
+  it('"not configured" notice names the required server env vars', async () => {
     mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
     await renderModal()
-    const instructions = screen.getByTestId('setup-instructions')
-    // No env-var name (LINKEDIN_CLIENT_ID) and no "your server environment" phrasing.
-    expect(instructions.textContent).not.toMatch(/LINKEDIN_CLIENT_ID/)
-    expect(instructions.textContent).not.toMatch(/server environment/i)
+    const notice = screen.getByTestId('platform-not-configured')
+    expect(notice.textContent).toContain('LINKEDIN_CLIENT_ID')
+    expect(notice.textContent).toContain('LINKEDIN_CLIENT_SECRET')
   })
 
-  it('setup instructions show the redirect URI', async () => {
+  it('uses FACEBOOK_* env-var names for Instagram (shared Meta app)', async () => {
+    const INSTAGRAM: PlatformConfig = {
+      id: 'instagram',
+      name: 'Instagram',
+      icon: 'IG',
+      color: '#ffffff',
+      bgColor: '#E4405F',
+      charLimit: 2200,
+      description: 'Visual storytelling',
+    }
     mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
-    await renderModal()
-    expect(screen.getByTestId('redirect-uri-display').textContent).toContain('/oauth/callback')
+    await renderModal({ platform: INSTAGRAM })
+    expect(screen.getByTestId('platform-not-configured').textContent).toContain('META_CLIENT_ID')
   })
 
-  it('setup instructions render an inline Save Client ID form', async () => {
-    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
-    await renderModal()
-    expect(screen.getByTestId('client-id-input')).toBeDefined()
-    expect(screen.getByTestId('save-client-id-btn')).toBeDefined()
-  })
-
-  it('save form rejects an empty Client ID', async () => {
-    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
-    await renderModal()
-    fireEvent.click(screen.getByTestId('save-client-id-btn'))
-    expect(screen.getByTestId('client-id-error').textContent).toContain('Paste')
-    expect(mockSaveClientId).not.toHaveBeenCalled()
-  })
-
-  it('save form persists the Client ID and switches to the OAuth connect button', async () => {
-    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
-    await renderModal()
-
-    fireEvent.change(screen.getByTestId('client-id-input'), {
-      target: { value: '  pasted-linkedin-id  ' },
-    })
-    fireEvent.click(screen.getByTestId('save-client-id-btn'))
-
-    // Wait for the savePlatformClientId Promise to settle and the modal to re-render.
-    await act(async () => {})
-
-    expect(mockSaveClientId).toHaveBeenCalledWith('linkedin', 'pasted-linkedin-id')
-    // Setup form is gone; OAuth connect button is now available.
-    expect(screen.queryByTestId('setup-instructions')).toBeNull()
-    expect(screen.getByTestId('oauth-connect-btn')).toBeDefined()
-  })
-
-  it('save form surfaces server-side errors instead of advancing', async () => {
-    mockFetchClientIds.mockResolvedValueOnce({ linkedin: '', twitter: '', reddit: '', facebook: '', instagram: '' })
-    mockSaveClientId.mockRejectedValueOnce(new Error('Invalid client ID'))
-    await renderModal()
-
-    fireEvent.change(screen.getByTestId('client-id-input'), { target: { value: 'bad-id' } })
-    fireEvent.click(screen.getByTestId('save-client-id-btn'))
-    await act(async () => {})
-
-    expect(screen.getByTestId('client-id-error').textContent).toContain('Invalid client ID')
-    expect(screen.getByTestId('setup-instructions')).toBeDefined()
-  })
-
-  it('shows the OAuth connect button when client ID is configured', async () => {
+  it('shows the OAuth connect button when the server has the client ID configured', async () => {
     await renderModal()
     expect(screen.getByTestId('oauth-connect-btn')).toBeDefined()
-    expect(screen.queryByTestId('setup-instructions')).toBeNull()
+    expect(screen.queryByTestId('platform-not-configured')).toBeNull()
   })
 
   // ── Keyboard accessibility ────────────────────────────────────────────────
@@ -344,11 +323,77 @@ describe('PlatformConnectionModal', () => {
         })
       )
     })
+    // Flush the async server confirmation (fetch to /api/oauth/callback)
+    await act(async () => {})
     expect(screen.getByTestId('oauth-status').textContent).toContain('Connected')
 
     act(() => { vi.advanceTimersByTime(800) })
     expect(onConnect).toHaveBeenCalledWith('linkedin')
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('OAuth flow: stores the LinkedIn author ID returned by the server', async () => {
+    await renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'test-auth-code', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
+    await act(async () => {})
+
+    // Rendered without an AuthProvider, so the user id falls back to 'default'
+    expect(localStorage.getItem('linkedin_authorId_default')).toBe('urn:li:person:test123')
+  })
+
+  it('OAuth flow: shows error when the server rejects the OAuth callback', async () => {
+    stubOAuthCallbackFetch({
+      ok: false,
+      status: 502,
+      body: { error: 'LinkedIn rejected the token exchange. See server logs for details.', code: 'TOKEN_EXCHANGE_FAILED' },
+    })
+    const { onConnect } = await renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'test-auth-code', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
+    await act(async () => {})
+
+    expect(screen.getByTestId('oauth-status').textContent).toContain('token exchange')
+    expect(screen.getByTestId('oauth-retry-btn')).toBeDefined()
+    expect(onConnect).not.toHaveBeenCalled()
+  })
+
+  it('OAuth flow: shows error when the server cannot be reached', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    const { onConnect } = await renderModal()
+    fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+    act(() => { vi.advanceTimersByTime(100) })
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'oauth_callback', code: 'test-auth-code', state: MOCK_OAUTH_STATE },
+          origin: window.location.origin,
+        })
+      )
+    })
+    await act(async () => {})
+
+    expect(screen.getByTestId('oauth-status').textContent).toContain('server could not be reached')
+    expect(onConnect).not.toHaveBeenCalled()
   })
 
   it('OAuth flow: shows error when the callback postMessage contains an error', async () => {
@@ -444,6 +489,7 @@ describe('PlatformConnectionModal', () => {
         })
       )
     })
+    await act(async () => {}) // flush the async server confirmation
     expect(screen.getByTestId('oauth-status').textContent).toContain('Connected')
 
     // Popup then closes — the poll timer should not override the success state
@@ -604,9 +650,12 @@ async function renderSettings() {
 describe('Settings – Connected Platforms tab', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    localStorage.clear()
     vi.spyOn(window, 'open').mockReturnValue({ closed: false } as unknown as Window)
     // Fix the random state so tests can include it in postMessage events
     vi.spyOn(crypto, 'randomUUID').mockReturnValue(MOCK_OAUTH_STATE as ReturnType<typeof crypto.randomUUID>)
+    // The modal confirms the OAuth callback with the server before success
+    stubOAuthCallbackFetch()
     mockFetchClientIds.mockResolvedValue({
       linkedin: 'test-linkedin-client-id',
       twitter: 'test-twitter-client-id',
@@ -617,6 +666,7 @@ describe('Settings – Connected Platforms tab', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.useRealTimers()
   })
@@ -678,6 +728,7 @@ describe('Settings – Connected Platforms tab', () => {
         })
       )
     })
+    await act(async () => {}) // flush the async server confirmation
     act(() => { vi.advanceTimersByTime(800) }) // success delay → onConnect fires, modal closes
 
     // Now LinkedIn shows Disconnect

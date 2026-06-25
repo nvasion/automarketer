@@ -117,6 +117,33 @@ describe('ContentGenerationService', () => {
       expect(combined.length).toBeLessThanOrEqual(280)
     })
 
+    // ── Unusable-output rejection (so failures log + surface) ──────────────────
+
+    it('throws InferenceError when the model returns an empty response', async () => {
+      const client = makeMockClient('   ')
+      const svc = new ContentGenerationService(client)
+      await expect(svc.generatePost('twitter', BASE_PARAMS)).rejects.toBeInstanceOf(InferenceError)
+    })
+
+    it('throws InferenceError when the model echoes the prompt instead of a post', async () => {
+      // The kind of garbage a too-weak model returns: a restatement of the prompt.
+      const echo =
+        'We need to produce a tweet for X (Twitter) under 280 characters total including hashtags. ' +
+        'Must have a strong hook, short punchy sentences. Use 3-5 emojis placed naturally. ' +
+        'Append 3-7 relevant hashtags on a new line after the main content.'
+      const client = makeMockClient(echo)
+      const svc = new ContentGenerationService(client)
+      await expect(svc.generatePost('twitter', BASE_PARAMS)).rejects.toThrow(/echoed the prompt/i)
+    })
+
+    it('does not falsely reject genuine content that happens to contain one signal phrase', async () => {
+      // "strong hook" alone is a single signal — below the two-signal threshold.
+      const client = makeMockClient('Our launch opens with a strong hook for busy founders. Try it today!')
+      const svc = new ContentGenerationService(client)
+      const result = await svc.generatePost('linkedin', BASE_PARAMS)
+      expect(result.content).toContain('strong hook')
+    })
+
     it('does not truncate content within the platform limit', async () => {
       const content = 'Short tweet'
       const client = makeMockClient(content)
@@ -260,12 +287,13 @@ describe('Hashtag parsing edge cases', () => {
     expect(result.hashtags).toHaveLength(0)
   })
 
-  it('handles empty response gracefully', async () => {
+  it('rejects an empty response as a failure (rather than saving empty content)', async () => {
     const client = makeMockClient('')
-    // Empty content triggers InferenceError upstream — but if the client returns ''
-    // and the service trims it, content is ''.
     const svc = new ContentGenerationService(client)
-    const result = await svc.generatePost('linkedin', { ...BASE_PARAMS, autoHashtags: false })
-    expect(result.content).toBe('')
+    // An empty model response is unusable — it now surfaces as an InferenceError
+    // so the failure is logged and shown, instead of being saved as a blank post.
+    await expect(
+      svc.generatePost('linkedin', { ...BASE_PARAMS, autoHashtags: false })
+    ).rejects.toBeInstanceOf(InferenceError)
   })
 })

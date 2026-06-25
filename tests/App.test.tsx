@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { HashRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
 import App from '../src/App'
 import type { PublicUser } from '../src/services/authService'
 import { CampaignModel } from '../src/db/CampaignModel'
+import { installMockCampaignsApi, uninstallMockCampaignsApi } from './helpers/mockCampaignsApi'
 
 // Provide an authenticated user so ProtectedRoute renders the app shell instead
 // of redirecting to /login.
@@ -36,6 +37,11 @@ function renderApp() {
 beforeEach(() => {
   localStorage.clear()
   CampaignModel.seed()
+  installMockCampaignsApi()
+})
+
+afterEach(() => {
+  uninstallMockCampaignsApi()
 })
 
 describe('App', () => {

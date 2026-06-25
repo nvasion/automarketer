@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { parseUserDetailsFromEmail } from '../utils/userDisplay'
 import { PLATFORM_CONFIGS } from '../data/sampleData'
-import { loadAIConfig, saveAIConfig, validateEndpointUrl } from '../config/aiConfig'
+import { loadAIConfig, saveAIConfig, syncAiPrefsFromServer, validateEndpointUrl } from '../config/aiConfig'
 import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
 import PlatformConnectionModal from '../components/PlatformConnectionModal'
+import { fetchConnectedPlatforms, disconnectPlatform } from '../services/platformConfigService'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -102,11 +103,43 @@ function Settings() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATIONS)
 
-  // AI config — loaded from localStorage on mount
+  // AI config — loaded from localStorage on mount, then refreshed from the
+  // server so generation preferences saved on another browser show up here.
   const [aiConfig, setAiConfig] = useState<AIConfig>(loadAIConfig)
   const [showApiKey, setShowApiKey] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void syncAiPrefsFromServer()
+      .then(() => {
+        if (!cancelled) setAiConfig(loadAIConfig())
+      })
+      .catch(() => {
+        /* non-fatal — keep locally-loaded config */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const [showCustomApiKey, setShowCustomApiKey] = useState(false)
   const [endpointUrlError, setEndpointUrlError] = useState<string | null>(null)
+
+  // Load real connection state from the server so connected platforms stay
+  // connected across reloads (they were previously reset to all-disconnected).
+  useEffect(() => {
+    let cancelled = false
+    fetchConnectedPlatforms()
+      .then((status) => {
+        if (!cancelled) setConnections((prev) => ({ ...prev, ...status }))
+      })
+      .catch(() => {
+        /* non-fatal — leave the default disconnected state */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -144,7 +177,12 @@ function Settings() {
   }
 
   const handleDisconnect = (platformId: string) => {
+    // Optimistically flip to disconnected, then delete the token server-side.
+    // Revert on failure so the UI keeps matching real state.
     setConnections((prev) => ({ ...prev, [platformId]: false }))
+    disconnectPlatform(platformId).catch(() => {
+      setConnections((prev) => ({ ...prev, [platformId]: true }))
+    })
   }
 
   // Helpers for updating nested AI config
@@ -321,9 +359,33 @@ function Settings() {
           {/* ── Platforms Tab ─────────────────────────────────────────────── */}
           {activeTab === 'platforms' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-                Connected Platforms
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+                  Connected Platforms
+                </h2>
+                {Object.values(connections).some(Boolean) && (
+                  <button
+                    onClick={() => {
+                      // Disconnect every currently-connected platform server-side.
+                      Object.entries(connections)
+                        .filter(([, isConnected]) => isConnected)
+                        .forEach(([platformId]) => handleDisconnect(platformId))
+                    }}
+                    style={{
+                      background: 'white',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Disconnect All
+                  </button>
+                )}
+              </div>
               <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
                 Connect your social accounts to publish directly from AutoMarketer.
               </p>

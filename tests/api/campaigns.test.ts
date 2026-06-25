@@ -1,13 +1,16 @@
 /**
- * Tests for the campaigns API service layer.
+ * Tests for the campaigns API service layer (src/api/campaigns.ts).
  *
- * These tests verify the async wrapper functions in src/api/campaigns.ts.
+ * Campaigns are now persisted server-side, so these tests mock `fetch` and
+ * verify the request shapes, client-side validation, error mapping, and the
+ * one-time localStorage → server migration. The localStorage ORM itself is
+ * covered separately by tests/db/CampaignModel.test.ts.
+ *
  * localStorage is available via the jsdom environment.
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import {
-  initDb,
   fetchCampaigns,
   fetchCampaign,
   fetchCampaignStats,
@@ -15,11 +18,13 @@ import {
   updateCampaign,
   deleteCampaign,
   ApiError,
-  AUTH_SESSION_KEY,
 } from '../../src/api/campaigns'
-import type { CreateCampaignInput } from '../../src/db/schema'
+import type { CampaignRecord, CreateCampaignInput } from '../../src/db/schema'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const MIGRATED_FLAG = 'automarketer_campaigns_migrated'
+const CAMPAIGNS_KEY = 'automarketer_campaigns'
 
 const SAMPLE_INPUT: CreateCampaignInput = {
   name: 'API Test Campaign',
@@ -33,387 +38,199 @@ const SAMPLE_INPUT: CreateCampaignInput = {
   posts: [],
 }
 
-/** Set a valid session token so authenticated write operations pass. */
-function setSession(): void {
-  localStorage.setItem(AUTH_SESSION_KEY, 'test-session-token')
+function record(overrides: Partial<CampaignRecord> = {}): CampaignRecord {
+  return {
+    id: 'c1',
+    name: 'API Test Campaign',
+    websiteUrl: 'https://api-test.example.com',
+    description: 'Testing the API layer',
+    status: 'draft',
+    tone: 'casual',
+    targetAudience: 'testers',
+    platforms: ['twitter'],
+    screenshots: [],
+    posts: [],
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+    ...overrides,
+  }
 }
+
+/** Build a minimal Response-like object for the fetch mock. */
+function jsonRes(status: number, body?: unknown): Response {
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    text: async () => (body === undefined ? '' : JSON.stringify(body)),
+  } as unknown as Response
+}
+
+let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   localStorage.clear()
+  // Skip migration by default so each test exercises a single endpoint.
+  localStorage.setItem(MIGRATED_FLAG, 'true')
+  fetchMock = vi.fn()
+  vi.stubGlobal('fetch', fetchMock)
 })
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
-  vi.unstubAllEnvs()
 })
 
-// ─── initDb() ─────────────────────────────────────────────────────────────────
-
-describe('initDb()', () => {
-  it('starts with an empty store by default (no VITE_SEED_DEMO_DATA)', async () => {
-    initDb()
-    const campaigns = await fetchCampaigns()
-    expect(campaigns.length).toBe(0)
-  })
-
-  it('seeds demo campaigns when VITE_SEED_DEMO_DATA=true', async () => {
-    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
-    initDb()
-    const campaigns = await fetchCampaigns()
-    expect(campaigns.length).toBeGreaterThan(0)
-  })
-
-  it('is idempotent', async () => {
-    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
-    initDb()
-    const count1 = (await fetchCampaigns()).length
-    initDb()
-    const count2 = (await fetchCampaigns()).length
-    expect(count1).toBe(count2)
-  })
-})
-
-// ─── fetchCampaigns() ─────────────────────────────────────────────────────────
+// ─── Reads ──────────────────────────────────────────────────────────────────
 
 describe('fetchCampaigns()', () => {
-  it('returns an array', async () => {
+  it('GETs /api/campaigns with credentials and returns the body', async () => {
+    const data = [record()]
+    fetchMock.mockResolvedValueOnce(jsonRes(200, data))
+
     const result = await fetchCampaigns()
-    expect(Array.isArray(result)).toBe(true)
+
+    expect(result).toEqual(data)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/campaigns')
+    expect(init).toMatchObject({ credentials: 'include' })
   })
 
-  it('returns created campaigns', async () => {
-    setSession()
-    await createCampaign(SAMPLE_INPUT)
-    const campaigns = await fetchCampaigns()
-    expect(campaigns.some((c) => c.name === 'API Test Campaign')).toBe(true)
-  })
-
-  it('returns campaigns sorted by createdAt descending', async () => {
-    // Seed demo data to get multiple campaigns with known timestamps
-    vi.stubEnv('VITE_SEED_DEMO_DATA', 'true')
-    initDb()
-    const campaigns = await fetchCampaigns()
-    // Verify the returned list is in non-ascending createdAt order
-    const dates = campaigns.map((c) => new Date(c.createdAt).getTime())
-    for (let i = 1; i < dates.length; i++) {
-      expect(dates[i - 1]).toBeGreaterThanOrEqual(dates[i])
-    }
+  it('maps a network failure to ApiError(statusCode 0)', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'))
+    const err = await fetchCampaigns().catch((e) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err.statusCode).toBe(0)
   })
 })
-
-// ─── fetchCampaign() ──────────────────────────────────────────────────────────
 
 describe('fetchCampaign()', () => {
-  it('returns the correct campaign by id', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    const found = await fetchCampaign(created.id)
-    expect(found.id).toBe(created.id)
-    expect(found.name).toBe('API Test Campaign')
+  it('returns the campaign when found', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, record({ id: 'abc' })))
+    const found = await fetchCampaign('abc')
+    expect(found.id).toBe('abc')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/campaigns/abc')
   })
 
-  it('throws ApiError(404) for unknown id', async () => {
-    await expect(fetchCampaign('no-such-id')).rejects.toThrow(ApiError)
-    await expect(fetchCampaign('no-such-id')).rejects.toMatchObject({
+  it('rejects with the server message and status on 404', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(404, { error: 'Campaign not found', code: 'NOT_FOUND' }))
+    await expect(fetchCampaign('nope')).rejects.toMatchObject({
       statusCode: 404,
-    })
-  })
-
-  it('error message does not contain the requested id', async () => {
-    await expect(fetchCampaign('secret-internal-id')).rejects.toMatchObject({
       message: 'Campaign not found',
     })
   })
 })
-
-// ─── fetchCampaignStats() ─────────────────────────────────────────────────────
 
 describe('fetchCampaignStats()', () => {
-  it('returns a CampaignStats object with required fields', async () => {
-    const stats = await fetchCampaignStats()
-    expect(typeof stats.totalCampaigns).toBe('number')
-    expect(typeof stats.activeCampaigns).toBe('number')
-    expect(typeof stats.totalPostsPublished).toBe('number')
-    expect(typeof stats.totalEngagements).toBe('number')
-    expect(typeof stats.avgEngagementRate).toBe('number')
-  })
+  it('computes stats from the fetched campaign list', async () => {
+    const campaigns = [
+      record({
+        id: 'a',
+        posts: [
+          {
+            id: 'p1',
+            platform: 'twitter',
+            content: 'hi',
+            hashtags: [],
+            status: 'published',
+            engagements: { likes: 5, comments: 1, shares: 4, views: 100 },
+          },
+        ],
+      }),
+      record({ id: 'b', posts: [] }),
+    ]
+    fetchMock.mockResolvedValueOnce(jsonRes(200, campaigns))
 
-  it('reflects the number of created campaigns', async () => {
-    setSession()
-    await createCampaign(SAMPLE_INPUT)
-    await createCampaign({ ...SAMPLE_INPUT, name: 'Another' })
     const stats = await fetchCampaignStats()
+
     expect(stats.totalCampaigns).toBe(2)
+    expect(stats.totalPostsPublished).toBe(1)
+    expect(stats.totalEngagements).toBe(10)
+    expect(stats.avgEngagementRate).toBe(10) // 10 / 100 * 100
+    expect(stats.topPlatform).toBe('twitter')
   })
 })
 
-// ─── createCampaign() ─────────────────────────────────────────────────────────
+// ─── Writes + validation ──────────────────────────────────────────────────────
 
 describe('createCampaign()', () => {
-  it('returns a record with id and timestamps', async () => {
-    setSession()
-    const record = await createCampaign(SAMPLE_INPUT)
-    expect(typeof record.id).toBe('string')
-    expect(typeof record.createdAt).toBe('string')
-    expect(typeof record.updatedAt).toBe('string')
+  it('POSTs the input and returns the created record', async () => {
+    const created = record({ id: 'new-id' })
+    fetchMock.mockResolvedValueOnce(jsonRes(201, created))
+
+    const result = await createCampaign(SAMPLE_INPUT)
+
+    expect(result.id).toBe('new-id')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/campaigns')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ name: 'API Test Campaign' })
   })
 
-  it('persists all input fields', async () => {
-    setSession()
-    const record = await createCampaign(SAMPLE_INPUT)
-    expect(record.name).toBe('API Test Campaign')
-    expect(record.websiteUrl).toBe('https://api-test.example.com')
-    expect(record.tone).toBe('casual')
-    expect(record.platforms).toEqual(['twitter'])
+  it('rejects an empty name with ApiError(400) WITHOUT calling the server', async () => {
+    await expect(createCampaign({ ...SAMPLE_INPUT, name: '   ' })).rejects.toMatchObject({ statusCode: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('newly created campaign is retrievable via fetchCampaign', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    const fetched = await fetchCampaign(created.id)
-    expect(fetched.id).toBe(created.id)
-  })
-
-  // ── Authentication ──────────────────────────────────────────────────────────
-
-  it('throws ApiError(401) when no session is set', async () => {
-    await expect(createCampaign(SAMPLE_INPUT)).rejects.toMatchObject({
-      statusCode: 401,
-    })
-  })
-
-  // ── URL validation ──────────────────────────────────────────────────────────
-
-  it('throws ApiError(400) for a javascript: URL scheme', async () => {
-    setSession()
+  it('rejects a non-http websiteUrl without calling the server', async () => {
     await expect(
-      createCampaign({ ...SAMPLE_INPUT, websiteUrl: 'javascript:alert(1)' })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('throws ApiError(400) for a data: URL scheme', async () => {
-    setSession()
-    await expect(
-      createCampaign({ ...SAMPLE_INPUT, websiteUrl: 'data:text/html,<script>alert(1)</script>' })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('throws ApiError(400) for a non-URL string', async () => {
-    setSession()
-    await expect(
-      createCampaign({ ...SAMPLE_INPUT, websiteUrl: 'not a url' })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('accepts http:// URLs', async () => {
-    setSession()
-    const record = await createCampaign({ ...SAMPLE_INPUT, websiteUrl: 'http://example.com' })
-    expect(record.websiteUrl).toBe('http://example.com')
-  })
-
-  it('accepts https:// URLs', async () => {
-    setSession()
-    const record = await createCampaign({ ...SAMPLE_INPUT, websiteUrl: 'https://example.com' })
-    expect(record.websiteUrl).toBe('https://example.com')
-  })
-
-  // ── String length validation ────────────────────────────────────────────────
-
-  it('throws ApiError(400) when name exceeds 200 characters', async () => {
-    setSession()
-    await expect(
-      createCampaign({ ...SAMPLE_INPUT, name: 'a'.repeat(201) })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('throws ApiError(400) when description exceeds 5000 characters', async () => {
-    setSession()
-    await expect(
-      createCampaign({ ...SAMPLE_INPUT, description: 'x'.repeat(5001) })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('throws ApiError(400) when targetAudience exceeds 500 characters', async () => {
-    setSession()
-    await expect(
-      createCampaign({ ...SAMPLE_INPUT, targetAudience: 'y'.repeat(501) })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('throws ApiError(400) for an empty name', async () => {
-    setSession()
-    await expect(createCampaign({ ...SAMPLE_INPUT, name: '   ' })).rejects.toMatchObject({
-      statusCode: 400,
-    })
+      createCampaign({ ...SAMPLE_INPUT, websiteUrl: 'javascript:alert(1)' }),
+    ).rejects.toBeInstanceOf(ApiError)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
-
-// ─── updateCampaign() ─────────────────────────────────────────────────────────
 
 describe('updateCampaign()', () => {
-  it('applies the patch and returns updated record', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    const updated = await updateCampaign(created.id, { name: 'Patched', status: 'ready' })
-    expect(updated.name).toBe('Patched')
-    expect(updated.status).toBe('ready')
+  it('PATCHes the patch and returns the updated record', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, record({ name: 'Renamed' })))
+    const result = await updateCampaign('c1', { name: 'Renamed' })
+    expect(result.name).toBe('Renamed')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/campaigns/c1')
+    expect(init).toMatchObject({ method: 'PATCH' })
   })
 
-  it('does not change unpatched fields', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    const updated = await updateCampaign(created.id, { name: 'Changed' })
-    expect(updated.websiteUrl).toBe(SAMPLE_INPUT.websiteUrl)
-  })
-
-  it('throws ApiError(404) for unknown id', async () => {
-    setSession()
-    await expect(updateCampaign('no-such-id', { name: 'x' })).rejects.toThrow(ApiError)
-    await expect(updateCampaign('no-such-id', { name: 'x' })).rejects.toMatchObject({
-      statusCode: 404,
-    })
-  })
-
-  it('error message does not contain the requested id', async () => {
-    setSession()
-    await expect(updateCampaign('secret-internal-id', { name: 'x' })).rejects.toMatchObject({
-      message: 'Campaign not found',
-    })
-  })
-
-  it('change is visible in subsequent fetchCampaign call', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    await updateCampaign(created.id, { name: 'Visible' })
-    const refetched = await fetchCampaign(created.id)
-    expect(refetched.name).toBe('Visible')
-  })
-
-  // ── Authentication ──────────────────────────────────────────────────────────
-
-  it('throws ApiError(401) when no session is set', async () => {
-    // Create first, then clear session, then try to update
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    localStorage.removeItem(AUTH_SESSION_KEY)
-    await expect(updateCampaign(created.id, { name: 'x' })).rejects.toMatchObject({
-      statusCode: 401,
-    })
-  })
-
-  // ── URL validation ──────────────────────────────────────────────────────────
-
-  it('throws ApiError(400) for a javascript: URL scheme in patch', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    await expect(
-      updateCampaign(created.id, { websiteUrl: 'javascript:void(0)' })
-    ).rejects.toMatchObject({ statusCode: 400 })
-  })
-
-  it('throws ApiError(400) when patched name is empty', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    await expect(updateCampaign(created.id, { name: '' })).rejects.toMatchObject({
-      statusCode: 400,
-    })
-  })
-
-  it('throws ApiError(400) when patched name exceeds 200 characters', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    await expect(
-      updateCampaign(created.id, { name: 'z'.repeat(201) })
-    ).rejects.toMatchObject({ statusCode: 400 })
+  it('rejects an empty-string name patch without calling the server', async () => {
+    await expect(updateCampaign('c1', { name: '' })).rejects.toMatchObject({ statusCode: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
-
-// ─── deleteCampaign() ─────────────────────────────────────────────────────────
 
 describe('deleteCampaign()', () => {
-  it('removes the campaign', async () => {
-    setSession()
-    const created = await createCampaign(SAMPLE_INPUT)
-    await deleteCampaign(created.id)
-    await expect(fetchCampaign(created.id)).rejects.toThrow(ApiError)
+  it('DELETEs and resolves on 204', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(204))
+    await expect(deleteCampaign('c1')).resolves.toBeUndefined()
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE' })
   })
 
-  it('throws ApiError(404) for unknown id', async () => {
-    setSession()
-    await expect(deleteCampaign('no-such-id')).rejects.toThrow(ApiError)
-    await expect(deleteCampaign('no-such-id')).rejects.toMatchObject({
-      statusCode: 404,
-    })
-  })
-
-  it('error message does not contain the requested id', async () => {
-    setSession()
-    await expect(deleteCampaign('secret-internal-id')).rejects.toMatchObject({
-      message: 'Campaign not found',
-    })
-  })
-
-  it('does not affect other campaigns', async () => {
-    setSession()
-    const a = await createCampaign(SAMPLE_INPUT)
-    const b = await createCampaign({ ...SAMPLE_INPUT, name: 'Keep' })
-    await deleteCampaign(a.id)
-    const found = await fetchCampaign(b.id)
-    expect(found.name).toBe('Keep')
-  })
-
-  // ── Authentication ──────────────────────────────────────────────────────────
-
-  it('throws ApiError(401) when no session is set', async () => {
-    await expect(deleteCampaign('any-id')).rejects.toMatchObject({
-      statusCode: 401,
-    })
+  it('rejects with ApiError on 404', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(404, { error: 'Campaign not found' }))
+    await expect(deleteCampaign('c1')).rejects.toMatchObject({ statusCode: 404 })
   })
 })
 
-// ─── Storage error mapping ────────────────────────────────────────────────────
+// ─── One-time migration ─────────────────────────────────────────────────────
+// Runs last: it is the only test that leaves the migrated flag unset, so the
+// module's one-shot migration guard is still pristine when it executes.
 
-describe('storage error mapping', () => {
-  it('converts a StorageError to ApiError(507) on createCampaign', async () => {
-    setSession()
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('QuotaExceededError')
+describe('localStorage → server migration', () => {
+  it('uploads local campaigns once, then reads from the server', async () => {
+    localStorage.removeItem(MIGRATED_FLAG)
+    localStorage.setItem(CAMPAIGNS_KEY, JSON.stringify([record({ id: 'local-1' })]))
+
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith('/import')) return Promise.resolve(jsonRes(200, { imported: 1 }))
+      return Promise.resolve(jsonRes(200, [record({ id: 'local-1' })]))
     })
-    await expect(createCampaign(SAMPLE_INPUT)).rejects.toMatchObject({
-      statusCode: 507,
-    })
-  })
 
-  it('converts a StorageError to ApiError(507) on updateCampaign', async () => {
-    // Create the record while storage is healthy, then simulate quota failure on update
-    setSession()
-    const record = await createCampaign(SAMPLE_INPUT)
+    const result = await fetchCampaigns()
 
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('QuotaExceededError')
-    })
-    await expect(updateCampaign(record.id, { name: 'New' })).rejects.toMatchObject({
-      statusCode: 507,
-    })
-  })
-})
-
-// ─── ApiError ─────────────────────────────────────────────────────────────────
-
-describe('ApiError', () => {
-  it('is an instance of Error', () => {
-    const err = new ApiError('test', 400)
-    expect(err).toBeInstanceOf(Error)
-  })
-
-  it('exposes the statusCode', () => {
-    const err = new ApiError('not found', 404)
-    expect(err.statusCode).toBe(404)
-    expect(err.message).toBe('not found')
-  })
-
-  it('name is ApiError', () => {
-    const err = new ApiError('x')
-    expect(err.name).toBe('ApiError')
+    expect(result[0].id).toBe('local-1')
+    // First call must be the import, second the list.
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/campaigns/import')
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST' })
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/campaigns')
+    // Flag is set so it won't run again.
+    expect(localStorage.getItem(MIGRATED_FLAG)).toBe('true')
   })
 })

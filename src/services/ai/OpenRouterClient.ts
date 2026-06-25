@@ -73,7 +73,10 @@ export class OpenRouterClient implements InferenceClient {
     }
 
     type Body = {
-      choices?: { message?: { content?: string } }[]
+      choices?: {
+        message?: { content?: string; reasoning?: string }
+        finish_reason?: string
+      }[]
       usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
     }
     let data: Body
@@ -87,9 +90,24 @@ export class OpenRouterClient implements InferenceClient {
       )
     }
 
-    const content = data.choices?.[0]?.message?.content
+    const choice = data.choices?.[0]
+    const content = choice?.message?.content
     if (!content) {
-      throw new InferenceError('OpenRouter returned empty content', undefined, 'openrouter')
+      // Explain WHY it was empty so the error is actionable. Reasoning models
+      // (e.g. minimax-m3) commonly exhaust max_tokens on reasoning and return
+      // no answer content, or return only a `reasoning` field.
+      const finish = choice?.finish_reason
+      const detail =
+        finish === 'length'
+          ? ' — the model hit the max_tokens limit before producing any answer. ' +
+            'Increase Max Tokens in Settings → AI, or use a non-reasoning model.'
+          : choice?.message?.reasoning
+          ? ' — the model returned only reasoning tokens and no answer. ' +
+            'Try a non-reasoning / instruct model (e.g. gpt-4o-mini, claude-3.5-haiku).'
+          : finish
+          ? ` (finish_reason=${finish}).`
+          : '.'
+      throw new InferenceError(`OpenRouter returned empty content${detail}`, undefined, 'openrouter')
     }
 
     return {

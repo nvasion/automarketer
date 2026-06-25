@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.svg" alt="AutoMarketer" width="120" height="120" />
+  <img src="public/automarketer.png" alt="AutoMarketer" width="120" height="120" />
   <h1>AutoMarketer</h1>
   <p><strong>AI-powered social media marketing automation</strong></p>
 </div>
@@ -37,6 +37,8 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 | Production server | nginx 1.25 |
 
 ## Getting Started
+
+> **New here?** [**SETUP.md**](./SETUP.md) is the complete, step-by-step setup guide — environment config, running the app, connecting social platforms (OAuth credentials + callback URLs), and troubleshooting. The summary below covers the basics.
 
 Two options: **Docker Compose** (recommended — zero local setup) or a **local Node.js** install.
 
@@ -203,27 +205,39 @@ The `AIConfig.providers` field is a `Record<InferenceProvider, ProviderConfig>` 
 
 ### Security
 
-- API keys are entered by users in **Settings → AI Settings** and stored in browser `localStorage`.
+- API keys are entered by users in **Settings → AI Settings** and stored in browser `localStorage` — they are **never** sent to AutoMarketer's servers, by design.
 - `localStorage` is readable by any same-origin JavaScript (XSS risk). Users should set **spending limits** on their API keys to cap potential exposure.
-- A future backend proxy will allow keys to be stored server-side, eliminating this surface. See the security notice in the Settings UI for a live reminder.
+- Only the **non-sensitive** generation preferences (tone, emoji usage, auto-hashtags, max tokens, temperature) are synced server-side via `/api/ai-prefs`, so settings follow the account across browsers while keys stay local.
+- A future backend proxy will allow keys to be stored server-side too, eliminating the localStorage surface. See the security notice in the Settings UI for a live reminder.
 - Custom endpoint URLs are validated to be `http://` or `https://` before saving (SSRF mitigation for a future server-side proxy).
 
 ## Connecting Social Platforms
 
-Each user creates their own OAuth app on the relevant developer portal and pastes the resulting **Client ID** into the in-app connection modal — there is no shared global config, no administrator role, and no environment variables to set on the server.
+AutoMarketer uses a **single shared OAuth app per platform** (the conventional SaaS model). The operator registers one OAuth app per platform and configures its **Client ID** and **Client Secret** as server environment variables; every user then connects with one click — no OAuth credentials are entered in the UI.
 
-To connect a platform:
+### Operator setup (once per platform)
 
-1. Sign in to AutoMarketer and open **Settings → Connected Platforms**.
-2. Click **Connect** next to the platform you want to enable.
-3. Follow the platform-specific steps shown in the modal to create an OAuth app on the developer portal (e.g. [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps), [X Developer Portal](https://developer.twitter.com/en/portal/dashboard), [Reddit App Preferences](https://www.reddit.com/prefs/apps), or [Meta for Developers](https://developers.facebook.com/apps)).
-4. Register the Redirect URI displayed in the modal (`<your-origin>/oauth/callback`).
-5. Paste the OAuth **Client ID** into the input field and click **Save Client ID**.
-6. Use the **Sign in with …** button to complete the OAuth flow.
+1. Create an OAuth app on the platform's developer portal (e.g. [LinkedIn](https://www.linkedin.com/developers/apps), [X](https://developer.twitter.com/en/portal/dashboard), [Reddit](https://www.reddit.com/prefs/apps), [Meta](https://developers.facebook.com/apps)).
+2. Register the Redirect URI `<your-origin>/oauth/callback` (e.g. `http://localhost:5173/oauth/callback`).
+3. Set both credentials in the server environment (see `.env.example`):
 
-Client IDs are stored per-user in the `user_platform_configs` PostgreSQL table (created automatically on first server start) and never appear in environment variables or build artefacts. Facebook and Instagram share a single Meta App ID — saving one fills in the other automatically. The browser fetches them at runtime via authenticated `GET /api/platform-config`.
+   ```bash
+   LINKEDIN_CLIENT_ID=...
+   LINKEDIN_CLIENT_SECRET=...
+   ```
 
-> **Note:** Client IDs are public values that appear in every OAuth redirect URL. Client *secrets* belong in a dedicated secret manager and are only used server-side during the authorization-code exchange — never store secrets in this table.
+   The Client ID and Secret **must come from the same app**, or the token exchange fails with `invalid_client`. Instagram shares Facebook's Meta app — set only the `FACEBOOK_*` pair. A platform with no `CLIENT_ID` set shows as "not configured" in the connect dialog.
+
+   > **Docker:** the `api` service loads `.env` via `env_file:`. After editing `.env`, recreate the container (`docker compose up -d --build api`) — setting the variable alone does not inject it into a running container.
+
+### User connect flow
+
+1. Open **Settings → Connected Platforms** and click **Connect**.
+2. Complete the **Sign in with …** OAuth popup and approve the requested permissions.
+
+The server exchanges the authorization code for an access token using the configured Client ID + Secret, stores it for the user, and (for LinkedIn) resolves and stores the member URN automatically.
+
+> **Note:** Client IDs are public (they appear in every OAuth redirect URL) and are served to the browser via authenticated `GET /api/platform-config`. Client **secrets** are read server-side only and are never sent to the browser. For production, prefer a dedicated secret manager over a plaintext `.env`.
 
 ## Project Structure
 
@@ -334,12 +348,34 @@ The Express server runs on port `3001` and is proxied by Vite under `/api/*` dur
 | `POST` | `/api/auth/login` | No | Sign in; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
 | `POST` | `/api/auth/logout` | No | Clears the `auth_token` cookie server-side |
 | `GET` | `/api/auth/me` | `auth_token` cookie | Returns the current user's public profile |
-| `GET` | `/api/platform-config` | `auth_token` cookie | Returns the calling user's OAuth client IDs for every supported platform (empty string = not yet configured) |
-| `PUT` | `/api/platform-config/:platform` | `auth_token` cookie | Save the user's OAuth client ID for a platform; body `{ clientId }`. Facebook ↔ Instagram are mirrored automatically |
-| `DELETE` | `/api/platform-config/:platform` | `auth_token` cookie | Clear the user's OAuth client ID for a platform |
+| `GET` | `/api/platform-config` | `auth_token` cookie | Returns the server's configured OAuth client IDs for every supported platform (empty string = not configured on the server) |
+| `GET` | `/api/oauth/callback` | `auth_token` cookie | Completes an OAuth flow: exchanges the authorization code for an access token and stores it for the user |
+| `POST` | `/api/publish/:platform` | `auth_token` cookie | Publishes a post to the platform using the user's stored access token |
+| `GET` | `/api/campaigns` | `auth_token` cookie | Lists the current user's campaigns (newest first) |
+| `GET` | `/api/campaigns/:id` | `auth_token` cookie | Returns a single campaign, or 404 |
+| `POST` | `/api/campaigns` | `auth_token` cookie | Creates a campaign (server assigns id + timestamps) |
+| `PATCH` | `/api/campaigns/:id` | `auth_token` cookie | Partial update of a campaign |
+| `DELETE` | `/api/campaigns/:id` | `auth_token` cookie | Deletes a campaign |
+| `POST` | `/api/campaigns/import` | `auth_token` cookie | Bulk-upserts campaigns; used for the one-time localStorage → server migration |
+| `GET` | `/api/ai-prefs` | `auth_token` cookie | Returns the user's saved AI generation preferences, or `null` |
+| `PUT` | `/api/ai-prefs` | `auth_token` cookie | Saves the user's AI generation preferences (never API keys) |
 | `GET` | `/api/health` | No | Service health check |
 
 > **Security note:** Tokens are stored exclusively in `httpOnly` cookies set by the server. No token is ever placed in the JSON response body or `localStorage`, which eliminates XSS-based session-hijacking risk. The browser attaches the cookie automatically on every request via `credentials: 'include'`.
+
+### Data persistence
+
+Data is persisted **per-user in the server database** (PostgreSQL) so it follows the account across browsers and devices — not just the browser it was created in:
+
+| Data | Storage | Survives a new browser? |
+|------|---------|--------------------------|
+| User accounts | `users` table | ✅ |
+| Platform OAuth tokens + LinkedIn author URN | `user_access_tokens` table | ✅ |
+| Campaigns | `campaigns` table (JSONB document per campaign) | ✅ |
+| AI generation preferences (tone, emoji, hashtags, tokens, temperature) | `user_ai_prefs` table | ✅ |
+| AI provider **API keys** | browser `localStorage` only (never sent to the server) | ❌ (by design) |
+
+Tables are auto-provisioned on server start via `CREATE TABLE IF NOT EXISTS`. When `DATABASE_URL` is not set, the stores fall back to an in-memory map so local development works within a session (data is lost on restart). Campaigns created in an older localStorage-only build are migrated to the server automatically on first load (a one-time, idempotent upload via `POST /api/campaigns/import`).
 
 ### Authentication rate limiting
 
@@ -368,6 +404,7 @@ interface Campaign {
   status: CampaignStatus;
   createdAt: string;
   platforms: Platform[];
+  subreddits?: string[];   // Reddit campaigns: target subreddits (bare names, no "r/")
   posts: GeneratedPost[];
   tone: string;
   targetAudience?: string;
@@ -445,6 +482,25 @@ const result = await connector.post(
 | LinkedIn | LinkedIn REST API v2 — `/v2/ugcPosts` | `w_member_social` |
 | Twitter/X | Twitter API v2 — `/2/tweets` | `tweet.write`, `users.read` |
 | Reddit | Reddit OAuth API — `/api/submit` | `submit` |
+
+### Reddit: posting to subreddits
+
+Reddit campaigns must specify which subreddit(s) to post in. Set them in the campaign form (a single subreddit or a comma-separated list — `r/` prefixes are accepted and stripped), or pass them directly to the connector via `request.reddit.subreddit`, which accepts a single name or an array:
+
+```typescript
+await redditConnector.post(
+  {
+    content,
+    reddit: { subreddit: ['startups', 'SaaS'], title: 'My Launch Post' },
+  },
+  credentials
+)
+// Submits once per subreddit. result.postId/url reflect the first submission;
+// result.submissions lists every per-subreddit result when more than one
+// subreddit is targeted.
+```
+
+When publishing from a campaign, the campaign's `subreddits` list is used as the target and the campaign name doubles as the Reddit post title. A partial failure (some subreddits posted, then one fails) is reported as a non-retryable error that lists the subreddits already submitted, so retries never double-post.
 | Facebook | Facebook Graph API v18 — `/{pageId}/feed` | `pages_manage_posts` |
 | Instagram | Instagram Graph API v18 — `/{userId}/media` + `/{userId}/media_publish` | `instagram_content_publish` |
 

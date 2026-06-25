@@ -30,3 +30,9 @@ build/
 # Logs
 *.log
 .factory/worktrees/
+
+# Env
+.env
+
+# Claude
+.claude/

@@ -56,8 +56,11 @@ export function useContentGeneration(): UseContentGenerationResult {
       setLoading(true)
       setError(null)
 
+      // Loaded outside the try so its provider/model are available for error
+      // logging even if client construction or generation throws.
+      const config = loadAIConfig()
+
       try {
-        const config = loadAIConfig()
         const client = createInferenceClient(config)
         const service = new ContentGenerationService(client)
 
@@ -84,6 +87,20 @@ export function useContentGeneration(): UseContentGenerationResult {
             : err instanceof Error
             ? err.message
             : 'An unexpected error occurred during content generation'
+
+        // Log the failure with enough context to diagnose it, without leaking
+        // the API key. statusCode/provider are only present on InferenceError.
+        const model = config.providers[config.provider]?.model ?? 'unknown'
+        const status = err instanceof InferenceError && err.statusCode !== undefined ? err.statusCode : 'n/a'
+        const errType = err instanceof InferenceError ? 'InferenceError' : err instanceof Error ? err.name : 'unknown'
+        console.error(
+          `[useContentGeneration] Content generation FAILED — ` +
+            `provider=${config.provider} model=${model} ` +
+            `platforms=[${options.platforms.join(', ')}] ` +
+            `status=${status} type=${errType}: ${message}`,
+          err
+        )
+
         setError(message)
         throw err
       } finally {

@@ -196,6 +196,32 @@ describe('OpenRouterClient', () => {
     await expect(client.complete({ messages: [] })).rejects.toThrow('OpenRouter returned empty content')
   })
 
+  it('explains a max_tokens exhaustion (finish_reason=length) in the empty-content error', async () => {
+    const body = { choices: [{ message: { content: '' }, finish_reason: 'length' }] }
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
+    })
+    const client = new OpenRouterClient({ apiKey: 'key', model: 'minimax/minimax-m3', baseUrl: OPENROUTER_BASE_URL })
+
+    await expect(client.complete({ messages: [] })).rejects.toThrow(/max_tokens limit/i)
+  })
+
+  it('explains a reasoning-only response in the empty-content error', async () => {
+    const body = { choices: [{ message: { content: '', reasoning: 'let me think…' }, finish_reason: 'stop' }] }
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
+    })
+    const client = new OpenRouterClient({ apiKey: 'key', model: 'minimax/minimax-m3', baseUrl: OPENROUTER_BASE_URL })
+
+    await expect(client.complete({ messages: [] })).rejects.toThrow(/only reasoning tokens/i)
+  })
+
   it('throws InferenceError when choices array is missing', async () => {
     const body = {}
     fetchMock.mockResolvedValue({

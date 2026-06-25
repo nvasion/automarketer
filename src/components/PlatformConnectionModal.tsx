@@ -1,11 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useContext } from 'react'
 import type { PlatformConfig } from '../types'
+import { AuthContext } from '../contexts/AuthContext'
 import PlatformBadge from './PlatformBadge'
 import { PLATFORM_CREDENTIAL_FIELDS, PLATFORM_OAUTH_CONFIG } from '../config/platformConfig'
-import {
-  fetchPlatformClientIds,
-  savePlatformClientId,
-} from '../services/platformConfigService'
+import { fetchPlatformClientIds } from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
 import styles from './PlatformConnectionModal.module.css'
 
@@ -22,165 +20,35 @@ interface Props {
   onConnect: (platformId: string) => void
 }
 
-// ── Setup instructions + inline client-ID save ────────────────────────────────
+// ── Not-configured notice ──────────────────────────────────────────────────────
+// Shown when a platform has no server-side OAuth app configured. Under the
+// shared-app model, OAuth apps are configured by the operator via environment
+// variables — not pasted in by each user.
 
-interface SetupInstructionsProps {
-  platformId: string
-  platformName: string
-  /** Called with the freshly saved client ID after a successful PUT. */
-  onSaved: (clientId: string) => void
-}
-
-function SetupInstructions({ platformId, platformName, onSaved }: SetupInstructionsProps) {
-  const config = PLATFORM_OAUTH_CONFIG[platformId]
-  const redirectUri = `${window.location.origin}/oauth/callback`
-
-  const [value, setValue] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  if (!config) return null
-
-  const { setupInstructions } = config
-
-  const handleSave = async () => {
-    const trimmed = value.trim()
-    if (!trimmed) {
-      setError('Paste your Client ID before saving.')
-      return
-    }
-    setSaving(true)
-    setError(null)
-    try {
-      await savePlatformClientId(platformId, trimmed)
-      onSaved(trimmed)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save client ID.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
+function NotConfiguredNotice({ platformName, envPrefix }: { platformName: string; envPrefix: string }) {
   return (
-    <div data-testid="setup-instructions" style={{ textAlign: 'left' }}>
+    <div data-testid="platform-not-configured" style={{ textAlign: 'left' }}>
       <div
         style={{
           background: '#fffbeb',
           border: '1px solid #fde68a',
           borderRadius: '8px',
           padding: '12px 14px',
-          marginBottom: '16px',
           fontSize: '13px',
           color: '#92400e',
           lineHeight: 1.5,
         }}
       >
-        <strong>{platformName} is not configured yet.</strong> Create an OAuth app on the
-        {' '}{setupInstructions.portalName} and paste the Client ID below — it's saved to your
-        account, no environment variables or server restarts required.
-      </div>
-
-      <div style={{ marginBottom: '12px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
-          How to set up {platformName} OAuth:
-        </div>
-        <ol
-          style={{
-            margin: 0,
-            paddingLeft: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-          }}
-        >
-          {setupInstructions.steps.map((step, i) => (
-            <li key={i} style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>
-              {step.replace('{REDIRECT_URI}', redirectUri)}
-            </li>
-          ))}
-          <li style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>
-            Paste the Client ID into the field below and click <strong>Save</strong>.
-          </li>
-        </ol>
-      </div>
-
-      <div
-        style={{
-          background: '#f0fdf4',
-          border: '1px solid #bbf7d0',
-          borderRadius: '8px',
-          padding: '10px 14px',
-          fontSize: '12px',
-          color: '#14532d',
-          lineHeight: 1.5,
-          marginBottom: '14px',
-        }}
-      >
-        <strong>Redirect URI to register:</strong>{' '}
-        <code
-          data-testid="redirect-uri-display"
-          style={{ background: '#dcfce7', padding: '2px 6px', borderRadius: '3px', wordBreak: 'break-all' }}
-        >
-          {redirectUri}
-        </code>
-      </div>
-
-      <div style={{ marginBottom: '12px' }}>
-        <a
-          href={setupInstructions.portalUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '13px',
-            color: '#2563eb',
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-        >
-          Open {setupInstructions.portalName} ↗
-        </a>
-      </div>
-
-      {/* Inline save form */}
-      <div>
-        <label className={styles.fieldLabel} htmlFor={`client-id-input-${platformId}`}>
-          {platformName} Client ID
-        </label>
-        <input
-          id={`client-id-input-${platformId}`}
-          data-testid="client-id-input"
-          className={styles.fieldInput}
-          type="text"
-          placeholder="Paste your OAuth Client ID"
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value)
-            if (error) setError(null)
-          }}
-          autoComplete="off"
-          disabled={saving}
-        />
-        {error && (
-          <p
-            data-testid="client-id-error"
-            className={styles.credentialsError}
-            style={{ marginTop: '10px', marginBottom: 0 }}
-          >
-            {error}
-          </p>
-        )}
-        <button
-          data-testid="save-client-id-btn"
-          className={styles.connectBtn}
-          style={{ marginTop: '12px' }}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Save Client ID'}
-        </button>
+        <strong>{platformName} isn't configured on the server yet.</strong> AutoMarketer
+        uses a single shared OAuth app per platform. Ask your administrator to set{' '}
+        <code style={{ background: '#fde68a', padding: '1px 5px', borderRadius: '3px' }}>
+          {envPrefix}_CLIENT_ID
+        </code>{' '}
+        and{' '}
+        <code style={{ background: '#fde68a', padding: '1px 5px', borderRadius: '3px' }}>
+          {envPrefix}_CLIENT_SECRET
+        </code>{' '}
+        in the server environment, then restart the API server.
       </div>
     </div>
   )
@@ -189,6 +57,10 @@ function SetupInstructions({ platformId, platformName, onSaved }: SetupInstructi
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
+  // Read the auth context directly (not via useAuth) so the modal still works
+  // when rendered outside an <AuthProvider>, e.g. in tests.
+  const auth = useContext(AuthContext)
+  const userId = auth?.user?.id ?? 'default'
   const [method, setMethod] = useState<ConnectionMethod>('oauth')
   const [oauthStep, setOauthStep] = useState<OAuthStep>('idle')
   const [oauthError, setOauthError] = useState<string | null>(null)
@@ -222,30 +94,8 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const oauthConfig = PLATFORM_OAUTH_CONFIG[platform.id]
   /** True while an OAuth flow is actively in progress (not idle or errored). */
   const isOAuthConnecting = oauthStep !== 'idle' && oauthStep !== 'error'
-
-  // Update local state after the user saves their client ID inline so the
-  // OAuth connect button becomes available without a page refresh.
-  const handleClientIdSaved = useCallback(
-    (savedClientId: string) => {
-      setClientIds((prev) => {
-        // Facebook and Instagram share one Meta App ID — the server mirrors
-        // the value automatically, so reflect that in the local cache too.
-        const next: PlatformClientIds = {
-          linkedin: '',
-          twitter: '',
-          reddit: '',
-          facebook: '',
-          instagram: '',
-          ...(prev ?? {}),
-        }
-        next[platform.id] = savedClientId
-        if (platform.id === 'facebook') next.instagram = savedClientId
-        if (platform.id === 'instagram') next.facebook = savedClientId
-        return next
-      })
-    },
-    [platform.id]
-  )
+  /** Server env-var prefix for this platform (Instagram/Facebook share Meta's). */
+  const envPrefix = platform.id === 'instagram' || platform.id === 'facebook' ? 'META' : platform.id.toUpperCase()
 
   // ── Keyboard accessibility: close on Escape ──────────────────────────────
 
@@ -321,9 +171,13 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
         .replace('{STATE}', state)
 
       // Generate and inject the PKCE code_challenge for platforms that require it.
+      // The matching code_verifier must be kept and sent to the server at token
+      // exchange (RFC 7636 §4.5), so it is held in this closure for onMessage.
+      let codeVerifier = ''
       if (url.includes('{CODE_CHALLENGE}')) {
-        const { codeChallenge } = await generatePKCEChallenge()
-        url = url.replace('{CODE_CHALLENGE}', codeChallenge)
+        const pkce = await generatePKCEChallenge()
+        codeVerifier = pkce.codeVerifier
+        url = url.replace('{CODE_CHALLENGE}', pkce.codeChallenge)
       }
 
       const popup = window.open(
@@ -365,9 +219,11 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
 
       // Primary path: /oauth/callback posts a message to window.opener with the
       // authorization code (or an error) before closing the popup window.
-      const onMessage = (e: MessageEvent) => {
+      let finalizing = false
+      const onMessage = async (e: MessageEvent) => {
         if (e.origin !== window.location.origin) return
         if (e.data?.type !== 'oauth_callback') return
+        if (resolved || finalizing) return
         // Validate state to reject forged/replayed callbacks (CSRF protection).
         if (e.data.state !== state) {
           resolve(false, 'Authorization failed: state parameter mismatch. Please try again.')
@@ -377,8 +233,66 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
           // Limit length to prevent log injection; React JSX escapes HTML automatically.
           const safeError = String(e.data.error).substring(0, 200)
           resolve(false, `Authorization failed: ${safeError}`)
-        } else {
+          return
+        }
+        if (!e.data.code) {
+          resolve(false, 'Authorization failed: no authorization code was returned.')
+          return
+        }
+
+        // The popup completed authorization. Stop the popup-closed poll now so
+        // the popup closing can't race the async server exchange below into a
+        // false "cancelled" error.
+        finalizing = true
+        clearInterval(pollTimer)
+        console.info(`[PlatformConnectionModal] OAuth code received for ${platform.id} — exchanging it on the server…`)
+
+        // The connection only counts once the server has exchanged the code
+        // and stored the token — report failure otherwise, so the UI never
+        // shows "Connected" for a connection that doesn't exist server-side.
+        try {
+          // Forward the PKCE code_verifier when one was generated (Twitter/X);
+          // the server needs it to complete the token exchange.
+          const verifierParam = codeVerifier
+            ? `&code_verifier=${encodeURIComponent(codeVerifier)}`
+            : ''
+          const res = await fetch(
+            `/api/oauth/callback?code=${encodeURIComponent(e.data.code)}&platform=${encodeURIComponent(platform.id)}&state=${encodeURIComponent(state)}${verifierParam}`,
+            { credentials: 'include' }
+          )
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string
+            authorId?: string
+          }
+          if (!res.ok) {
+            console.error(
+              `[PlatformConnectionModal] Server rejected the ${platform.id} OAuth callback: HTTP ${res.status}`,
+              body
+            )
+            resolve(
+              false,
+              body.error ?? `The server could not complete the connection (HTTP ${res.status}).`
+            )
+            return
+          }
+
+          // LinkedIn returns the member URN needed as the publishing author ID.
+          if (platform.id === 'linkedin' && body.authorId) {
+            localStorage.setItem(`linkedin_authorId_${userId}`, body.authorId)
+            console.info('[PlatformConnectionModal] Stored LinkedIn author ID for publishing')
+          }
+
+          console.info(`[PlatformConnectionModal] ${platform.id} connected — token stored on the server`)
           resolve(true)
+        } catch (err) {
+          console.error(
+            `[PlatformConnectionModal] Failed to reach the server to complete the ${platform.id} connection:`,
+            err
+          )
+          resolve(
+            false,
+            'Authorization succeeded, but the server could not be reached to store the connection. Please try again.'
+          )
         }
       }
       window.addEventListener('message', onMessage)
@@ -507,13 +421,9 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
                 </div>
               )}
 
-              {/* Ready — platform supported but the user hasn't saved a client ID yet */}
+              {/* Ready — platform supported but not configured on the server */}
               {configLoadState === 'ready' && oauthConfig && !clientId && (
-                <SetupInstructions
-                  platformId={platform.id}
-                  platformName={displayName}
-                  onSaved={handleClientIdSaved}
-                />
+                <NotConfiguredNotice platformName={displayName} envPrefix={envPrefix} />
               )}
 
               {/* Ready — fully configured: show the OAuth connect flow */}

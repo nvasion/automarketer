@@ -100,7 +100,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
 
   return (
     <Link to={path} style={itemStyle}>
-      <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>{icon}</span>
+      <span style={{ fontSize: '15px', width: '20px', textAli
       <span>{label}</span>
       {label === 'New Campaign' && (
         <span
@@ -108,7 +108,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
             marginLeft: 'auto',
             background: '#40916c',
             color: isActive ? 'rgba(255,255,255,0.7)' : '#74c69d',
-            border: isActive ? '1px solid rgba(255,255,255,0.2)' : '1px solid #2d6a4f',
+            border: isActive ? '1px solid rgba(255,255,255,0.
             borderRadius: '4px',
             fontSize: '10px',
             fontWeight: 600,
@@ -198,7 +198,7 @@ function Sidebar() {
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', ha
   }, [showMenu])
 
   async function handleLogout() {
@@ -240,7 +240,7 @@ function Sidebar() {
                 (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#7f1d1d22'
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+                (e.currentTarget as HTMLButtonElement).style.t'
               }}
             >
               <span aria-hidden="true">🚪</span>
@@ -252,8 +252,9 @@ function Sidebar() {
         <div style={userCardStyle}>
           <div style={avatarStyle}>{initial}</div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>{fullName || user?.email}</div>
-            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{user?.email}</div>
+            <div style={{ color: '#f1f5f9', fontSize: '13px', || user?.email}</div>
+            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'
+}}>{user?.email}</div>
           </div>
           <button
             aria-label="User menu"

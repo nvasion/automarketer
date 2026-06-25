@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import CampaignList from './pages/CampaignList'
 import CampaignDetail from './pages/CampaignDetail'
 import CreateCampaign from './pages/CreateCampaign'
+import EditCampaign from './pages/EditCampaign'
 import Scheduler from './pages/Scheduler'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
@@ -94,6 +95,16 @@ function App() {
           <ProtectedRoute>
             <AppShell>
               <CampaignDetail />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/campaigns/:id/edit"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <EditCampaign />
             </AppShell>
           </ProtectedRoute>
         }

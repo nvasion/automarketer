@@ -83,6 +83,7 @@ function CreateCampaign() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(['linkedin', 'twitter'])
   const [tone, setTone] = useState<Tone>('professional')
   const [screenshots, setScreenshots] = useState<Screenshot[]>([])
+  const [subreddits, setSubreddits] = useState('')
 
   // Generation state
   const [generating, setGenerating] = useState(false)
@@ -93,6 +94,11 @@ function CreateCampaign() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Reddit campaigns need at least one target subreddit before generation
+  const canGenerate =
+    selectedPlatforms.length > 0 &&
+    (!selectedPlatforms.includes('reddit') || subreddits.trim().length > 0)
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -196,6 +202,7 @@ function CreateCampaign() {
         tone,
         status: 'ready',
         platforms: selectedPlatforms,
+        subreddits,
         screenshots,
         posts,
       })
@@ -511,6 +518,21 @@ function CreateCampaign() {
                 })}
               </div>
             </div>
+
+            {selectedPlatforms.includes('reddit') && (
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Subreddits *</label>
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. startups or r/startups, r/SaaS"
+                  value={subreddits}
+                  onChange={(e) => setSubreddits(e.target.value)}
+                />
+                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  A single subreddit or a comma-separated list — Reddit posts will be submitted to each.
+                </p>
+              </div>
+            )}
 
             <div style={fieldStyle}>
               <label style={labelStyle}>Writing Tone</label>
@@ -842,7 +864,7 @@ function CreateCampaign() {
             {step === 3 && (
               <button
                 onClick={handleGenerate}
-                disabled={selectedPlatforms.length === 0 || generating}
+                disabled={!canGenerate || generating}
                 style={{
                   background: 'linear-gradient(135deg, #52b788, #40916c)',
                   border: 'none',
@@ -850,9 +872,9 @@ function CreateCampaign() {
                   padding: '10px 24px',
                   fontSize: '14px',
                   color: 'white',
-                  cursor: selectedPlatforms.length === 0 || generating ? 'not-allowed' : 'pointer',
+                  cursor: !canGenerate || generating ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
-                  opacity: selectedPlatforms.length === 0 || generating ? 0.5 : 1,
+                  opacity: !canGenerate || generating ? 0.5 : 1,
                   boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
                   display: 'flex',
                   alignItems: 'center',

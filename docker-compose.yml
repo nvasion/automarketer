@@ -51,6 +51,13 @@ services:
     volumes:
       - .:/app
       - node_modules:/app/node_modules
+    # Load the whole .env into the container so server-side secrets
+    # (LINKEDIN_CLIENT_SECRET, etc.) are available to process.env. Without this,
+    # .env is only used for ${VAR} substitution in this compose file and is NOT
+    # injected into the container — the cause of "secret not set" despite a
+    # populated .env. The explicit `environment:` entries below override it.
+    env_file:
+      - .env
     environment:
       - PORT=3001
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-automarketer}

@@ -158,6 +158,98 @@ describe('RedditConnector', () => {
     expect(params.get('nsfw')).toBe('false')
   })
 
+  // ── Multiple subreddits ──────────────────────────────────────────────────────
+
+  it('accepts an array of subreddits and submits once per subreddit', async () => {
+    fetchMock.mockResolvedValue(
+      makeOkResponse({ json: { data: { id: 'abc' }, errors: [] } })
+    )
+    await connector.post(
+      { content: 'Hello', reddit: { subreddit: ['startups', 'SaaS'], title: 'Title' } },
+      { getAccessToken: async () => 'token' }
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const targets = fetchMock.mock.calls.map(([, init]) =>
+      new URLSearchParams((init as RequestInit).body as string).get('sr')
+    )
+    expect(targets).toEqual(['startups', 'SaaS'])
+  })
+
+  it('returns per-subreddit submissions when posting to multiple subreddits', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        makeOkResponse({ json: { data: { id: 'id-1', url: 'https://reddit.com/r/startups/comments/id-1/' }, errors: [] } })
+      )
+      .mockResolvedValueOnce(
+        makeOkResponse({ json: { data: { id: 'id-2', url: 'https://reddit.com/r/SaaS/comments/id-2/' }, errors: [] } })
+      )
+    const result = await connector.post(
+      { content: 'Hello', reddit: { subreddit: ['startups', 'SaaS'], title: 'Title' } },
+      { getAccessToken: async () => 'token' }
+    )
+    expect(result.success).toBe(true)
+    expect(result.postId).toBe('id-1')
+    expect(result.url).toBe('https://reddit.com/r/startups/comments/id-1/')
+    expect(result.submissions).toEqual([
+      { target: 'startups', postId: 'id-1', url: 'https://reddit.com/r/startups/comments/id-1/' },
+      { target: 'SaaS', postId: 'id-2', url: 'https://reddit.com/r/SaaS/comments/id-2/' },
+    ])
+  })
+
+  it('omits submissions for a single subreddit', async () => {
+    fetchMock.mockResolvedValue(
+      makeOkResponse({ json: { data: { id: 'abc' }, errors: [] } })
+    )
+    const result = await connector.post(
+      { content: 'Hello', reddit: { subreddit: 'test', title: 'Title' } },
+      { getAccessToken: async () => 'token' }
+    )
+    expect(result.submissions).toBeUndefined()
+  })
+
+  it('strips "r/" prefixes and dedupes subreddit input', async () => {
+    fetchMock.mockResolvedValue(
+      makeOkResponse({ json: { data: { id: 'abc' }, errors: [] } })
+    )
+    await connector.post(
+      { content: 'Hello', reddit: { subreddit: ['r/startups', 'startups', '/r/SaaS'], title: 'Title' } },
+      { getAccessToken: async () => 'token' }
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const targets = fetchMock.mock.calls.map(([, init]) =>
+      new URLSearchParams((init as RequestInit).body as string).get('sr')
+    )
+    expect(targets).toEqual(['startups', 'SaaS'])
+  })
+
+  it('throws SocialError when the subreddit array is empty', async () => {
+    await expect(
+      connector.post(
+        { content: 'Hello', reddit: { subreddit: [], title: 'Title' } },
+        { getAccessToken: async () => 'token' }
+      )
+    ).rejects.toThrow('Reddit post requires request.reddit.subreddit')
+  })
+
+  it('marks partial multi-subreddit failures as non-retryable and lists completed targets', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        makeOkResponse({ json: { data: { id: 'id-1' }, errors: [] } })
+      )
+      .mockResolvedValueOnce(makeErrorResponse(403, 'Forbidden'))
+    try {
+      await connector.post(
+        { content: 'Hello', reddit: { subreddit: ['startups', 'locked'], title: 'Title' } },
+        { getAccessToken: async () => 'token' }
+      )
+      expect.unreachable('post should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(SocialError)
+      expect((err as SocialError).retryable).toBe(false)
+      expect((err as SocialError).message).toContain('already submitted to: startups')
+    }
+  })
+
   // ── Response parsing ─────────────────────────────────────────────────────────
 
   it('returns success:true and post ID on success', async () => {

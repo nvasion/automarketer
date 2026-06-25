@@ -41,6 +41,7 @@ import type {
 import { DB_SCHEMA_VERSION } from './schema'
 import type { Platform } from '../types'
 import { SAMPLE_CAMPAIGNS } from '../data/sampleData'
+import { normalizeSubreddits } from '../utils/subreddits'
 
 // ─── Storage error type ───────────────────────────────────────────────────────
 
@@ -153,10 +154,67 @@ function sampleToCampaignRecord(c: (typeof SAMPLE_CAMPAIGNS)[number]): CampaignR
     tone: c.tone,
     targetAudience: c.targetAudience,
     platforms: c.platforms,
+    subreddits: c.subreddits,
     screenshots: c.screenshots,
     posts: c.posts,
     createdAt: c.createdAt,
     updatedAt: c.createdAt,
+  }
+}
+
+// ─── Stats computation ──────────────────────────────────────────────────────
+
+/**
+ * Compute summary statistics from a list of campaign records.
+ *
+ * Pure function (no storage access) so it can be reused by both the
+ * localStorage-backed `CampaignModel.getStats()` and the server-backed
+ * `fetchCampaignStats()` in the API layer.
+ *
+ * Derives `avgEngagementRate` as total engagements / total views × 100,
+ * expressed as a percentage rounded to one decimal place.
+ */
+export function computeStats(all: CampaignRecord[]): CampaignStats {
+  const activeCampaigns = all.filter(
+    (c) => c.status === 'ready' || c.status === 'generating'
+  ).length
+
+  let totalPostsPublished = 0
+  let totalEngagements = 0
+  let totalViews = 0
+  const engagementsByPlatform: Record<string, number> = {}
+
+  for (const campaign of all) {
+    for (const post of campaign.posts) {
+      if (post.status === 'published') totalPostsPublished++
+      if (post.engagements) {
+        const e = post.engagements
+        const postEngagements = e.likes + e.comments + e.shares
+        totalEngagements += postEngagements
+        totalViews += e.views
+        engagementsByPlatform[post.platform] =
+          (engagementsByPlatform[post.platform] ?? 0) + postEngagements
+      }
+    }
+  }
+
+  const avgEngagementRate =
+    totalViews > 0
+      ? Math.round((totalEngagements / totalViews) * 1000) / 10
+      : 0
+
+  const topPlatform =
+    Object.keys(engagementsByPlatform).length > 0
+      ? (Object.entries(engagementsByPlatform).sort(([, a], [, b]) => b - a)[0][0] as Platform)
+      : null
+
+  return {
+    totalCampaigns: all.length,
+    activeCampaigns,
+    totalPostsPublished,
+    totalEngagements,
+    avgEngagementRate,
+    topPlatform,
   }
 }
 
@@ -262,8 +320,11 @@ export class CampaignModel {
    */
   static create(input: CreateCampaignInput): CampaignRecord {
     const now = new Date().toISOString()
+    const { subreddits, ...rest } = input
+    const normalizedSubreddits = normalizeSubreddits(subreddits)
     const record: CampaignRecord = {
-      ...input,
+      ...rest,
+      ...(normalizedSubreddits.length > 0 && { subreddits: normalizedSubreddits }),
       id: generateId(),
       createdAt: now,
       updatedAt: now,
@@ -283,9 +344,13 @@ export class CampaignModel {
     const idx = all.findIndex((c) => c.id === id)
     if (idx === -1) return null
 
+    const { subreddits, ...rest } = patch
     const updated: CampaignRecord = {
       ...all[idx],
-      ...patch,
+      ...rest,
+      // Normalize subreddit input when present in the patch; an empty value
+      // clears the stored list.
+      ...(subreddits !== undefined && { subreddits: normalizeSubreddits(subreddits) }),
       id, // prevent callers from changing the id
       createdAt: all[idx].createdAt, // creation time is immutable
       updatedAt: new Date().toISOString(),
@@ -318,48 +383,6 @@ export class CampaignModel {
    * expressed as a percentage rounded to one decimal place.
    */
   static getStats(): CampaignStats {
-    const all = readAll()
-
-    const activeCampaigns = all.filter(
-      (c) => c.status === 'ready' || c.status === 'generating'
-    ).length
-
-    let totalPostsPublished = 0
-    let totalEngagements = 0
-    let totalViews = 0
-    const engagementsByPlatform: Record<string, number> = {}
-
-    for (const campaign of all) {
-      for (const post of campaign.posts) {
-        if (post.status === 'published') totalPostsPublished++
-        if (post.engagements) {
-          const e = post.engagements
-          const postEngagements = e.likes + e.comments + e.shares
-          totalEngagements += postEngagements
-          totalViews += e.views
-          engagementsByPlatform[post.platform] =
-            (engagementsByPlatform[post.platform] ?? 0) + postEngagements
-        }
-      }
-    }
-
-    const avgEngagementRate =
-      totalViews > 0
-        ? Math.round((totalEngagements / totalViews) * 1000) / 10
-        : 0
-
-    const topPlatform =
-      Object.keys(engagementsByPlatform).length > 0
-        ? (Object.entries(engagementsByPlatform).sort(([, a], [, b]) => b - a)[0][0] as Platform)
-        : null
-
-    return {
-      totalCampaigns: all.length,
-      activeCampaigns,
-      totalPostsPublished,
-      totalEngagements,
-      avgEngagementRate,
-      topPlatform,
-    }
+    return computeStats(readAll())
   }
 }
