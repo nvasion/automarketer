@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { parseUserDetailsFromEmail } from '../utils/userDisplay'
@@ -99,7 +100,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
 
   return (
     <Link to={path} style={itemStyle}>
-      <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>{icon}</span>
+      <span style={{ fontSize: '15px', width: '20px', textAli
       <span>{label}</span>
       {label === 'New Campaign' && (
         <span
@@ -107,7 +108,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
             marginLeft: 'auto',
             background: '#40916c',
             color: isActive ? 'rgba(255,255,255,0.7)' : '#74c69d',
-            border: isActive ? '1px solid rgba(255,255,255,0.2)' : '1px solid #2d6a4f',
+            border: isActive ? '1px solid rgba(255,255,255,0.
             borderRadius: '4px',
             fontSize: '10px',
             fontWeight: 600,
@@ -124,6 +125,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
 const bottomAreaStyle: React.CSSProperties = {
   padding: '16px 12px',
   borderTop: '1px solid #1e293b',
+  position: 'relative',
 }
 
 const userCardStyle: React.CSSProperties = {
@@ -149,11 +151,60 @@ const avatarStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
+const logoutPanelStyle: React.CSSProperties = {
+  position: 'absolute',
+  bottom: '72px',
+  left: '12px',
+  right: '12px',
+  backgroundColor: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: '10px',
+  padding: '6px',
+  boxShadow: '0 -4px 16px rgba(0,0,0,0.4)',
+  zIndex: 10,
+}
+
+const logoutButtonStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  width: '100%',
+  padding: '8px 10px',
+  borderRadius: '6px',
+  background: 'none',
+  border: 'none',
+  color: '#f87171',
+  fontSize: '13px',
+  fontWeight: 500,
+  cursor: 'pointer',
+  textAlign: 'left',
+}
+
 function Sidebar() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { fullName, initial } = user
     ? parseUserDetailsFromEmail(user.email)
     : { fullName: '', initial: '?' }
+
+  const [showMenu, setShowMenu] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Close the panel when the user clicks outside of it
+  useEffect(() => {
+    if (!showMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', ha
+  }, [showMenu])
+
+  async function handleLogout() {
+    setShowMenu(false)
+    await logout()
+  }
 
   return (
     <aside style={sidebarStyle}>
@@ -178,14 +229,53 @@ function Sidebar() {
         ))}
       </nav>
 
-      <div style={bottomAreaStyle}>
+      <div style={bottomAreaStyle} ref={containerRef}>
+        {showMenu && (
+          <div style={logoutPanelStyle} role="menu">
+            <button
+              style={logoutButtonStyle}
+              onClick={handleLogout}
+              role="menuitem"
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#7f1d1d22'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.t'
+              }}
+            >
+              <span aria-hidden="true">🚪</span>
+              Log out
+            </button>
+          </div>
+        )}
+
         <div style={userCardStyle}>
           <div style={avatarStyle}>{initial}</div>
-          <div>
-            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>{fullName || user?.email}</div>
-            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{user?.email}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#f1f5f9', fontSize: '13px', || user?.email}</div>
+            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'
+}}>{user?.email}</div>
           </div>
-          <span style={{ color: '#64748b', marginLeft: 'auto', fontSize: '16px' }}>⋯</span>
+          <button
+            aria-label="User menu"
+            aria-expanded={showMenu}
+            aria-haspopup="menu"
+            onClick={() => setShowMenu((prev) => !prev)}
+            style={{
+              color: showMenu ? '#94a3b8' : '#64748b',
+              marginLeft: 'auto',
+              fontSize: '16px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              borderRadius: '4px',
+              lineHeight: 1,
+              flexShrink: 0,
+            }}
+          >
+            ⋯
+          </button>
         </div>
       </div>
     </aside>
