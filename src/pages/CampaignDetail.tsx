@@ -11,6 +11,7 @@ import PostCard from '../components/PostCard'
 import { publishService, PublishError } from '../services/publishService'
 import { fetchPlatformClientIds } from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
+import { resolveLinkedInAuthorUrn } from '../services/linkedinService'
 
 function CampaignDetail() {
   const { id } = useParams<{ id: string }>()
@@ -108,14 +109,13 @@ function CampaignDetail() {
       let platformOptions: Record<string, unknown> | undefined
 
       if (post.platform === 'linkedin') {
-        // The member URN is stored in localStorage by the connection modal
-        // when the OAuth flow completes (the server resolves it from
-        // LinkedIn's userinfo endpoint and returns it as `authorId`).
-        const authorIdKey = `linkedin_authorId_${user?.id ?? 'default'}`
-        const authorId = localStorage.getItem(authorIdKey)
+        // Resolve the author URN: uses the page/org selected in Settings if set,
+        // otherwise falls back to the personal profile URN stored during OAuth.
+        const userId = user?.id ?? 'default'
+        const authorId = resolveLinkedInAuthorUrn(userId)
         if (!authorId) {
           console.error(
-            `[CampaignDetail] No LinkedIn author ID in localStorage (key=${authorIdKey}). ` +
+            `[CampaignDetail] No LinkedIn author URN found for user=${userId}. ` +
               'It is stored during the OAuth connect flow — disconnect and reconnect LinkedIn in Settings. ' +
               'If reconnecting does not help, check the server [oauth] logs for the userinfo failure reason.'
           )
@@ -123,7 +123,7 @@ function CampaignDetail() {
             'LinkedIn author ID not found. Disconnect and reconnect your LinkedIn account in Settings to refresh it.'
           )
         }
-        console.info('[CampaignDetail] LinkedIn author ID found — publishing as', authorId)
+        console.info('[CampaignDetail] Publishing LinkedIn post as:', authorId)
         platformOptions = { authorId }
       }
 

@@ -143,8 +143,16 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
   linkedin: {
     label: 'Sign in with LinkedIn',
     shortName: 'LinkedIn',
+    // Scopes:
+    //   openid profile email              — OpenID Connect (Sign In with LinkedIn)
+    //   w_member_social                   — post as the authenticated member
+    //   w_organization_social             — post as an organization/company page
+    //   r_organization_admin              — list organizations the user administers
+    // The last two scopes require the "Organization Access" product in the LinkedIn
+    // app dashboard. If not approved, org pages are silently omitted and only the
+    // personal profile is available for posting.
     authUrl:
-      'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid%20profile%20email%20w_member_social&state={STATE}',
+      'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid%20profile%20email%20w_member_social%20w_organization_social%20r_organization_admin&state={STATE}',
     setupInstructions: {
       portalUrl: 'https://www.linkedin.com/developers/apps',
       portalName: 'LinkedIn Developer Portal',
@@ -152,7 +160,8 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Go to the LinkedIn Developer Portal and click "Create app".',
         'Under the "Auth" tab, add {REDIRECT_URI} as an Authorized Redirect URL.',
         'Under the "Products" tab, request "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect".',
-        '⚠️ Important: After adding products, you may need to complete app verification or wait for LinkedIn approval before OAuth will work. If you get an "invalid_scope_error", check that both products are approved in your app dashboard.',
+        '(Optional) To enable posting as company pages, also request "Organization Access" under Products. Without it only your personal profile is available.',
+        '⚠️ Important: After adding products, you may need to complete app verification or wait for LinkedIn approval before OAuth will work. If you get an "invalid_scope_error", check that all requested products are approved in your app dashboard.',
         'Copy the Client ID from the "Auth" tab.',
       ],
     },
