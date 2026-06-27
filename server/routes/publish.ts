@@ -32,9 +32,10 @@ router.use(requireAuth);
 router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: string }>, res: Response): Promise<void> => {
   const userId = req.user!.sub;
   const { platform } = req.params;
-  const { content, hashtags, linkedIn, twitter, reddit, facebook, instagram } = req.body as {
+  const { content, hashtags, media, linkedIn, twitter, reddit, facebook, instagram } = req.body as {
     content: string;
     hashtags?: string[];
+    media?: Array<{ url: string; mimeType?: string }>;
     linkedIn?: { authorId: string };
     twitter?: Record<string, unknown>;
     reddit?: { subreddit?: string | string[]; title?: string; nsfw?: boolean };
@@ -85,6 +86,16 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
       return;
     }
 
+    // Keep only well-formed image attachments with absolute http(s) URLs.
+    // Blob/relative URLs are unusable server-side (and by the platforms), so
+    // they are dropped rather than sent and rejected downstream.
+    const images = Array.isArray(media)
+      ? media.filter(
+          (m): m is { url: string; mimeType?: string } =>
+            !!m && typeof m.url === 'string' && /^https?:\/\//i.test(m.url),
+        )
+      : [];
+
     // Build the base post request. Platform-specific options (linkedIn, reddit)
     // are validated and merged in their respective `case` blocks below, so they
     // are intentionally not spread in here. Twitter/Facebook/Instagram carry no
@@ -92,6 +103,7 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
     const postRequest: SocialPostRequest = {
       content,
       hashtags: hashtags ?? [],
+      ...(images.length > 0 && { media: images }),
     };
 
     // Create credential provider with the stored token

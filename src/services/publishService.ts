@@ -12,9 +12,16 @@ interface PublishResponse {
   timestamp: string;
 }
 
+/** An image attachment (publicly-fetchable URL) to include with the post. */
+export interface PublishMedia {
+  url: string;
+  mimeType?: string;
+}
+
 interface PublishRequest {
   content: string;
   hashtags?: string[];
+  media?: PublishMedia[];
   linkedIn?: {
     authorId: string;
   };
@@ -107,17 +114,20 @@ export const publishService = {
    * @param content - The post content
    * @param hashtags - Optional hashtags
    * @param platformOptions - Platform-specific options
+   * @param media - Optional image attachments (publicly-fetchable URLs)
    */
   async publish(
     platform: string,
     content: string,
     hashtags: string[],
     platformOptions?: Record<string, unknown>,
+    media?: PublishMedia[],
   ): Promise<PublishResponse> {
     const body: PublishRequest = {
       content,
       hashtags,
       ...(platformOptions && { [platform]: platformOptions }),
+      ...(media && media.length > 0 && { media }),
     };
     return request<PublishResponse>(platform, body);
   },

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { resolveSslConfig } from '../../server/db/connection';
+import { resolveSslConfig, stripSslParams } from '../../server/db/connection';
 
 const ENV_KEYS = ['DATABASE_SSL', 'NODE_ENV', 'DATABASE_CA_CERT'] as const;
 
@@ -46,5 +46,37 @@ describe('resolveSslConfig', () => {
       ca: process.env.DATABASE_CA_CERT,
       rejectUnauthorized: true,
     });
+  });
+});
+
+describe('stripSslParams', () => {
+  it('removes a sole sslmode param (DigitalOcean default)', () => {
+    expect(stripSslParams('postgresql://u:p@host:25060/db?sslmode=require')).toBe(
+      'postgresql://u:p@host:25060/db',
+    );
+  });
+
+  it('removes sslmode but keeps other query params', () => {
+    expect(
+      stripSslParams('postgresql://u:p@host:25060/db?application_name=app&sslmode=require'),
+    ).toBe('postgresql://u:p@host:25060/db?application_name=app');
+  });
+
+  it('removes sslmode when it is the first of several params', () => {
+    expect(
+      stripSslParams('postgresql://u:p@host:25060/db?sslmode=require&application_name=app'),
+    ).toBe('postgresql://u:p@host:25060/db?application_name=app');
+  });
+
+  it('also strips an ssl param', () => {
+    expect(stripSslParams('postgresql://u:p@host:5432/db?ssl=true')).toBe(
+      'postgresql://u:p@host:5432/db',
+    );
+  });
+
+  it('leaves a connection string without SSL params unchanged', () => {
+    expect(stripSslParams('postgresql://u:p@host:5432/db')).toBe(
+      'postgresql://u:p@host:5432/db',
+    );
   });
 });

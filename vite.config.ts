@@ -2,14 +2,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  // Use a relative base so that @vite/client, @react-refresh, and all
-  // other dev-server modules are requested relative to the current page URL.
-  // This is required when the dev server sits behind a reverse proxy at a
-  // subpath (e.g. /api/projects/<id>/preview/) — without it the browser
-  // resolves those imports against the domain root, bypassing the proxy and
-  // receiving an HTML error page with no Content-Type (NS_ERROR_CORRUPTED_CONTENT).
-  base: './',
+export default defineConfig(({ command }) => ({
+  // Dev server (command === 'serve') may sit behind a reverse proxy at a
+  // subpath, so @vite/client, @react-refresh and other dev modules must be
+  // requested relative to the current page URL — hence base './' there.
+  // (Without it the browser resolves them against the domain root, bypasses the
+  // proxy, and gets an HTML error page with no Content-Type.)
+  //
+  // Production builds are served at the domain root on App Platform and use
+  // deep real-path routes like /oauth/callback. With a relative base the
+  // browser resolves ./assets/* against /oauth/ and 404s, so the build uses an
+  // absolute base.
+  base: command === 'serve' ? './' : '/',
   plugins: [react()],
   server: {
     // Bind to all interfaces so the dev server is reachable inside Docker
@@ -39,4 +43,4 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true
   }
-})
+}))

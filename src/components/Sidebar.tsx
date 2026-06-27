@@ -42,13 +42,7 @@ const logoIconStyle: React.CSSProperties = {
   width: '36px',
   height: '36px',
   borderRadius: '10px',
-  background: 'linear-gradient(135deg, #52b788, #40916c)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '18px',
-  color: 'white',
-  fontWeight: 'bold',
+  objectFit: 'cover',
   flexShrink: 0,
 }
 
@@ -63,6 +57,17 @@ const logoSubStyle: React.CSSProperties = {
   color: '#64748b',
   fontSize: '11px',
   marginTop: '1px',
+}
+
+const logoCreditStyle: React.CSSProperties = {
+  color: '#64748b',
+  fontSize: '10px',
+  marginTop: '2px',
+}
+
+const logoCreditLinkStyle: React.CSSProperties = {
+  color: '#52b788',
+  textDecoration: 'none',
 }
 
 const navStyle: React.CSSProperties = {
@@ -100,7 +105,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
 
   return (
     <Link to={path} style={itemStyle}>
-      <span style={{ fontSize: '15px', width: '20px', textAli
+      <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>{icon}
       <span>{label}</span>
       {label === 'New Campaign' && (
         <span
@@ -108,7 +113,7 @@ function NavItem({ path, label, icon }: { path: string; label: string; icon: str
             marginLeft: 'auto',
             background: '#40916c',
             color: isActive ? 'rgba(255,255,255,0.7)' : '#74c69d',
-            border: isActive ? '1px solid rgba(255,255,255,0.
+            border: isActive ? '1px solid rgba(255,255,255,0.2)' : '1px solid #2d6a
             borderRadius: '4px',
             fontSize: '10px',
             fontWeight: 600,
@@ -198,7 +203,7 @@ function Sidebar() {
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', ha
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMenu])
 
   async function handleLogout() {
@@ -210,10 +215,30 @@ function Sidebar() {
     <aside style={sidebarStyle}>
       <div style={logoAreaStyle}>
         <div style={logoStyle}>
-          <div style={logoIconStyle}>A</div>
+          <img src="/automarketer.png" alt="AutoMarketer logo" style={logoIconStyle
           <div>
             <div style={logoTextStyle}>AutoMarketer</div>
             <div style={logoSubStyle}>AI Social Platform</div>
+            <div style={logoCreditStyle}>
+              By{' '}
+              <a
+                href="https://tynhub.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={logoCreditLinkStyle}
+              >
+                TynHub
+              </a>{' '}
+              and Built on{' '}
+              <a
+                href="https://factory-nexus.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={logoCreditLinkStyle}
+              >
+                Factory Nexus
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -240,7 +265,7 @@ function Sidebar() {
                 (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#7f1d1d22'
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.t'
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'tra
               }}
             >
               <span aria-hidden="true">🚪</span>
@@ -252,9 +277,8 @@ function Sidebar() {
         <div style={userCardStyle}>
           <div style={avatarStyle}>{initial}</div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#f1f5f9', fontSize: '13px', || user?.email}</div>
-            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px'
-}}>{user?.email}</div>
+            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>{f
+            <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{user?.email}</div>
           </div>
           <button
             aria-label="User menu"

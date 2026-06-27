@@ -45,17 +45,27 @@ export class FacebookConnector extends BaseSocialConnector {
     )
     const message = this.buildCombinedText(content, hashtags)
 
+    // With an attached image, publish a photo (Graph fetches the image by URL);
+    // otherwise publish a plain text/link post to the page feed.
+    const image = request.media?.[0]
     const body: Record<string, string> = {
       message,
       access_token: accessToken,
     }
-    if (request.facebook?.link) {
-      body.link = request.facebook.link
+    let endpoint: string
+    if (image) {
+      endpoint = `${FACEBOOK_GRAPH_BASE}/${pageId}/photos`
+      body.url = image.url
+    } else {
+      endpoint = `${FACEBOOK_GRAPH_BASE}/${pageId}/feed`
+      if (request.facebook?.link) {
+        body.link = request.facebook.link
+      }
     }
 
     let response: Response
     try {
-      response = await this.safeFetch(`${FACEBOOK_GRAPH_BASE}/${pageId}/feed`, {
+      response = await this.safeFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -87,21 +97,24 @@ export class FacebookConnector extends BaseSocialConnector {
       )
     }
 
-    let data: { id?: string }
+    let data: { id?: string; post_id?: string }
     try {
-      data = await parseJsonBody<{ id?: string }>(response)
+      data = await parseJsonBody<{ id?: string; post_id?: string }>(response)
     } catch (err) {
       throw new SocialError(
         `Facebook returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
         { platform: 'facebook' }
       )
     }
+    // A photo post returns both the photo `id` and the feed `post_id`; prefer
+    // the feed post id so the returned URL points at the published post.
+    const postId = data.post_id ?? data.id
     return {
       success: true,
       platform: 'facebook',
-      postId: data.id,
-      url: data.id
-        ? `https://www.facebook.com/${data.id}`
+      postId,
+      url: postId
+        ? `https://www.facebook.com/${postId}`
         : undefined,
     }
   }

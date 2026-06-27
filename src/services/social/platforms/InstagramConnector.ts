@@ -33,7 +33,9 @@ export class InstagramConnector extends BaseSocialConnector {
    */
   async post(request: SocialPostRequest, credentials: CredentialProvider): Promise<SocialPostResult> {
     const userId = request.instagram?.userId
-    const imageUrl = request.instagram?.imageUrl
+    // Prefer an explicit instagram.imageUrl; otherwise use the first attached
+    // image. Instagram is image-required — it has no text-only post type.
+    const imageUrl = request.instagram?.imageUrl ?? request.media?.[0]?.url
     if (!userId) {
       throw new SocialError(
         'Instagram post requires request.instagram.userId',
@@ -42,7 +44,7 @@ export class InstagramConnector extends BaseSocialConnector {
     }
     if (!imageUrl) {
       throw new SocialError(
-        'Instagram post requires request.instagram.imageUrl',
+        'Instagram post requires an image (request.instagram.imageUrl or request.media[0])',
         { platform: 'instagram' }
       )
     }

@@ -50,25 +50,39 @@ export default function Login() {
       >
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-          <div
+          <img
+            src="/automarketer.png"
+            alt="AutoMarketer logo"
             style={{
               width: '40px',
               height: '40px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #52b788, #40916c)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              color: 'white',
-              fontWeight: 'bold',
+              objectFit: 'cover',
             }}
-          >
-            A
-          </div>
+          />
           <div>
             <div style={{ fontWeight: 700, fontSize: '17px', color: '#0f172a' }}>AutoMarketer</div>
             <div style={{ color: '#64748b', fontSize: '12px' }}>AI Social Platform</div>
+            <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
+              By{' '}
+              <a
+                href="https://tynhub.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#52b788', textDecoration: 'none' }}
+              >
+                TynHub
+              </a>{' '}
+              and Built on{' '}
+              <a
+                href="https://factory-nexus.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#52b788', textDecoration: 'none' }}
+              >
+                Factory Nexus
+              </a>
+            </div>
           </div>
         </div>
 

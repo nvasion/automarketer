@@ -464,14 +464,14 @@ describe('Instagram posting workflow', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('throws SocialError when imageUrl is missing', async () => {
+  it('throws SocialError when no image is provided', async () => {
     const connector = new InstagramConnector({ maxRetries: 0 })
     await expect(
       connector.post(
         { content: 'Post', instagram: { userId: 'user-1', imageUrl: '' } },
         TEST_CREDS
       )
-    ).rejects.toThrow('Instagram post requires request.instagram.imageUrl')
+    ).rejects.toThrow('Instagram post requires an image')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

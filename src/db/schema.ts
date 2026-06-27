@@ -80,6 +80,12 @@ export interface PostRecord {
   scheduledAt?: string
   publishedAt?: string
   engagements?: EngagementsRecord
+  /**
+   * IDs of the campaign screenshots attached to this post (see
+   * `CampaignRecord.screenshots`). When omitted, publishing falls back to the
+   * campaign's screenshots so existing posts still get their images.
+   */
+  screenshotIds?: string[]
 }
 
 // ─── Top-level record type ────────────────────────────────────────────────────
