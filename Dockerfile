@@ -37,9 +37,10 @@ COPY . .
 RUN npm run build
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 3 – production
+# Stage 3 – production (frontend)
 #   Lightweight nginx image that serves the static bundle.
 #   Only the compiled dist/ directory is copied — no Node.js or source code.
+#   Build with: docker build --target production -t automarketer-app .
 # ─────────────────────────────────────────────────────────────────────────────
 FROM nginx:1.25-alpine AS production
 
@@ -53,3 +54,33 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 4 – api-production
+#   Runs the Express API directly with tsx (no ahead-of-time compile). The
+#   server shares TypeScript modules with the frontend under src/ that are
+#   authored for the bundler's module resolution; tsx executes them as-is,
+#   avoiding the cross-module-system friction a tsc build hits. tsx is a
+#   runtime dependency, so it survives `npm ci --omit=dev`.
+#   Build with: docker build --target api-production -t automarketer-api .
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS api-production
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Production dependencies only — frontend build/test tooling is not needed.
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Source the server runs from: the API itself plus the shared src/ modules it
+# imports (db schema, social connectors, utils) and the TS config.
+COPY tsconfig*.json ./
+COPY server ./server
+COPY src ./src
+
+# Matches the default PORT in server/index.ts; App Platform injects its own PORT.
+EXPOSE 3001
+
+CMD ["node_modules/.bin/tsx", "server/index.ts"]

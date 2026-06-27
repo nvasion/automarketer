@@ -139,7 +139,7 @@ Vite proxies `/api/*` requests to the Express server, so frontend code always ca
 
 ```bash
 npm run build          # Production build (frontend)
-npm run build:server   # Compile Express server TypeScript
+npm run build:server   # Type-check the Express server (no emit; run via tsx)
 npm run preview        # Preview the production frontend build locally
 ```
 

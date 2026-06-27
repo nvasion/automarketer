@@ -85,14 +85,13 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
       return;
     }
 
-    // Build the post request
+    // Build the base post request. Platform-specific options (linkedIn, reddit)
+    // are validated and merged in their respective `case` blocks below, so they
+    // are intentionally not spread in here. Twitter/Facebook/Instagram carry no
+    // extra request fields today.
     const postRequest: SocialPostRequest = {
       content,
       hashtags: hashtags ?? [],
-      ...(linkedIn && { linkedIn }),
-      ...(twitter && { twitter }),
-      ...(facebook && { facebook }),
-      ...(instagram && { instagram }),
     };
 
     // Create credential provider with the stored token

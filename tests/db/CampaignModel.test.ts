@@ -91,12 +91,16 @@ describe('CampaignModel.init()', () => {
   })
 
   it('does not clear real user data when VITE_SEED_DEMO_DATA is not set', () => {
-    // Create campaigns that are NOT sample records (different IDs)
+    // Simulate normal app startup, which stamps the current schema version so a
+    // later init() does not treat the store as stale.
+    CampaignModel.init()
+
+    // The user then creates campaigns that are NOT sample records (different IDs)
     CampaignModel.create(BASE_INPUT)
     CampaignModel.create({ ...BASE_INPUT, name: 'Second campaign' })
 
+    // A subsequent startup must leave the user's real campaigns untouched.
     CampaignModel.init()
-    // Real user campaigns must be untouched
     expect(CampaignModel.count()).toBe(2)
   })
 
