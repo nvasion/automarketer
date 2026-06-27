@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { User } from '../types.js';
 import { getPool } from '../db/connection.js';
-import { ensureTable, insertUser, findById, findByEmail, emailExists as dbEmailExists } from '../db/usersTable.js';
+import { ensureTable, insertUser } from '../db/usersTable.js';
 
 // Primary store keyed by user id (in-memory cache)
 const usersById = new Map<string, User>();

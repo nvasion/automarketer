@@ -1,14 +1,25 @@
 {
+  // Type-checks the Express server (npm run build:server). The server is run
+  // with tsx (see Dockerfile / dev:server), so this config emits nothing — it
+  // exists purely to validate types in CI and locally.
+  //
+  // It uses the same bundler module resolution as the frontend tsconfig because
+  // the server imports shared modules from src/ (social connectors, db schema,
+  // utils) that are authored without explicit file extensions. NodeNext would
+  // reject those imports.
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "outDir": "dist/server",
-    "rootDir": "server"
+    "noEmit": true,
+    "types": ["node"]
   },
   "include": ["server/**/*"]
 }

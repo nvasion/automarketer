@@ -15,10 +15,21 @@ vi.mock('../src/services/platformConfigService', () => ({
     facebook: 'test-facebook-app-id',
     instagram: 'test-facebook-app-id',
   }),
+  // The Settings page fetches connection status on mount and disconnects
+  // platforms on demand. Default to "nothing connected" so tests start clean;
+  // individual flows drive connection via the OAuth postMessage path.
+  fetchConnectedPlatforms: vi.fn().mockResolvedValue({}),
+  disconnectPlatform: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { fetchPlatformClientIds } from '../src/services/platformConfigService'
+import {
+  fetchPlatformClientIds,
+  fetchConnectedPlatforms,
+  disconnectPlatform,
+} from '../src/services/platformConfigService'
 const mockFetchClientIds = fetchPlatformClientIds as ReturnType<typeof vi.fn>
+const mockFetchConnected = fetchConnectedPlatforms as ReturnType<typeof vi.fn>
+const mockDisconnect = disconnectPlatform as ReturnType<typeof vi.fn>
 
 const LINKEDIN: PlatformConfig = {
   id: 'linkedin',
@@ -663,6 +674,12 @@ describe('Settings – Connected Platforms tab', () => {
       facebook: 'test-facebook-app-id',
       instagram: 'test-facebook-app-id',
     })
+    // restoreAllMocks() in the sibling suite's afterEach wipes these mock
+    // implementations, so re-establish them here: the Settings page fetches
+    // connection status on mount and disconnects on demand. Default to nothing
+    // connected; disconnect resolves cleanly.
+    mockFetchConnected.mockResolvedValue({})
+    mockDisconnect.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
