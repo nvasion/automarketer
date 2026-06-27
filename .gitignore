@@ -36,3 +36,6 @@ build/
 
 # Claude
 .claude/
+
+# Digital Ocean
+.do/

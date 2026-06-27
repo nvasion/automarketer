@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRouter from './routes/auth.js';
+import mediaRouter from './routes/media.js';
 import platformConfigRouter from './routes/platformConfig.js';
 import publishRouter from './routes/publish.js';
 import oauthCallbackRouter from './routes/oauthCallback.js';
@@ -16,6 +17,16 @@ import aiPrefsRouter from './routes/aiPrefs.js';
  */
 export function createApp(): express.Application {
   const app = express();
+
+  // ── Proxy trust ─────────────────────────────────────────────────────────────
+  // App Platform's ingress (and the Vite dev proxy) forward requests with an
+  // X-Forwarded-For header. Trust a bounded number of proxy hops so
+  // express-rate-limit can identify clients by their real IP instead of
+  // throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. A fixed hop count (default 1)
+  // is used rather than `true` so a client cannot spoof the whole header chain.
+  // Override with TRUST_PROXY for topologies with more proxies in front.
+  const trustProxy = Number(process.env.TRUST_PROXY ?? 1);
+  app.set('trust proxy', Number.isFinite(trustProxy) ? trustProxy : 1);
 
   // ── CORS ───────────────────────────────────────────────────────────────────
   // credentials: true is required for the browser to send/receive cookies
@@ -36,9 +47,17 @@ export function createApp(): express.Application {
     }),
   );
 
-  // ── Body & cookie parsing ─────────────────────────────────────────────────
-  app.use(express.json());
+  // ── Cookie parsing ──────────────────────────────────────────────────────────
   app.use(cookieParser());
+
+  // ── Media ─────────────────────────────────────────────────────────────────
+  // Mounted before the global JSON parser so its upload route can use its own
+  // raised body limit for base64 images, while every other route keeps the
+  // small default below. Needs cookies (above) for the authenticated upload.
+  app.use('/api/media', mediaRouter);
+
+  // ── Body parsing ────────────────────────────────────────────────────────────
+  app.use(express.json());
 
   // ── Routes ────────────────────────────────────────────────────────────────
   // The authRouter applies its own rate limiter (20 req / 15 min per IP) to

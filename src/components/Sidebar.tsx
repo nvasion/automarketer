@@ -41,13 +41,7 @@ const logoIconStyle: React.CSSProperties = {
   width: '36px',
   height: '36px',
   borderRadius: '10px',
-  background: 'linear-gradient(135deg, #52b788, #40916c)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '18px',
-  color: 'white',
-  fontWeight: 'bold',
+  objectFit: 'cover',
   flexShrink: 0,
 }
 
@@ -62,6 +56,17 @@ const logoSubStyle: React.CSSProperties = {
   color: '#64748b',
   fontSize: '11px',
   marginTop: '1px',
+}
+
+const logoCreditStyle: React.CSSProperties = {
+  color: '#64748b',
+  fontSize: '10px',
+  marginTop: '2px',
+}
+
+const logoCreditLinkStyle: React.CSSProperties = {
+  color: '#52b788',
+  textDecoration: 'none',
 }
 
 const navStyle: React.CSSProperties = {
@@ -159,10 +164,30 @@ function Sidebar() {
     <aside style={sidebarStyle}>
       <div style={logoAreaStyle}>
         <div style={logoStyle}>
-          <div style={logoIconStyle}>A</div>
+          <img src="/automarketer.png" alt="AutoMarketer logo" style={logoIconStyle} />
           <div>
             <div style={logoTextStyle}>AutoMarketer</div>
             <div style={logoSubStyle}>AI Social Platform</div>
+            <div style={logoCreditStyle}>
+              By{' '}
+              <a
+                href="https://tynhub.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={logoCreditLinkStyle}
+              >
+                TynHub
+              </a>{' '}
+              and Built on{' '}
+              <a
+                href="https://factory-nexus.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={logoCreditLinkStyle}
+              >
+                Factory Nexus
+              </a>
+            </div>
           </div>
         </div>
       </div>

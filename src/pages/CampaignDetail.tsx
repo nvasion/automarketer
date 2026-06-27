@@ -139,12 +139,25 @@ function CampaignDetail() {
         platformOptions = { subreddit: subreddits, title: campaign?.name ?? '' }
       }
 
+      // Resolve image attachments: the post's selected screenshots, or all of
+      // the campaign's screenshots when the post has no explicit selection.
+      // Only absolute http(s) URLs are usable server-side, so legacy blob: URLs
+      // (from before screenshots were uploaded) are skipped.
+      const allScreenshots = campaign?.screenshots ?? []
+      const selectedScreenshots = post.screenshotIds?.length
+        ? allScreenshots.filter((s) => post.screenshotIds!.includes(s.id))
+        : allScreenshots
+      const media = selectedScreenshots
+        .filter((s) => /^https?:\/\//i.test(s.url))
+        .map((s) => ({ url: s.url, mimeType: s.type }))
+
       // Call the publish API
       const result = await publishService.publish(
         post.platform,
         post.content,
         post.hashtags ?? [],
         platformOptions,
+        media,
       )
 
       // Update the post with published status and timestamp

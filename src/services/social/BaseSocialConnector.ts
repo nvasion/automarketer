@@ -7,7 +7,7 @@ import type {
   SocialPostRequest,
   SocialPostResult,
 } from './types'
-import { DEFAULT_RETRY_CONFIG } from './types'
+import { DEFAULT_RETRY_CONFIG, SocialError } from './types'
 import type { SocialConnector } from './SocialConnector'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -195,6 +195,37 @@ export abstract class BaseSocialConnector implements SocialConnector {
     // Unreachable: the loop always returns or throws before reaching here.
     /* v8 ignore next */
     throw new Error('safeFetch: exhausted retries')
+  }
+
+  // ── Media ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch an image attachment as a Blob so a connector can re-upload its bytes
+   * to a platform's media endpoint. Uses web-standard `fetch`/`Blob`, so it runs
+   * unchanged on the server (Node 18+) and in the browser.
+   *
+   * @throws {SocialError} when the URL cannot be fetched.
+   */
+  protected async fetchMediaBlob(url: string): Promise<{ blob: Blob; contentType: string }> {
+    let response: Response
+    try {
+      response = await fetch(url)
+    } catch (err) {
+      throw new SocialError(
+        `Network error fetching media ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: this.platform, retryable: false }
+      )
+    }
+    if (!response.ok) {
+      throw new SocialError(`Failed to fetch media ${url}: HTTP ${response.status}`, {
+        platform: this.platform,
+        httpStatus: response.status,
+        retryable: response.status >= 500,
+      })
+    }
+    const blob = await response.blob()
+    const contentType = blob.type || response.headers.get('content-type') || 'application/octet-stream'
+    return { blob, contentType }
   }
 
   private static delayMs(ms: number): Promise<void> {

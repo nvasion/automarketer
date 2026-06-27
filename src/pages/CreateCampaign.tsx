@@ -5,6 +5,7 @@ import { PLATFORM_CONFIGS } from '../data/sampleData'
 import { loadAIConfig } from '../config/aiConfig'
 import { useContentGeneration } from '../hooks/useContentGeneration'
 import { createCampaign } from '../api/campaigns'
+import { uploadImage } from '../services/mediaService'
 import PlatformBadge from '../components/PlatformBadge'
 
 type Step = 1 | 2 | 3 | 4
@@ -108,15 +109,27 @@ function CreateCampaign() {
     )
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
-    const newScreenshots: Screenshot[] = files.map((f, i) => ({
-      id: `ss-new-${Date.now()}-${i}`,
-      name: f.name,
-      url: URL.createObjectURL(f),
-      type: f.type,
-    }))
-    setScreenshots((prev) => [...prev, ...newScreenshots])
+    // Clear the input so re-selecting the same file fires onChange again.
+    e.target.value = ''
+    if (files.length === 0) return
+
+    setSaveError(null)
+    try {
+      // Upload each image to the server so it has a stable, shareable URL the
+      // backend can attach to posts (blob URLs are session-local and unusable).
+      const uploaded: Screenshot[] = await Promise.all(
+        files.map(async (f) => {
+          const { id, url } = await uploadImage(f)
+          return { id, name: f.name, url, type: f.type }
+        }),
+      )
+      setScreenshots((prev) => [...prev, ...uploaded])
+    } catch (err) {
+      console.error('[CreateCampaign] screenshot upload failed:', err)
+      setSaveError(err instanceof Error ? err.message : 'Failed to upload screenshot')
+    }
   }
 
   const removeScreenshot = (id: string) => {

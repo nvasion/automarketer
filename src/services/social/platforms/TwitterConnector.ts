@@ -19,9 +19,13 @@ import { parseJsonBody } from '../../../utils/http'
  *    Twitter's weighted character count for BMP and Supplementary Plane chars.
  */
 export const TWITTER_API_BASE = 'https://api.twitter.com'
+/** Media upload host (v1.1 media/upload endpoint). */
+export const TWITTER_UPLOAD_BASE = 'https://upload.twitter.com'
 export const TWITTER_CHAR_LIMIT = 280
 /** Length Twitter assigns to any URL after normalisation to a t.co short link. */
 export const TWITTER_URL_CHAR_COUNT = 23
+/** Maximum images attachable to a single tweet. */
+export const TWITTER_MAX_IMAGES = 4
 
 export class TwitterConnector extends BaseSocialConnector {
   readonly platform: Platform = 'twitter'
@@ -74,6 +78,18 @@ export class TwitterConnector extends BaseSocialConnector {
     )
     const text = this.buildCombinedText(content, hashtags)
 
+    // Upload any attached images first (up to 4), collecting their media ids.
+    const mediaIds: string[] = []
+    for (const image of (request.media ?? []).slice(0, TWITTER_MAX_IMAGES)) {
+      const { blob } = await this.fetchMediaBlob(image.url)
+      mediaIds.push(await this.uploadMedia(blob, accessToken))
+    }
+
+    const tweetBody: Record<string, unknown> = { text }
+    if (mediaIds.length > 0) {
+      tweetBody.media = { media_ids: mediaIds }
+    }
+
     let response: Response
     try {
       response = await this.safeFetch(`${TWITTER_API_BASE}/2/tweets`, {
@@ -82,7 +98,7 @@ export class TwitterConnector extends BaseSocialConnector {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(tweetBody),
       })
     } catch (err) {
       throw new SocialError(
@@ -126,5 +142,64 @@ export class TwitterConnector extends BaseSocialConnector {
         ? `https://x.com/i/web/status/${data.data.id}`
         : undefined,
     }
+  }
+
+  /**
+   * Upload a single image to Twitter and return its media id.
+   *
+   * Uses the v1.1 media/upload endpoint with a multipart `media` field, which
+   * accepts the same OAuth 2.0 user-context Bearer token as the tweet call.
+   * The returned media id is then attached to the tweet via `media.media_ids`.
+   */
+  private async uploadMedia(blob: Blob, accessToken: string): Promise<string> {
+    const form = new FormData()
+    form.append('media', blob)
+
+    let response: Response
+    try {
+      response = await this.safeFetch(`${TWITTER_UPLOAD_BASE}/1.1/media/upload.json`, {
+        method: 'POST',
+        // No Content-Type header — FormData sets the multipart boundary itself.
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
+      })
+    } catch (err) {
+      throw new SocialError(
+        `Network error uploading media to Twitter: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'twitter', retryable: false }
+      )
+    }
+
+    if (!response.ok) {
+      let rawResponse = ''
+      try {
+        rawResponse = await response.text()
+      } catch {
+        // ignore read errors
+      }
+      throw new SocialError(
+        `Twitter media upload error ${response.status}: ${rawResponse}`,
+        {
+          httpStatus: response.status,
+          platform: 'twitter',
+          rawResponse,
+          retryable: response.status === 429 || response.status >= 500,
+        }
+      )
+    }
+
+    let data: { media_id_string?: string }
+    try {
+      data = await parseJsonBody<{ media_id_string?: string }>(response)
+    } catch (err) {
+      throw new SocialError(
+        `Twitter media upload returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'twitter' }
+      )
+    }
+    if (!data.media_id_string) {
+      throw new SocialError('Twitter media upload returned no media_id', { platform: 'twitter' })
+    }
+    return data.media_id_string
   }
 }

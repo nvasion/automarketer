@@ -34,6 +34,18 @@ export interface EnforcedContent {
 // ─── Post request / result ────────────────────────────────────────────────────
 
 /**
+ * An image attachment for a post. `url` must be publicly fetchable (the app's
+ * own /api/media/:id endpoint), because connectors either upload the bytes from
+ * it or hand the URL straight to the platform (Instagram fetches it itself).
+ */
+export interface SocialMedia {
+  /** Publicly-fetchable https URL of the image. */
+  url: string
+  /** Optional MIME type hint (e.g. "image/png"). */
+  mimeType?: string
+}
+
+/**
  * Common request payload sent to every platform connector.
  *
  * Platform-specific fields are isolated in their own optional namespaces so
@@ -45,6 +57,14 @@ export interface SocialPostRequest {
   content: string
   /** Hashtag tokens to append after the content (e.g. ["#SaaS", "#Launch"]). */
   hashtags?: string[]
+
+  /**
+   * Image attachments for the post. Each must be a publicly-fetchable https URL.
+   * Connectors upload or reference these per their platform's media model;
+   * per-platform limits apply (Instagram 1, Twitter up to 4, LinkedIn/Facebook
+   * the first image).
+   */
+  media?: SocialMedia[]
 
   // ── Platform-specific options ──────────────────────────────────────────────
 
@@ -77,8 +97,12 @@ export interface SocialPostRequest {
   instagram?: {
     /** Instagram user ID. */
     userId: string
-    /** Publicly accessible image URL to attach to the caption (required). */
-    imageUrl: string
+    /**
+     * Publicly accessible image URL. Optional here because it may instead be
+     * supplied via the shared `media` field; one of the two is required since
+     * Instagram has no text-only post type.
+     */
+    imageUrl?: string
   }
 }
 

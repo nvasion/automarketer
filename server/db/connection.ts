@@ -34,6 +34,32 @@ export function resolveSslConfig(): PoolConfig['ssl'] {
 }
 
 /**
+ * Removes the libpq SSL params (`sslmode`, `ssl`) from a connection string.
+ *
+ * DigitalOcean appends `?sslmode=require` to DATABASE_URL. Newer
+ * pg-connection-string treats `require` as `verify-full`, which rejects the
+ * managed database's CA chain ("self-signed certificate in certificate chain").
+ * When we configure TLS ourselves via resolveSslConfig(), the URL-level mode
+ * must not override it — so strip it before handing the string to pg.
+ *
+ * Exported for unit testing.
+ */
+export function stripSslParams(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    url.searchParams.delete('sslmode');
+    url.searchParams.delete('ssl');
+    return url.toString();
+  } catch {
+    // Fallback for any string new URL() can't parse: drop the params textually.
+    return connectionString
+      .replace(/([?&])(sslmode|ssl)=[^&]*/gi, '$1')
+      .replace(/([?&])&+/g, '$1')
+      .replace(/[?&]$/, '');
+  }
+}
+
+/**
  * Returns the shared pg connection pool, or null if DATABASE_URL is not
  * configured. All callers must handle the null case gracefully so the server
  * operates in a degraded (env-var-only) mode when no database is available.
@@ -46,10 +72,14 @@ export function getPool(): Pool | null {
   if (!process.env.DATABASE_URL) return null;
   if (!_pool) {
     try {
-      _pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: resolveSslConfig(),
-      });
+      const ssl = resolveSslConfig();
+      // When we manage TLS ourselves, strip the URL's sslmode so it doesn't
+      // override our ssl config (see stripSslParams). Otherwise leave the
+      // string untouched (local/no-TLS Postgres).
+      const connectionString = ssl
+        ? stripSslParams(process.env.DATABASE_URL)
+        : process.env.DATABASE_URL;
+      _pool = new Pool({ connectionString, ssl });
 
       // Handle unexpected pool-level errors (e.g. abrupt connection drops).
       // Log a generic message — never log the connection string or error details

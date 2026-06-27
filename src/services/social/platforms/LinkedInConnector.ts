@@ -44,14 +44,25 @@ export class LinkedInConnector extends BaseSocialConnector {
     )
     const text = this.buildCombinedText(content, hashtags)
 
+    const shareContent: Record<string, unknown> = {
+      shareCommentary: { text },
+      shareMediaCategory: 'NONE',
+    }
+
+    // Attach the first image, if any: register an upload, PUT the bytes, then
+    // reference the returned asset URN as IMAGE media on the share.
+    const image = request.media?.[0]
+    if (image) {
+      const asset = await this.uploadImage(authorId, accessToken, image.url)
+      shareContent.shareMediaCategory = 'IMAGE'
+      shareContent.media = [{ status: 'READY', media: asset }]
+    }
+
     const body = {
       author: authorId,
       lifecycleState: 'PUBLISHED',
       specificContent: {
-        'com.linkedin.ugc.ShareContent': {
-          shareCommentary: { text },
-          shareMediaCategory: 'NONE',
-        },
+        'com.linkedin.ugc.ShareContent': shareContent,
       },
       visibility: {
         'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
@@ -108,5 +119,116 @@ export class LinkedInConnector extends BaseSocialConnector {
       platform: 'linkedin',
       postId: data.id,
     }
+  }
+
+  /**
+   * Upload an image to LinkedIn and return its asset URN.
+   *
+   * Two steps per the Assets API:
+   *   1. registerUpload → returns an upload URL and the asset URN.
+   *   2. POST the image bytes to that upload URL.
+   * The asset URN is then referenced as IMAGE media on the UGC share.
+   */
+  private async uploadImage(authorId: string, accessToken: string, imageUrl: string): Promise<string> {
+    // ── Step 1: register the upload ──────────────────────────────────────────
+    let registerResponse: Response
+    try {
+      registerResponse = await this.safeFetch(`${LINKEDIN_API_BASE}/v2/assets?action=registerUpload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+        body: JSON.stringify({
+          registerUploadRequest: {
+            recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+            owner: authorId,
+            serviceRelationships: [
+              { relationshipType: 'OWNER', identifier: 'urn:li:userGeneratedContent' },
+            ],
+          },
+        }),
+      })
+    } catch (err) {
+      throw new SocialError(
+        `Network error registering LinkedIn upload: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'linkedin', retryable: false }
+      )
+    }
+
+    if (!registerResponse.ok) {
+      let rawResponse = ''
+      try {
+        rawResponse = await registerResponse.text()
+      } catch {
+        // ignore read errors
+      }
+      throw new SocialError(`LinkedIn registerUpload error ${registerResponse.status}: ${rawResponse}`, {
+        httpStatus: registerResponse.status,
+        platform: 'linkedin',
+        rawResponse,
+        retryable: registerResponse.status === 429 || registerResponse.status >= 500,
+      })
+    }
+
+    let register: {
+      value?: {
+        asset?: string
+        uploadMechanism?: {
+          'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'?: { uploadUrl?: string }
+        }
+      }
+    }
+    try {
+      register = await parseJsonBody(registerResponse)
+    } catch (err) {
+      throw new SocialError(
+        `LinkedIn registerUpload returned non-JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'linkedin' }
+      )
+    }
+
+    const asset = register.value?.asset
+    const uploadUrl =
+      register.value?.uploadMechanism?.['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']
+        ?.uploadUrl
+    if (!asset || !uploadUrl) {
+      throw new SocialError('LinkedIn registerUpload returned no asset or upload URL', {
+        platform: 'linkedin',
+      })
+    }
+
+    // ── Step 2: upload the image bytes ───────────────────────────────────────
+    const { blob } = await this.fetchMediaBlob(imageUrl)
+    let uploadResponse: Response
+    try {
+      uploadResponse = await this.safeFetch(uploadUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: blob,
+      })
+    } catch (err) {
+      throw new SocialError(
+        `Network error uploading image to LinkedIn: ${err instanceof Error ? err.message : String(err)}`,
+        { platform: 'linkedin', retryable: false }
+      )
+    }
+    if (!uploadResponse.ok) {
+      let rawResponse = ''
+      try {
+        rawResponse = await uploadResponse.text()
+      } catch {
+        // ignore read errors
+      }
+      throw new SocialError(`LinkedIn image upload error ${uploadResponse.status}: ${rawResponse}`, {
+        httpStatus: uploadResponse.status,
+        platform: 'linkedin',
+        rawResponse,
+        retryable: uploadResponse.status === 429 || uploadResponse.status >= 500,
+      })
+    }
+
+    return asset
   }
 }

@@ -4,6 +4,7 @@ import { userStore } from './models/userStore.js';
 import { accessTokenStore } from './models/accessTokenStore.js';
 import { campaignStore } from './db/campaignsTable.js';
 import { aiPrefsStore } from './db/aiPrefsTable.js';
+import { mediaStore } from './db/mediaTable.js';
 
 // ── Security guard ────────────────────────────────────────────────────────────
 // Calling jwtSecret() here triggers a hard crash in production when JWT_SECRET
@@ -42,6 +43,12 @@ campaignStore.initialize().catch((err) => {
 });
 aiPrefsStore.initialize().catch((err) => {
   console.error('[server] Failed to initialise AI prefs store:', err);
+});
+
+// ── Initialise media store ────────────────────────────────────────────────────
+// Ensures the media table exists for storing uploaded screenshots/images.
+mediaStore.initialize().catch((err) => {
+  console.error('[server] Failed to initialise media store:', err);
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────
