@@ -9,6 +9,7 @@ import publishRouter from './routes/publish.js';
 import oauthCallbackRouter from './routes/oauthCallback.js';
 import campaignsRouter from './routes/campaigns.js';
 import aiPrefsRouter from './routes/aiPrefs.js';
+import linkedInRouter from './routes/linkedin.js';
 
 /**
  * Factory function that creates and configures the Express application.
@@ -79,6 +80,9 @@ export function createApp(): express.Application {
 
   // Per-user AI generation preferences (non-sensitive defaults only)
   app.use('/api/ai-prefs', aiPrefsRouter);
+
+  // LinkedIn-specific routes (page/org listing for the page switcher)
+  app.use('/api/linkedin', linkedInRouter);
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

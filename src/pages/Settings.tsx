@@ -8,6 +8,12 @@ import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
 import PlatformConnectionModal from '../components/PlatformConnectionModal'
 import { fetchConnectedPlatforms, disconnectPlatform } from '../services/platformConfigService'
+import {
+  fetchLinkedInPages,
+  loadSelectedLinkedInPage,
+  saveSelectedLinkedInPage,
+} from '../services/linkedinService'
+import type { LinkedInPage } from '../services/linkedinService'
 
 type SettingsTab = 'profile' | 'platforms' | 'ai' | 'notifications'
 
@@ -103,6 +109,14 @@ function Settings() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATIONS)
 
+  // LinkedIn page/identity picker
+  const [linkedInPages, setLinkedInPages] = useState<LinkedInPage[]>([])
+  const [linkedInPagesLoading, setLinkedInPagesLoading] = useState(false)
+  const [linkedInPagesError, setLinkedInPagesError] = useState<string | null>(null)
+  const [selectedLinkedInPage, setSelectedLinkedInPage] = useState<LinkedInPage | null>(() =>
+    user ? loadSelectedLinkedInPage(user.id) : null
+  )
+
   // AI config — loaded from localStorage on mount, then refreshed from the
   // server so generation preferences saved on another browser show up here.
   const [aiConfig, setAiConfig] = useState<AIConfig>(loadAIConfig)
@@ -141,6 +155,37 @@ function Settings() {
     }
   }, [])
 
+  // Load LinkedIn pages when LinkedIn is connected. Re-runs when connection state
+  // changes (e.g. just connected) or when the user switches to the platforms tab.
+  useEffect(() => {
+    if (!connections.linkedin || activeTab !== 'platforms') return
+    let cancelled = false
+    setLinkedInPagesLoading(true)
+    setLinkedInPagesError(null)
+    fetchLinkedInPages()
+      .then((pages) => {
+        if (cancelled) return
+        setLinkedInPages(pages)
+        // If the saved selection is no longer in the list, clear it
+        setSelectedLinkedInPage((prev) => {
+          if (!prev) return null
+          return pages.find((p) => p.urn === prev.urn) ?? null
+        })
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setLinkedInPagesError(
+          err instanceof Error ? err.message : 'Could not load LinkedIn pages.'
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setLinkedInPagesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [connections.linkedin, activeTab])
+
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }))
   }
@@ -174,6 +219,7 @@ function Settings() {
 
   const handleConnectComplete = (platformId: string) => {
     setConnections((prev) => ({ ...prev, [platformId]: true }))
+    // Pages will be loaded by the useEffect that watches connections.linkedin
   }
 
   const handleDisconnect = (platformId: string) => {
@@ -183,6 +229,18 @@ function Settings() {
     disconnectPlatform(platformId).catch(() => {
       setConnections((prev) => ({ ...prev, [platformId]: true }))
     })
+    // Clear LinkedIn page selection when disconnecting
+    if (platformId === 'linkedin' && user) {
+      saveSelectedLinkedInPage(user.id, null)
+      setSelectedLinkedInPage(null)
+      setLinkedInPages([])
+    }
+  }
+
+  const handleLinkedInPageChange = (urn: string) => {
+    const page = linkedInPages.find((p) => p.urn === urn) ?? null
+    setSelectedLinkedInPage(page)
+    if (user) saveSelectedLinkedInPage(user.id, page)
   }
 
   // Helpers for updating nested AI config
@@ -393,47 +451,143 @@ function Settings() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {PLATFORM_CONFIGS.map((p) => {
                   const connected = connections[p.id] ?? false
+                  const isLinkedIn = p.id === 'linkedin'
                   return (
-                    <div
-                      key={p.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '14px',
-                        padding: '16px',
-                        borderRadius: '10px',
-                        border: `1px solid ${connected ? '#bbf7d0' : '#e2e8f0'}`,
-                        background: connected ? '#f0fdf4' : '#fafbfc',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      <PlatformBadge platform={p.id} size="lg" />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>{p.name}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>{p.description}</div>
-                        {connected && (
-                          <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px' }}>
-                            ✓ Connected
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        data-testid={`platform-btn-${p.id}`}
-                        onClick={() => connected ? handleDisconnect(p.id) : openConnectModal(p)}
+                    <div key={p.id}>
+                      {/* Platform row */}
+                      <div
                         style={{
-                          background: connected ? 'white' : '#52b788',
-                          border: `1px solid ${connected ? '#e2e8f0' : '#52b788'}`,
-                          borderRadius: '8px',
-                          padding: '7px 16px',
-                          fontSize: '13px',
-                          color: connected ? '#dc2626' : 'white',
-                          cursor: 'pointer',
-                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          padding: '16px',
+                          borderRadius: isLinkedIn && connected && linkedInPages.length > 0
+                            ? '10px 10px 0 0'
+                            : '10px',
+                          border: `1px solid ${connected ? '#bbf7d0' : '#e2e8f0'}`,
+                          borderBottom: isLinkedIn && connected && linkedInPages.length > 0
+                            ? 'none'
+                            : undefined,
+                          background: connected ? '#f0fdf4' : '#fafbfc',
                           transition: 'all 0.15s',
                         }}
                       >
-                        {connected ? 'Disconnect' : 'Connect'}
-                      </button>
+                        <PlatformBadge platform={p.id} size="lg" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>{p.name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>{p.description}</div>
+                          {connected && (
+                            <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px' }}>
+                              ✓ Connected
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          data-testid={`platform-btn-${p.id}`}
+                          onClick={() => connected ? handleDisconnect(p.id) : openConnectModal(p)}
+                          style={{
+                            background: connected ? 'white' : '#52b788',
+                            border: `1px solid ${connected ? '#e2e8f0' : '#52b788'}`,
+                            borderRadius: '8px',
+                            padding: '7px 16px',
+                            fontSize: '13px',
+                            color: connected ? '#dc2626' : 'white',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          {connected ? 'Disconnect' : 'Connect'}
+                        </button>
+                      </div>
+
+                      {/* LinkedIn page picker — shown only when connected and pages are available */}
+                      {isLinkedIn && connected && (
+                        <div
+                          data-testid="linkedin-page-picker"
+                          style={{
+                            padding: '12px 16px',
+                            borderRadius: '0 0 10px 10px',
+                            border: '1px solid #bbf7d0',
+                            borderTop: '1px solid #d1fae5',
+                            background: '#f8fffe',
+                          }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            flexWrap: 'wrap',
+                          }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                              Post as:
+                            </span>
+
+                            {linkedInPagesLoading && (
+                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                Loading pages…
+                              </span>
+                            )}
+
+                            {!linkedInPagesLoading && linkedInPagesError && (
+                              <span style={{ fontSize: '12px', color: '#dc2626' }}>
+                                {linkedInPagesError}
+                              </span>
+                            )}
+
+                            {!linkedInPagesLoading && !linkedInPagesError && linkedInPages.length === 0 && (
+                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                No pages found — reconnect LinkedIn to refresh.
+                              </span>
+                            )}
+
+                            {!linkedInPagesLoading && linkedInPages.length > 0 && (
+                              <select
+                                data-testid="linkedin-page-select"
+                                value={selectedLinkedInPage?.urn ?? linkedInPages[0]?.urn ?? ''}
+                                onChange={(e) => handleLinkedInPageChange(e.target.value)}
+                                style={{
+                                  fontSize: '12px',
+                                  padding: '5px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #d1d5db',
+                                  background: 'white',
+                                  color: '#1e293b',
+                                  cursor: 'pointer',
+                                  flex: 1,
+                                  minWidth: '180px',
+                                  maxWidth: '320px',
+                                }}
+                              >
+                                {linkedInPages.map((page) => (
+                                  <option key={page.urn} value={page.urn}>
+                                    {page.type === 'organization' ? '🏢 ' : '👤 '}
+                                    {page.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+
+                            {!linkedInPagesLoading && linkedInPages.length > 1 && (
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                {linkedInPages.length - 1} page{linkedInPages.length - 1 !== 1 ? 's' : ''} available
+                              </span>
+                            )}
+                          </div>
+
+                          {linkedInPages.length > 1 && (
+                            <p style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 0' }}>
+                              Switch between your personal profile and company pages. The selection applies to all LinkedIn posts.
+                            </p>
+                          )}
+
+                          {linkedInPages.length === 1 && linkedInPages[0]?.type === 'person' && (
+                            <p style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 0' }}>
+                              To post as a company page, add the "Organization Access" product to your LinkedIn app.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
