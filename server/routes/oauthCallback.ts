@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { accessTokenStore } from '../models/accessTokenStore.js';
 import { getPlatformClientId, getPlatformClientSecret, resolveLinkedInAuthorId, OAUTH_PLATFORMS } from '../utils/platformOAuth.js';
+import { consumeBlueskySession, createDPoPProof } from '../utils/blueskyOAuth.js';
 
 const router = Router();
 
@@ -328,6 +329,122 @@ async function exchangeTwitterCode(
 }
 
 /**
+ * Exchange a Bluesky authorization code for an access token using DPoP.
+ *
+ * AT Protocol OAuth requires:
+ *   - DPoP proof header for the token request (RFC 9449).
+ *   - PKCE code_verifier matching the code_challenge sent in the PAR request.
+ *   - client_id = URL of the client metadata document (no client secret).
+ *
+ * On success, stores the access token, refresh token, user DID (as authorId),
+ * DPoP private key JWK, and PDS URL in the token store.
+ */
+async function exchangeBlueskyCode(
+  userId: string,
+  code: string,
+  state: string,
+): Promise<
+  | { ok: true; authorId: string }
+  | { ok: false; status: number; error: string; errorCode: string }
+> {
+  const session = consumeBlueskySession(state);
+  if (!session) {
+    console.error(
+      `[oauth] bluesky session not found for state=${state} user=${userId} — ` +
+        'the session may have expired (10-minute window) or the state parameter is wrong.',
+    );
+    return { ok: false, status: 400, error: 'Bluesky OAuth session expired or not found. Please try connecting again.', errorCode: 'SESSION_NOT_FOUND' };
+  }
+
+  const clientId = process.env.BLUESKY_CLIENT_ID?.trim();
+  if (!clientId) {
+    return { ok: false, status: 500, error: 'Bluesky is not configured on this server.', errorCode: 'PLATFORM_NOT_CONFIGURED' };
+  }
+
+  const redirectUri = getRedirectUri();
+  const { codeVerifier, dpopPrivateKeyJwk, dpopPublicKeyJwk, tokenEndpoint, pdsUrl, did } = session;
+
+  console.log(`[oauth] exchanging Bluesky authorization code for user=${userId} (tokenEndpoint=${tokenEndpoint})`);
+
+  // Strip query string from token endpoint URL for DPoP `htu` claim.
+  const htu = tokenEndpoint.split('?')[0];
+
+  const makeTokenRequest = async (nonce?: string): Promise<Response> => {
+    const dpopProof = createDPoPProof(dpopPrivateKeyJwk, dpopPublicKeyJwk, 'POST', htu, nonce);
+    return fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'DPoP': dpopProof,
+        'User-Agent': 'AutoMarketer/1.0',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: codeVerifier,
+      }).toString(),
+    });
+  };
+
+  let tokenRes = await makeTokenRequest();
+
+  // Handle use_dpop_nonce error — retry once with the server-provided nonce.
+  if (!tokenRes.ok) {
+    const nonce = tokenRes.headers.get('DPoP-Nonce');
+    if (nonce) {
+      const errBody = (await tokenRes.json().catch(() => ({}))) as { error?: string };
+      if (errBody.error === 'use_dpop_nonce') {
+        tokenRes = await makeTokenRequest(nonce);
+      }
+    }
+  }
+
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text().catch(() => '');
+    console.error(
+      `[oauth] Bluesky token exchange failed: HTTP ${tokenRes.status} — ${body}. ` +
+        `token_endpoint=${tokenEndpoint}`,
+    );
+    return { ok: false, status: 502, error: 'Bluesky rejected the token exchange. See server logs for details.', errorCode: 'TOKEN_EXCHANGE_FAILED' };
+  }
+
+  const tokenData = (await tokenRes.json().catch(() => ({}))) as {
+    access_token?: string;
+    refresh_token?: string;
+    token_type?: string;
+    expires_in?: number;
+    sub?: string;
+  };
+
+  if (!tokenData.access_token) {
+    console.error('[oauth] Bluesky token response contained no access_token:', JSON.stringify(tokenData));
+    return { ok: false, status: 502, error: 'Bluesky returned no access token.', errorCode: 'TOKEN_EXCHANGE_FAILED' };
+  }
+
+  const expiresAt = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+    : undefined;
+
+  // Persist the token alongside the DPoP key and PDS URL needed for future API calls.
+  await accessTokenStore.setAccessToken(userId, 'bluesky', tokenData.access_token, {
+    expiresAt,
+    refreshToken: tokenData.refresh_token,
+    authorId: did, // DID is used as the author identifier for posting
+    dpopPrivateKeyJwk: JSON.stringify(dpopPrivateKeyJwk),
+    pdsUrl,
+  });
+
+  console.log(
+    `[oauth] Bluesky connected: user=${userId} did=${did} pds=${pdsUrl} ` +
+      `(expires=${expiresAt ?? 'unknown'}, refresh_token=${tokenData.refresh_token ? 'present' : 'absent'})`,
+  );
+
+  return { ok: true, authorId: did };
+}
+
+/**
  * GET /api/oauth/callback
  *
  * Complete an OAuth 2.0 flow started by the connection popup.
@@ -455,6 +572,26 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
         success: true,
         platform,
         message: 'X (Twitter) connected successfully',
+      });
+      return;
+    }
+
+    if (platform === 'bluesky') {
+      if (!state) {
+        res.status(400).json({ error: 'Bluesky OAuth requires a state parameter', code: 'MISSING_STATE' });
+        return;
+      }
+      const result = await exchangeBlueskyCode(userId, code, state);
+      if (!result.ok) {
+        res.status(result.status).json({ error: result.error, code: result.errorCode });
+        return;
+      }
+
+      res.json({
+        success: true,
+        platform,
+        authorId: result.authorId,
+        message: 'Bluesky connected successfully',
       });
       return;
     }

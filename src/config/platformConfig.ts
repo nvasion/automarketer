@@ -39,8 +39,19 @@ export interface PlatformOAuthConfig {
    *   {REDIRECT_URI}   — URL-encoded `<origin>/oauth/callback`
    *   {STATE}          — cryptographically random CSRF token (RFC 6749 §10.12)
    *   {CODE_CHALLENGE} — PKCE S256 challenge derived from a random verifier (RFC 7636)
+   *
+   * Not used when `requiresHandleInit` is true — the server resolves the
+   * authorization URL at runtime based on the user's handle.
    */
   authUrl: string
+  /**
+   * When true, the user must enter their handle (e.g. a Bluesky handle) before
+   * the OAuth popup opens. The modal calls POST /api/bluesky/initiate to resolve
+   * the per-user authorization server URL, then opens that URL as a popup.
+   * The rest of the flow (postMessage callback → server code exchange) is
+   * identical to the standard OAuth flow.
+   */
+  requiresHandleInit?: boolean
   /** Step-by-step guide shown when the client ID has not been configured yet. */
   setupInstructions: PlatformSetupInstructions
 }
@@ -238,6 +249,33 @@ export const PLATFORM_OAUTH_CONFIG: Record<string, PlatformOAuthConfig> = {
         'Request instagram_basic and instagram_content_publish permissions.',
         'Copy the App ID from the top of the app dashboard.',
         'Note: Instagram and Facebook share the same Meta App ID — configure META_CLIENT_ID once for both platforms.',
+      ],
+    },
+  },
+  bluesky: {
+    label: 'Sign in with Bluesky',
+    shortName: 'Bluesky',
+    // Bluesky uses AT Protocol OAuth, which differs from standard OAuth 2.0:
+    //   - The authorization server is the user's PDS (Personal Data Server),
+    //     discovered at runtime from the user's handle via DID resolution.
+    //   - DPoP (RFC 9449) is required for all token requests and API calls.
+    //   - PAR (RFC 9126) is used to initiate the authorization request.
+    //   - The client_id is the URL of the client metadata document served by
+    //     this app, NOT an opaque ID issued by a central developer portal.
+    //
+    // Because the authorization URL is resolved server-side, `authUrl` is
+    // unused here — `requiresHandleInit: true` tells the modal to call
+    // POST /api/bluesky/initiate instead of opening a fixed URL.
+    authUrl: '',
+    requiresHandleInit: true,
+    setupInstructions: {
+      portalUrl: 'https://bsky.app',
+      portalName: 'Bluesky',
+      steps: [
+        'Bluesky uses AT Protocol OAuth — no developer portal registration is required.',
+        'Set BLUESKY_CLIENT_ID in your server environment to the publicly-accessible URL where this app serves its client metadata (e.g. https://your-domain.com/api/bluesky/client-metadata.json).',
+        'The app automatically serves its client metadata at /api/bluesky/client-metadata.json — make sure this URL is reachable by Bluesky\'s PDS servers.',
+        '⚠️ In development with localhost, the PDS cannot reach your client metadata. Use a tunnel (e.g. ngrok) and set BLUESKY_CLIENT_ID to your tunnel URL + /api/bluesky/client-metadata.json.',
       ],
     },
   },

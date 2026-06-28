@@ -170,4 +170,7 @@ export const DEFAULT_RATE_LIMITS: Record<Platform, RateLimitConfig> = {
   reddit: { maxRequests: 1, windowMs: 10 * 60 * 1_000 },
   facebook: { maxRequests: 200, windowMs: 60 * 60 * 1_000 },
   instagram: { maxRequests: 25, windowMs: 24 * 60 * 60 * 1_000 },
+  // Bluesky (AT Protocol) does not publish strict rate limits; 300 posts / 24 h
+  // is a conservative default that matches Bluesky's own app-level guidance.
+  bluesky: { maxRequests: 300, windowMs: 24 * 60 * 60 * 1_000 },
 }

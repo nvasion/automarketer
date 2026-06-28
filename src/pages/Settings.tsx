@@ -42,6 +42,7 @@ const CONNECTED: Record<string, boolean> = {
   reddit: false,
   facebook: false,
   instagram: false,
+  bluesky: false,
 }
 
 const TONES = [

@@ -52,6 +52,8 @@ const PLATFORM_INSTRUCTIONS: Record<Platform, (charLimit: number) => string> = {
     `Write a Facebook post. A conversational tone that invites comments and shares works best here. You can be more detailed than Twitter. Stay under ${limit} characters.`,
   instagram: (limit) =>
     `Write an Instagram caption. The content must complement a visual; open with a hook and end with a call-to-action (e.g. "Link in bio"). Stay under ${limit} characters.`,
+  bluesky: (limit) =>
+    `Write a Bluesky post. Bluesky is a decentralised social network with a community that values authenticity and open conversation. Be concise and conversational — no corporate jargon. Stay strictly under ${limit} graphemes.`,
 }
 
 function buildSystemPrompt(): string {

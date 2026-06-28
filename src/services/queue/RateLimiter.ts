@@ -21,6 +21,7 @@ export class RateLimiter {
     reddit: [],
     facebook: [],
     instagram: [],
+    bluesky: [],
   }
 
   constructor(configs: Partial<Record<Platform, RateLimitConfig>> = {}) {

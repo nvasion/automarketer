@@ -10,6 +10,7 @@ import oauthCallbackRouter from './routes/oauthCallback.js';
 import campaignsRouter from './routes/campaigns.js';
 import aiPrefsRouter from './routes/aiPrefs.js';
 import linkedInRouter from './routes/linkedin.js';
+import blueskyRouter from './routes/bluesky.js';
 
 /**
  * Factory function that creates and configures the Express application.
@@ -83,6 +84,9 @@ export function createApp(): express.Application {
 
   // LinkedIn-specific routes (page/org listing for the page switcher)
   app.use('/api/linkedin', linkedInRouter);
+
+  // Bluesky / AT Protocol OAuth routes (initiation + client metadata)
+  app.use('/api/bluesky', blueskyRouter);
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
