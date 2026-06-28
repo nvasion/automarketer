@@ -12,12 +12,17 @@
 
 import { getPool } from '../db/connection.js';
 import { refreshAccessToken } from '../utils/tokenRefresh.js';
+import { encryptDPoPKey, decryptDPoPKey } from '../utils/dpopKeyEncryption.js';
 
 interface TokenEntry {
   accessToken: string;
   expiresAt?: string; // ISO 8601 timestamp
   refreshToken?: string;
-  authorId?: string; // platform author identifier (e.g. LinkedIn member URN)
+  authorId?: string; // platform author identifier (e.g. LinkedIn member URN, Bluesky DID)
+  /** DPoP private key JWK serialised as JSON — Bluesky only (AT Protocol OAuth). */
+  dpopPrivateKeyJwk?: string;
+  /** Bluesky PDS base URL (e.g. "https://bsky.social") — Bluesky only. */
+  pdsUrl?: string;
   updatedAt: string;
 }
 
@@ -50,13 +55,17 @@ export const accessTokenStore = {
         expires_at TEXT,
         refresh_token TEXT,
         author_id TEXT,
+        dpop_private_key TEXT,
+        pds_url TEXT,
         updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
         PRIMARY KEY (user_id, platform)
       )
     `);
 
-    // Add author_id to tables created before this column existed.
+    // Add columns to tables created before these columns existed.
     await pool.query('ALTER TABLE user_access_tokens ADD COLUMN IF NOT EXISTS author_id TEXT');
+    await pool.query('ALTER TABLE user_access_tokens ADD COLUMN IF NOT EXISTS dpop_private_key TEXT');
+    await pool.query('ALTER TABLE user_access_tokens ADD COLUMN IF NOT EXISTS pds_url TEXT');
   },
 
   /**
@@ -70,13 +79,17 @@ export const accessTokenStore = {
       expiresAt?: string;
       refreshToken?: string;
       authorId?: string;
+      /** Bluesky: DPoP private key JWK serialised as JSON. */
+      dpopPrivateKeyJwk?: string;
+      /** Bluesky: PDS base URL (e.g. "https://bsky.social"). */
+      pdsUrl?: string;
     }
   ): Promise<void> {
     const pool = getPool();
     const now = new Date().toISOString();
 
-    // Update in-memory cache, preserving a previously resolved authorId when
-    // this call does not supply one (e.g. a token-only refresh).
+    // Update in-memory cache, preserving previously-resolved metadata when
+    // this call does not supply it (e.g. a token-only refresh).
     const userMap = getUserMap(userId);
     const previous = userMap.get(platform);
     userMap.set(platform, {
@@ -84,21 +97,30 @@ export const accessTokenStore = {
       expiresAt: options?.expiresAt,
       refreshToken: options?.refreshToken,
       authorId: options?.authorId ?? previous?.authorId,
+      dpopPrivateKeyJwk: options?.dpopPrivateKeyJwk ?? previous?.dpopPrivateKeyJwk,
+      pdsUrl: options?.pdsUrl ?? previous?.pdsUrl,
       updatedAt: now,
     });
 
-    // Persist to database
+    // Persist to database — encrypt the DPoP private key before storage so a
+    // database compromise does not yield usable key material.
     if (pool) {
+      const dpopKeyForDb = options?.dpopPrivateKeyJwk
+        ? encryptDPoPKey(options.dpopPrivateKeyJwk)
+        : undefined;
       await pool.query(
-        `INSERT INTO user_access_tokens (user_id, platform, access_token, expires_at, refresh_token, author_id, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO user_access_tokens (user_id, platform, access_token, expires_at, refresh_token, author_id, dpop_private_key, pds_url, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (user_id, platform) DO UPDATE SET
            access_token = EXCLUDED.access_token,
            expires_at = EXCLUDED.expires_at,
            refresh_token = EXCLUDED.refresh_token,
            author_id = COALESCE(EXCLUDED.author_id, user_access_tokens.author_id),
+           dpop_private_key = COALESCE(EXCLUDED.dpop_private_key, user_access_tokens.dpop_private_key),
+           pds_url = COALESCE(EXCLUDED.pds_url, user_access_tokens.pds_url),
            updated_at = EXCLUDED.updated_at`,
-        [userId, platform, accessToken, options?.expiresAt, options?.refreshToken, options?.authorId, now]
+        [userId, platform, accessToken, options?.expiresAt, options?.refreshToken, options?.authorId,
+         dpopKeyForDb, options?.pdsUrl, now]
       );
       console.log(
         `[accessTokenStore] stored ${platform} token for user=${userId} ` +
@@ -207,7 +229,12 @@ export const accessTokenStore = {
     }
 
     console.log(`[accessTokenStore] refreshing expired ${platform} token for user=${userId}`);
-    const refreshed = await refreshAccessToken(platform, entry.refreshToken);
+    // Bluesky refresh requires the stored DPoP private key and PDS URL.
+    const blueskyMeta =
+      platform === 'bluesky' && entry.dpopPrivateKeyJwk && entry.pdsUrl
+        ? { dpopPrivateKeyJwk: entry.dpopPrivateKeyJwk, pdsUrl: entry.pdsUrl }
+        : undefined;
+    const refreshed = await refreshAccessToken(platform, entry.refreshToken, blueskyMeta);
     if (!refreshed) {
       console.warn(`[accessTokenStore] ${platform} token refresh failed for user=${userId} — reconnect required.`);
       return null;
@@ -275,31 +302,62 @@ export const accessTokenStore = {
   },
 
   /**
+   * Get Bluesky-specific metadata (DPoP private key JWK and PDS URL) for
+   * a user/platform pair. Returns null when not found.
+   */
+  getBlueskyMeta(userId: string, platform: string): { dpopPrivateKeyJwk?: string; pdsUrl?: string } | null {
+    const entry = cache.get(userId)?.get(platform);
+    if (!entry) return null;
+    return {
+      dpopPrivateKeyJwk: entry.dpopPrivateKeyJwk,
+      pdsUrl: entry.pdsUrl,
+    };
+  },
+
+  /**
    * Load a user's tokens from the database into the cache.
    */
   async loadForUser(userId: string): Promise<void> {
     const pool = getPool();
     if (!pool) return;
-    
+
     const result = await pool.query<{
       platform: string;
       access_token: string;
       expires_at: string | null;
       refresh_token: string | null;
       author_id: string | null;
+      dpop_private_key: string | null;
+      pds_url: string | null;
       updated_at: string;
     }>(
-      'SELECT platform, access_token, expires_at, refresh_token, author_id, updated_at FROM user_access_tokens WHERE user_id = $1',
+      'SELECT platform, access_token, expires_at, refresh_token, author_id, dpop_private_key, pds_url, updated_at FROM user_access_tokens WHERE user_id = $1',
       [userId]
     );
 
     const userMap = new Map<string, TokenEntry>();
     for (const row of result.rows) {
+      // Decrypt the DPoP private key JWK if present — it was encrypted before
+      // being persisted so that a database compromise does not yield key material.
+      let dpopPrivateKeyJwk: string | undefined;
+      if (row.dpop_private_key) {
+        try {
+          dpopPrivateKeyJwk = decryptDPoPKey(row.dpop_private_key);
+        } catch (err) {
+          console.error(
+            `[accessTokenStore] failed to decrypt DPoP key for user=${userId} platform=${row.platform}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          // Leave dpopPrivateKeyJwk undefined — the token is still usable for
+          // reading; only token refresh will fail (user will need to reconnect Bluesky).
+        }
+      }
       userMap.set(row.platform, {
         accessToken: row.access_token,
         expiresAt: row.expires_at ?? undefined,
         refreshToken: row.refresh_token ?? undefined,
         authorId: row.author_id ?? undefined,
+        dpopPrivateKeyJwk,
+        pdsUrl: row.pds_url ?? undefined,
         updatedAt: row.updated_at,
       });
     }

@@ -6,6 +6,9 @@ import { resolveLinkedInAuthorId } from '../utils/platformOAuth.js';
 import { LinkedInConnector } from '../../src/services/social/platforms/LinkedInConnector.js';
 import { RedditConnector } from '../../src/services/social/platforms/RedditConnector.js';
 import { TwitterConnector } from '../../src/services/social/platforms/TwitterConnector.js';
+import { BlueskyConnector } from '../../src/services/social/platforms/BlueskyConnector.js';
+import type { BlueskyCredentials } from '../../src/services/social/platforms/BlueskyConnector.js';
+import { createDPoPProof } from '../utils/blueskyOAuth.js';
 import { StaticCredentialProvider } from '../../src/services/social/types.js';
 import type { SocialPostRequest } from '../../src/services/social/types.js';
 
@@ -49,7 +52,7 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
   );
 
   // Validate platform
-  const supportedPlatforms = ['linkedin', 'twitter', 'reddit', 'facebook', 'instagram'];
+  const supportedPlatforms = ['linkedin', 'twitter', 'reddit', 'facebook', 'instagram', 'bluesky'];
   if (!supportedPlatforms.includes(platform)) {
     console.error(`[publish] rejected: unknown platform "${platform}" (user=${userId})`);
     res.status(400).json({
@@ -185,6 +188,61 @@ router.post<{ platform: string }>('/:platform', async (req: Request<{ platform: 
         // 280-character limit before sending.
         const connector = new TwitterConnector();
         const result = await connector.post(postRequest, credentials);
+        postId = result.postId;
+        break;
+      }
+      case 'bluesky': {
+        // Bluesky uses AT Protocol OAuth with DPoP. The stored DPoP private key
+        // and PDS URL are required for every API call.
+        const blueskyDid = accessTokenStore.getAuthorId(userId, 'bluesky');
+        if (!blueskyDid) {
+          console.error(`[publish] rejected: Bluesky DID not found for user=${userId} — reconnect required.`);
+          res.status(401).json({
+            error: 'Bluesky account DID not found. Please reconnect your Bluesky account.',
+            code: 'MISSING_AUTHOR_ID',
+          });
+          return;
+        }
+
+        const blueskyMeta = accessTokenStore.getBlueskyMeta(userId, 'bluesky');
+        if (!blueskyMeta?.dpopPrivateKeyJwk || !blueskyMeta?.pdsUrl) {
+          console.error(`[publish] rejected: Bluesky DPoP key or PDS URL missing for user=${userId} — reconnect required.`);
+          res.status(401).json({
+            error: 'Bluesky connection metadata is missing. Please reconnect your Bluesky account.',
+            code: 'MISSING_BLUESKY_META',
+          });
+          return;
+        }
+
+        let dpopPrivateKeyJwk: JsonWebKey;
+        try {
+          dpopPrivateKeyJwk = JSON.parse(blueskyMeta.dpopPrivateKeyJwk) as JsonWebKey;
+        } catch {
+          console.error(`[publish] Bluesky DPoP key JWK is invalid JSON for user=${userId}`);
+          res.status(500).json({ error: 'Bluesky connection is corrupted. Please reconnect.', code: 'INVALID_DPOP_KEY' });
+          return;
+        }
+
+        // Derive the public key JWK by stripping the private `d` component.
+        const { d: _d, ...dpopPublicKeyJwk } = dpopPrivateKeyJwk as JsonWebKey & { d?: string };
+        const pdsUrl = blueskyMeta.pdsUrl;
+
+        // Build BlueskyCredentials: wraps the access token + DPoP key so the
+        // connector can create fresh DPoP proofs for each request.
+        const blueskyCredentials: BlueskyCredentials = {
+          async getAccessToken() {
+            return accessToken;
+          },
+          createDPoPProof(method: string, url: string, token: string, nonce?: string) {
+            return createDPoPProof(dpopPrivateKeyJwk, dpopPublicKeyJwk, method, url, nonce, token);
+          },
+        };
+
+        const connector = new BlueskyConnector();
+        const result = await connector.post(
+          { ...postRequest, bluesky: { did: blueskyDid, pdsUrl } },
+          blueskyCredentials,
+        );
         postId = result.postId;
         break;
       }

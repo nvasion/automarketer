@@ -1,4 +1,4 @@
-export type Platform = 'linkedin' | 'twitter' | 'reddit' | 'facebook' | 'instagram'
+export type Platform = 'linkedin' | 'twitter' | 'reddit' | 'facebook' | 'instagram' | 'bluesky'
 
 export type PostStatus = 'draft' | 'scheduled' | 'published' | 'failed'
 

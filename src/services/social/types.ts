@@ -104,6 +104,20 @@ export interface SocialPostRequest {
      */
     imageUrl?: string
   }
+  /** Bluesky-specific options (AT Protocol). */
+  bluesky?: {
+    /**
+     * The user's AT Protocol DID (e.g. "did:plc:abc123").
+     * Used as the `repo` parameter in createRecord calls.
+     */
+    did: string
+    /**
+     * Base URL of the user's Personal Data Server (PDS),
+     * e.g. "https://bsky.social" or "https://pds.example.com".
+     * API calls are routed to this endpoint.
+     */
+    pdsUrl: string
+  }
 }
 
 /** Result returned by every connector after attempting a post. */

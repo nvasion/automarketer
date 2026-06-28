@@ -11,7 +11,7 @@ import styles from './PlatformConnectionModal.module.css'
 
 type ConnectionMethod = 'oauth' | 'credentials'
 /** 'opening' = popup window is being opened; 'authorizing' = waiting for user; 'error' = blocked/failed */
-type OAuthStep = 'idle' | 'opening' | 'authorizing' | 'success' | 'error'
+type OAuthStep = 'idle' | 'resolving' | 'opening' | 'authorizing' | 'success' | 'error'
 type ConfigLoadState = 'loading' | 'ready' | 'error'
 
 interface Props {
@@ -67,6 +67,8 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const [credError, setCredError] = useState<string | null>(null)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
+  // Bluesky handle-first flow
+  const [blueskyHandle, setBlueskyHandle] = useState('')
 
   // The signed-in user's client IDs, fetched from the server.
   const [clientIds, setClientIds] = useState<PlatformClientIds | null>(null)
@@ -94,6 +96,8 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const oauthConfig = PLATFORM_OAUTH_CONFIG[platform.id]
   /** True while an OAuth flow is actively in progress (not idle or errored). */
   const isOAuthConnecting = oauthStep !== 'idle' && oauthStep !== 'error'
+  /** Whether this platform resolves its auth URL server-side using the user's handle. */
+  const isHandleInit = oauthConfig?.requiresHandleInit === true
   /** Server env-var prefix for this platform (Instagram/Facebook share Meta's). */
   const envPrefix = platform.id === 'instagram' || platform.id === 'facebook' ? 'META' : platform.id.toUpperCase()
 
@@ -138,10 +142,159 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
     return { codeVerifier, codeChallenge }
   }
 
+  /**
+   * Bluesky-specific OAuth flow.
+   *
+   * Calls POST /api/bluesky/initiate to resolve the user's handle and
+   * get back an authorization URL, then opens it as a popup.  The rest of
+   * the flow (callback postMessage → code exchange) is identical to the
+   * standard OAuth path via openOAuthPopup().
+   */
+  const handleBlueskyOAuth = async () => {
+    const handle = blueskyHandle.trim()
+    if (!handle) {
+      setOauthStep('error')
+      setOauthError('Please enter your Bluesky handle (e.g. you.bsky.social).')
+      return
+    }
+
+    setOauthStep('resolving')
+    setOauthError(null)
+
+    const state = crypto.randomUUID()
+
+    try {
+      const res = await fetch('/api/bluesky/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ handle, state }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { authorizationUrl?: string; error?: string }
+      if (!res.ok) {
+        setOauthStep('error')
+        setOauthError(body.error ?? `Failed to initiate Bluesky connection (HTTP ${res.status}).`)
+        return
+      }
+      if (!body.authorizationUrl) {
+        setOauthStep('error')
+        setOauthError('Server did not return an authorization URL.')
+        return
+      }
+      openOAuthPopup(body.authorizationUrl, state)
+    } catch (err) {
+      setOauthStep('error')
+      setOauthError(`Network error: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  /**
+   * Open an OAuth popup for the given URL, listen for the callback message,
+   * and exchange the authorization code server-side.
+   *
+   * Shared by both the standard platform flow (handleOAuth) and the
+   * Bluesky handle-resolution flow (handleBlueskyOAuth).
+   */
+  const openOAuthPopup = (url: string, state: string) => {
+    setOauthStep('opening')
+
+    setTimeout(() => {
+      const popup = window.open(url, `oauth-${platform.id}`, 'width=600,height=700,scrollbars=yes,resizable=yes')
+
+      if (!popup) {
+        setOauthStep('error')
+        setOauthError('Popup was blocked by your browser. Please allow popups for this site and try again.')
+        return
+      }
+
+      setOauthStep('authorizing')
+
+      let resolved = false
+
+      const resolve = (success: boolean, errorMsg?: string) => {
+        if (resolved) return
+        resolved = true
+        clearInterval(pollTimer)
+        window.removeEventListener('message', onMessage)
+        if (success) {
+          setOauthStep('success')
+          setTimeout(() => {
+            onConnect(platform.id)
+            onClose()
+          }, 800)
+        } else {
+          setOauthStep('error')
+          setOauthError(errorMsg ?? 'Authorization failed.')
+        }
+      }
+
+      let finalizing = false
+      const onMessage = async (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return
+        if (e.data?.type !== 'oauth_callback') return
+        if (resolved || finalizing) return
+        if (e.data.state !== state) {
+          resolve(false, 'Authorization failed: state parameter mismatch. Please try again.')
+          return
+        }
+        if (e.data.error) {
+          const safeError = String(e.data.error).substring(0, 200)
+          resolve(false, `Authorization failed: ${safeError}`)
+          return
+        }
+        if (!e.data.code) {
+          resolve(false, 'Authorization failed: no authorization code was returned.')
+          return
+        }
+
+        finalizing = true
+        clearInterval(pollTimer)
+        console.info(`[PlatformConnectionModal] OAuth code received for ${platform.id} — exchanging it on the server…`)
+
+        try {
+          const res = await fetch(
+            `/api/oauth/callback?code=${encodeURIComponent(e.data.code)}&platform=${encodeURIComponent(platform.id)}&state=${encodeURIComponent(state)}`,
+            { credentials: 'include' },
+          )
+          const body = (await res.json().catch(() => ({}))) as { error?: string; authorId?: string }
+          if (!res.ok) {
+            console.error(`[PlatformConnectionModal] Server rejected the ${platform.id} OAuth callback: HTTP ${res.status}`, body)
+            resolve(false, body.error ?? `The server could not complete the connection (HTTP ${res.status}).`)
+            return
+          }
+
+          if (platform.id === 'linkedin' && body.authorId) {
+            localStorage.setItem(`linkedin_authorId_${userId}`, body.authorId)
+            console.info('[PlatformConnectionModal] Stored LinkedIn author ID for publishing')
+          }
+
+          console.info(`[PlatformConnectionModal] ${platform.id} connected — token stored on the server`)
+          resolve(true)
+        } catch (err) {
+          console.error(`[PlatformConnectionModal] Failed to reach the server to complete the ${platform.id} connection:`, err)
+          resolve(false, 'Authorization succeeded, but the server could not be reached to store the connection. Please try again.')
+        }
+      }
+      window.addEventListener('message', onMessage)
+
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          resolve(false, 'Authorization was cancelled.')
+        }
+      }, 500)
+    }, 100)
+  }
+
   const handleOAuth = () => {
     if (!oauthConfig) {
       setOauthStep('error')
       setOauthError('OAuth is not configured for this platform.')
+      return
+    }
+
+    // Bluesky uses a server-side handle resolution step instead of a fixed URL.
+    if (isHandleInit) {
+      void handleBlueskyOAuth()
       return
     }
 
@@ -430,33 +583,77 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
               {configLoadState === 'ready' && oauthConfig && clientId && (
                 <>
                   <p className={styles.oauthDescription}>
-                    You'll be redirected to {displayName} to authorise AutoMarketer. No password is
-                    shared with us — only the permissions you approve.
+                    {isHandleInit
+                      ? `Enter your ${displayName} handle to connect. You'll be redirected to authorise AutoMarketer — no password is shared.`
+                      : `You'll be redirected to ${displayName} to authorise AutoMarketer. No password is shared with us — only the permissions you approve.`}
                   </p>
 
                   {oauthStep === 'idle' && (
-                    <button
-                      data-testid="oauth-connect-btn"
-                      onClick={handleOAuth}
-                      style={{
-                        width: '100%',
-                        padding: '11px 20px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: platform.bgColor,
-                        color: platform.color,
-                        fontWeight: 700,
-                        fontSize: '14px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                      }}
-                    >
-                      <PlatformBadge platform={platform.id} size="sm" />
-                      {oauthConfig?.label ?? `Connect ${displayName}`}
-                    </button>
+                    <>
+                      {/* Bluesky handle input */}
+                      {isHandleInit && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <label
+                            htmlFor="bluesky-handle"
+                            style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}
+                          >
+                            Your Bluesky Handle
+                          </label>
+                          <input
+                            id="bluesky-handle"
+                            data-testid="bluesky-handle-input"
+                            type="text"
+                            placeholder="you.bsky.social"
+                            value={blueskyHandle}
+                            onChange={(e) => setBlueskyHandle(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') void handleBlueskyOAuth() }}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                              fontSize: '14px',
+                              color: '#1e293b',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                            }}
+                            autoComplete="username"
+                            autoFocus
+                          />
+                          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                            You can use any Bluesky handle, e.g. alice.bsky.social or alice.example.com
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        data-testid="oauth-connect-btn"
+                        onClick={handleOAuth}
+                        style={{
+                          width: '100%',
+                          padding: '11px 20px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: platform.bgColor,
+                          color: platform.color,
+                          fontWeight: 700,
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <PlatformBadge platform={platform.id} size="sm" />
+                        {oauthConfig?.label ?? `Connect ${displayName}`}
+                      </button>
+                    </>
+                  )}
+
+                  {oauthStep === 'resolving' && (
+                    <div data-testid="oauth-status" className={styles.oauthStatus}>
+                      🔍 Resolving your Bluesky account…
+                    </div>
                   )}
 
                   {(oauthStep === 'opening' || oauthStep === 'authorizing') && (

@@ -46,6 +46,15 @@ export const PLATFORM_CONFIGS: PlatformConfig[] = [
     charLimit: 2200,
     description: 'Visual-first storytelling and brand awareness',
   },
+  {
+    id: 'bluesky',
+    name: 'Bluesky',
+    icon: '🦋',
+    color: '#ffffff',
+    bgColor: '#0085FF',
+    charLimit: 300,
+    description: 'Open social network built on the AT Protocol',
+  },
 ]
 
 export const SAMPLE_CAMPAIGNS: Campaign[] = [

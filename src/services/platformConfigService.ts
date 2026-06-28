@@ -13,6 +13,7 @@ export interface PlatformClientIds {
   reddit: string
   facebook: string
   instagram: string
+  bluesky: string
   [platform: string]: string
 }
 

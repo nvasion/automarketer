@@ -17,8 +17,10 @@
 const DEV_FALLBACK_SECRET = 'dev-secret-change-in-production';
 
 /** Platforms that support an OAuth connect flow. Instagram is configured under
- *  the same Meta app as Facebook, so it shares Facebook's credentials. */
-export const OAUTH_PLATFORMS = ['linkedin', 'twitter', 'reddit', 'facebook', 'instagram'] as const;
+ *  the same Meta app as Facebook, so it shares Facebook's credentials.
+ *  Bluesky uses AT Protocol OAuth where the client_id is the URL of the client
+ *  metadata document (BLUESKY_CLIENT_ID env var); no client secret is needed. */
+export const OAUTH_PLATFORMS = ['linkedin', 'twitter', 'reddit', 'facebook', 'instagram', 'bluesky'] as const;
 export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
 
 /** Maps a platform to the env-var prefix that holds its credentials. Instagram
@@ -37,12 +39,23 @@ export function getPlatformClientId(platform: string): string {
 }
 
 /**
+ * Whether a platform uses a client secret for OAuth. Bluesky uses DPoP instead
+ * of a client secret — it is a public client with no shared secret.
+ */
+function platformUsesClientSecret(platform: string): boolean {
+  return platform !== 'bluesky';
+}
+
+/**
  * Returns the OAuth client secret for a platform.
  *
- * - Production: throws when the secret is not set.
+ * - Production: throws when the secret is not set (except for Bluesky).
  * - Development/test: returns an insecure dev fallback and warns.
+ * - Bluesky: returns an empty string — it uses DPoP, no secret needed.
  */
 export function getPlatformClientSecret(platform: string): string {
+  if (!platformUsesClientSecret(platform)) return '';
+
   const secret = process.env[`${envPrefix(platform)}_CLIENT_SECRET`];
   if (secret) return secret;
 
@@ -60,11 +73,15 @@ export function getPlatformClientSecret(platform: string): string {
 }
 
 /**
- * Whether a platform is fully configured for OAuth — it has BOTH a client ID
- * and a real (non-fallback) client secret set in the environment.
+ * Whether a platform is fully configured for OAuth.
+ *
+ * For standard platforms: requires BOTH a client ID and a client secret.
+ * For Bluesky: only requires BLUESKY_CLIENT_ID (the metadata document URL);
+ *   no client secret is used — DPoP proves possession instead.
  */
 export function isPlatformConfigured(platform: string): boolean {
   const hasClientId = getPlatformClientId(platform).length > 0;
+  if (!platformUsesClientSecret(platform)) return hasClientId;
   const hasSecret = Boolean(process.env[`${envPrefix(platform)}_CLIENT_SECRET`]);
   return hasClientId && hasSecret;
 }
