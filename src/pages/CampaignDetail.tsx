@@ -11,7 +11,13 @@ import PostCard from '../components/PostCard'
 import { publishService, PublishError } from '../services/publishService'
 import { fetchPlatformClientIds } from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
-import { resolveLinkedInAuthorUrn } from '../services/linkedinService'
+import {
+  fetchLinkedInPages,
+  loadSelectedLinkedInPage,
+  saveSelectedLinkedInPage,
+  resolveLinkedInAuthorUrn,
+} from '../services/linkedinService'
+import type { LinkedInPage } from '../services/linkedinService'
 
 function CampaignDetail() {
   const { id } = useParams<{ id: string }>()
@@ -23,6 +29,13 @@ function CampaignDetail() {
   const [publishing, setPublishing] = useState<Record<string, boolean>>({})
   const [publishError, setPublishError] = useState<Record<string, string>>({})
   const [platformConnections, setPlatformConnections] = useState<PlatformClientIds | null>(null)
+
+  // LinkedIn multi-page identity picker
+  const [linkedInPages, setLinkedInPages] = useState<LinkedInPage[]>([])
+  const [linkedInPagesLoading, setLinkedInPagesLoading] = useState(false)
+  const [selectedLinkedInPage, setSelectedLinkedInPage] = useState<LinkedInPage | null>(() =>
+    user ? loadSelectedLinkedInPage(user.id) : null
+  )
 
   // Load the server's configured platforms so publish/republish buttons can be
   // greyed out for platforms that aren't set up (no OAuth app configured).
@@ -41,6 +54,42 @@ function CampaignDetail() {
       cancelled = true
     }
   }, [])
+
+  // Fetch LinkedIn page identities when the campaign includes LinkedIn so the
+  // "Posting as" selector can be shown in-context without navigating to Settings.
+  const hasLinkedIn = campaign?.platforms.includes('linkedin') ?? false
+  useEffect(() => {
+    if (!hasLinkedIn) return
+    let cancelled = false
+    setLinkedInPagesLoading(true)
+    fetchLinkedInPages()
+      .then((pages) => {
+        if (cancelled) return
+        setLinkedInPages(pages)
+        // Keep the saved selection when it still exists in the fetched list;
+        // otherwise fall back to the first available identity.
+        setSelectedLinkedInPage((prev) => {
+          if (prev && pages.some((p) => p.urn === prev.urn)) return prev
+          return pages[0] ?? null
+        })
+      })
+      .catch(() => {
+        // Non-fatal — the picker simply won't render; publishing still works
+        // via the server-side stored author ID.
+      })
+      .finally(() => {
+        if (!cancelled) setLinkedInPagesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasLinkedIn])
+
+  const handleLinkedInPageChange = (urn: string) => {
+    const page = linkedInPages.find((p) => p.urn === urn) ?? null
+    setSelectedLinkedInPage(page)
+    if (user) saveSelectedLinkedInPage(user.id, page)
+  }
 
   // Use local post state if updated, otherwise use posts from the loaded campaign
   const activePosts = posts ?? campaign?.posts ?? []
@@ -455,6 +504,65 @@ function CampaignDetail() {
             )
           })}
         </div>
+
+        {/* LinkedIn identity selector — visible only for campaigns with LinkedIn posts */}
+        {hasLinkedIn && !linkedInPagesLoading && linkedInPages.length > 0 && (
+          <div
+            data-testid="linkedin-identity-banner"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 20px',
+              background: '#f0fdf4',
+              borderBottom: '1px solid #bbf7d0',
+              fontSize: '13px',
+              color: '#374151',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <PlatformBadge platform="linkedin" size="sm" />
+              <span style={{ fontWeight: 600 }}>Posting as:</span>
+            </span>
+
+            {linkedInPages.length === 1 ? (
+              <span style={{ color: '#1e293b' }}>
+                {linkedInPages[0]?.type === 'organization' ? '🏢' : '👤'}{' '}
+                {linkedInPages[0]?.name}
+              </span>
+            ) : (
+              <select
+                data-testid="linkedin-identity-select"
+                value={selectedLinkedInPage?.urn ?? linkedInPages[0]?.urn ?? ''}
+                onChange={(e) => handleLinkedInPageChange(e.target.value)}
+                style={{
+                  fontSize: '12px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  minWidth: '160px',
+                }}
+              >
+                {linkedInPages.map((page) => (
+                  <option key={page.urn} value={page.urn}>
+                    {page.type === 'organization' ? '🏢 ' : '👤 '}
+                    {page.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {linkedInPages.length > 1 && (
+              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                · switch to post as a different page or profile
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Posts list */}
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
