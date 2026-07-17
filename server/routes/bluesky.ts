@@ -142,7 +142,8 @@ router.use(requireAuth);
  * Internally:
  *   1. Resolve handle → DID via bsky.social AppView.
  *   2. Fetch DID document → PDS URL.
- *   3. Fetch PDS /.well-known/oauth-authorization-server → auth server metadata.
+ *   3. Resolve auth server via PDS /.well-known/oauth-protected-resource,
+ *      then fetch its /.well-known/oauth-authorization-server metadata.
  *   4. Generate PKCE code_verifier + code_challenge.
  *   5. Generate DPoP ES256 key pair.
  *   6. Submit PAR to pushed_authorization_request_endpoint.

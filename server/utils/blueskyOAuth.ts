@@ -324,26 +324,58 @@ export interface AuthServerMetadata {
 }
 
 /**
+ * Resolve the OAuth authorization server (issuer) for the given PDS.
+ *
+ * The PDS is only the OAuth *resource server*: its
+ * `/.well-known/oauth-protected-resource` document names the authorization
+ * server that actually issues tokens (`https://bsky.social` for
+ * Bluesky-hosted `*.host.bsky.network` PDSes, which return 404 for
+ * auth-server metadata on the PDS host itself). Self-hosted PDSes that act
+ * as their own auth server may omit the document, so fall back to the PDS.
+ */
+async function resolveAuthServerIssuer(pdsUrl: string): Promise<string> {
+  try {
+    const res = await fetch(`${pdsUrl}/.well-known/oauth-protected-resource`, {
+      headers: { 'User-Agent': 'AutoMarketer/1.0' },
+    });
+    if (res.ok) {
+      const doc = (await res.json()) as { authorization_servers?: string[] };
+      const issuer = doc.authorization_servers?.[0]?.replace(/\/+$/, '');
+      if (issuer) {
+        // Same SSRF rules as the PDS URL — the issuer comes from a remote
+        // document, so it must not point at internal/non-HTTPS addresses.
+        validatePdsUrl(issuer);
+        return issuer;
+      }
+    }
+  } catch {
+    // Fall through — the (already validated) PDS URL is a safe default.
+  }
+  return pdsUrl;
+}
+
+/**
  * Fetch the OAuth authorization server metadata for the given PDS.
  *
- * AT Protocol PDSes expose their OAuth configuration at the standard
- * `/.well-known/oauth-authorization-server` path.
+ * Resolves the issuer via the PDS's protected-resource document, then reads
+ * the standard `/.well-known/oauth-authorization-server` path on the issuer.
  */
 export async function fetchAuthServerMetadata(pdsUrl: string): Promise<AuthServerMetadata> {
-  const metaUrl = `${pdsUrl}/.well-known/oauth-authorization-server`;
+  const issuer = await resolveAuthServerIssuer(pdsUrl);
+  const metaUrl = `${issuer}/.well-known/oauth-authorization-server`;
   let res: Response;
   try {
     res = await fetch(metaUrl, { headers: { 'User-Agent': 'AutoMarketer/1.0' } });
   } catch (err) {
     throw new Error(
-      `[blueskyOAuth] network error fetching auth server metadata from "${pdsUrl}": ${err instanceof Error ? err.message : String(err)}`,
+      `[blueskyOAuth] network error fetching auth server metadata from "${issuer}": ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(
-      `[blueskyOAuth] failed to fetch auth server metadata from "${pdsUrl}": HTTP ${res.status} — ${text.substring(0, 200)}`,
+      `[blueskyOAuth] failed to fetch auth server metadata from "${issuer}": HTTP ${res.status} — ${text.substring(0, 200)}`,
     );
   }
 
