@@ -584,7 +584,7 @@ function Settings() {
 
                           {linkedInPages.length === 1 && linkedInPages[0]?.type === 'person' && (
                             <p style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 0' }}>
-                              To post as a company page, add the "Organization Access" product to your LinkedIn app.
+                              Posting as a company page requires LinkedIn's "Community Management API" product, which is not available to most apps. Posts are published to your personal profile.
                             </p>
                           )}
                         </div>
