@@ -167,7 +167,14 @@ describe('POST /api/agent/validate', () => {
     expect(res.status).toBe(401);
   });
 
-  it.each(['reddit', 'x'] as const)(
+  // Only 'x' is exercised here: server/services/social/redditAgentService.ts
+  // now exists (implemented by a separate in-flight task), so POST
+  // /api/agent/validate for 'reddit' performs a real live validation call
+  // against Reddit's OAuth endpoint instead of hitting this "module not
+  // found" fallback — not something this network-free e2e suite should
+  // depend on. That mocked/live-validation behavior is covered instead by
+  // tests/server/agentAuth.test.ts, which stubs the platform service module.
+  it.each(['x'] as const)(
     'returns 503 SERVICE_UNAVAILABLE for %s while its agent service module does not yet exist',
     async (platform) => {
       const cookie = await registerAndLoginAgentUser(app);

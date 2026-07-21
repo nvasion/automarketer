@@ -38,6 +38,15 @@ vi.mock('../../server/utils/agentCredentialEncryption', () => ({
   decryptAgentCredentials: vi.fn((stored: string) => JSON.parse(stored.replace(/^encrypted:/, ''))),
 }));
 
+// The route's PlatformValidatorRegistry dynamically `import()`s this module
+// to live-validate credentials against Reddit. Mocked so these tests exercise
+// the route's request handling/persistence logic without making real network
+// calls to Reddit's OAuth endpoint (which would be slow, flaky, and require
+// network access the test environment doesn't have).
+vi.mock('../../server/services/social/redditAgentService', () => ({
+  validateCredentials: vi.fn(),
+}));
+
 import { getPool } from '../../server/db/connection';
 import {
   ensureTable,
@@ -47,6 +56,7 @@ import {
   deleteByUserAndPlatform,
 } from '../../server/db/agentCredentialsTable';
 import { encryptAgentCredentials } from '../../server/utils/agentCredentialEncryption';
+import { validateCredentials as validateRedditCredentials } from '../../server/services/social/redditAgentService';
 import agentAuthRouter from '../../server/routes/agentAuth';
 import { jwtSecret } from '../../server/utils/config';
 
@@ -57,6 +67,7 @@ const mockUpdateCredentials = vi.mocked(updateCredentials);
 const mockFindByUserAndPlatform = vi.mocked(findByUserAndPlatform);
 const mockDeleteByUserAndPlatform = vi.mocked(deleteByUserAndPlatform);
 const mockEncryptAgentCredentials = vi.mocked(encryptAgentCredentials);
+const mockValidateRedditCredentials = vi.mocked(validateRedditCredentials);
 
 // A stand-in for the pg Pool — none of the mocked persistence functions
 // actually touch it, so an empty object satisfies the "pool is available"
@@ -104,6 +115,11 @@ beforeEach(() => {
   mockInsertCredentials.mockResolvedValue(undefined);
   mockUpdateCredentials.mockResolvedValue(undefined);
   mockDeleteByUserAndPlatform.mockResolvedValue(undefined);
+  // Reddit's agent service module is real (server/services/social/redditAgentService.ts)
+  // and is dynamically imported by the route, so it must be mocked to avoid
+  // live network calls to Reddit. Default to "valid" so tests that aren't
+  // specifically about live-validation failure exercise the happy path.
+  mockValidateRedditCredentials.mockResolvedValue(true);
 });
 
 // ── POST /api/agent/login ─────────────────────────────────────────────────────
@@ -268,18 +284,32 @@ describe('POST /api/agent/login', () => {
   });
 
   it('degrades gracefully and still logs in when the platform validator service is unavailable', async () => {
-    // No reddit/x agent service module exists in this checkout (owned by a
+    // No x agent service module exists in this checkout yet (owned by a
     // separate in-flight task) — the dynamic import inside the route's
     // validator registry fails and is caught, so login proceeds on
     // structural validation alone rather than blocking on an optional
-    // dependency.
+    // dependency. (Reddit's service module is real and mocked above, so it
+    // no longer exercises this fallback path — hence 'x' here.)
+    const res = await request(app)
+      .post('/api/agent/login')
+      .set('Cookie', AUTH_COOKIE)
+      .send({ platform: 'x', credentials: VALID_CREDENTIALS });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('rejects login when the live Reddit validator reports invalid credentials', async () => {
+    mockValidateRedditCredentials.mockResolvedValue(false);
+
     const res = await request(app)
       .post('/api/agent/login')
       .set('Cookie', AUTH_COOKIE)
       .send({ platform: 'reddit', credentials: VALID_CREDENTIALS });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('INVALID_CREDENTIALS');
+    expect(mockInsertCredentials).not.toHaveBeenCalled();
   });
 
   it('returns 500 without leaking internal error details when persistence fails', async () => {

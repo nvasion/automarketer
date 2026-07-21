@@ -103,7 +103,7 @@ export function createDPoPProof(
   nonce?: string,
   accessToken?: string,
 ): string {
-  const privateKey = crypto.createPrivateKey({ key: privateKeyJwk as unknown as crypto.JsonWebKey, format: 'jwk' });
+  const privateKey = crypto.createPrivateKey({ key: privateKeyJwk as unknown as crypto.webcrypto.JsonWebKey, format: 'jwk' });
 
   const header = JSON.stringify({
     typ: 'dpop+jwt',
