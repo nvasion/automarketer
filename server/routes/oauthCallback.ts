@@ -369,7 +369,12 @@ async function exchangeBlueskyCode(
   // Strip query string from token endpoint URL for DPoP `htu` claim.
   const htu = tokenEndpoint.split('?')[0];
 
-  const makeTokenRequest = async (nonce?: string): Promise<Response> => {
+  // Return type is inferred from `fetch` itself (rather than annotated as
+  // `Promise<Response>`) because `Response` in this file's scope refers to
+  // Express's `Response` type (imported above for the route handlers), which
+  // would otherwise shadow the global Fetch API `Response` this function
+  // actually returns.
+  const makeTokenRequest = async (nonce?: string): ReturnType<typeof fetch> => {
     const dpopProof = createDPoPProof(dpopPrivateKeyJwk, dpopPublicKeyJwk, 'POST', htu, nonce);
     return fetch(tokenEndpoint, {
       method: 'POST',
