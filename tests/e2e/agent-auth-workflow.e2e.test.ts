@@ -167,27 +167,16 @@ describe('POST /api/agent/validate', () => {
     expect(res.status).toBe(401);
   });
 
-  // Only 'x' is exercised here: server/services/social/redditAgentService.ts
-  // now exists (implemented by a separate in-flight task), so POST
-  // /api/agent/validate for 'reddit' performs a real live validation call
-  // against Reddit's OAuth endpoint instead of hitting this "module not
-  // found" fallback — not something this network-free e2e suite should
-  // depend on. That mocked/live-validation behavior is covered instead by
-  // tests/server/agentAuth.test.ts, which stubs the platform service module.
-  it.each(['x'] as const)(
-    'returns 503 SERVICE_UNAVAILABLE for %s while its agent service module does not yet exist',
-    async (platform) => {
-      const cookie = await registerAndLoginAgentUser(app);
-      const res = await request(app)
-        .post('/api/agent/validate')
-        .set('Cookie', cookie)
-        .send({ platform, credentials: buildAgentCredentials() });
-
-      expect(res.status).toBe(503);
-      expect(res.body.valid).toBe(false);
-      expect(res.body.code).toBe('SERVICE_UNAVAILABLE');
-    },
-  );
+  // Neither platform's SERVICE_UNAVAILABLE fallback is exercised here anymore:
+  // server/services/social/redditAgentService.ts and
+  // server/services/social/xAgentService.ts both now exist, so POST
+  // /api/agent/validate performs a real live validation call against each
+  // platform's OAuth endpoint instead of hitting the "module not found"
+  // fallback — not something this network-free e2e suite should depend on.
+  // That mocked/live-validation behavior (including the SERVICE_UNAVAILABLE
+  // and VALIDATION_FAILED branches) is covered instead by
+  // tests/server/agentAuth.test.ts, which stubs both platform service
+  // modules.
 });
 
 // ─── Workflow 2 & 3: Credential storage + token retrieval (DB layer) ──────────

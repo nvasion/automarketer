@@ -47,6 +47,14 @@ vi.mock('../../server/services/social/redditAgentService', () => ({
   validateCredentials: vi.fn(),
 }));
 
+// Same rationale as the Reddit mock above, but for X: the registry also
+// dynamically `import()`s server/services/social/xAgentService, which is now
+// a real module that would otherwise make a live network call to X's OAuth
+// token endpoint during these tests.
+vi.mock('../../server/services/social/xAgentService', () => ({
+  validateCredentials: vi.fn(),
+}));
+
 import { getPool } from '../../server/db/connection';
 import {
   ensureTable,
@@ -57,6 +65,7 @@ import {
 } from '../../server/db/agentCredentialsTable';
 import { encryptAgentCredentials } from '../../server/utils/agentCredentialEncryption';
 import { validateCredentials as validateRedditCredentials } from '../../server/services/social/redditAgentService';
+import { validateCredentials as validateXCredentials } from '../../server/services/social/xAgentService';
 import agentAuthRouter from '../../server/routes/agentAuth';
 import { jwtSecret } from '../../server/utils/config';
 
@@ -68,6 +77,7 @@ const mockFindByUserAndPlatform = vi.mocked(findByUserAndPlatform);
 const mockDeleteByUserAndPlatform = vi.mocked(deleteByUserAndPlatform);
 const mockEncryptAgentCredentials = vi.mocked(encryptAgentCredentials);
 const mockValidateRedditCredentials = vi.mocked(validateRedditCredentials);
+const mockValidateXCredentials = vi.mocked(validateXCredentials);
 
 // A stand-in for the pg Pool — none of the mocked persistence functions
 // actually touch it, so an empty object satisfies the "pool is available"
@@ -115,11 +125,13 @@ beforeEach(() => {
   mockInsertCredentials.mockResolvedValue(undefined);
   mockUpdateCredentials.mockResolvedValue(undefined);
   mockDeleteByUserAndPlatform.mockResolvedValue(undefined);
-  // Reddit's agent service module is real (server/services/social/redditAgentService.ts)
-  // and is dynamically imported by the route, so it must be mocked to avoid
-  // live network calls to Reddit. Default to "valid" so tests that aren't
-  // specifically about live-validation failure exercise the happy path.
+  // Reddit's and X's agent service modules are real
+  // (server/services/social/{reddit,x}AgentService.ts) and are dynamically
+  // imported by the route, so they must be mocked to avoid live network
+  // calls. Default to "valid" so tests that aren't specifically about
+  // live-validation failure exercise the happy path.
   mockValidateRedditCredentials.mockResolvedValue(true);
+  mockValidateXCredentials.mockResolvedValue(true);
 });
 
 // ── POST /api/agent/login ─────────────────────────────────────────────────────
@@ -283,20 +295,20 @@ describe('POST /api/agent/login', () => {
     expect(cookies.some((c) => c.startsWith('agent_session_reddit='))).toBe(false);
   });
 
-  it('degrades gracefully and still logs in when the platform validator service is unavailable', async () => {
-    // No x agent service module exists in this checkout yet (owned by a
-    // separate in-flight task) — the dynamic import inside the route's
-    // validator registry fails and is caught, so login proceeds on
-    // structural validation alone rather than blocking on an optional
-    // dependency. (Reddit's service module is real and mocked above, so it
-    // no longer exercises this fallback path — hence 'x' here.)
+  it('rejects login with VALIDATION_FAILED when the live X validator throws unexpectedly', async () => {
+    // xAgentService.validateCredentials() only resolves `false` for expected
+    // (SocialError) failures; anything else propagates. The route's /login
+    // handler catches that and reports it distinctly from an ordinary
+    // invalid-credentials rejection.
+    mockValidateXCredentials.mockRejectedValue(new Error('X token endpoint returned malformed JSON'));
+
     const res = await request(app)
       .post('/api/agent/login')
       .set('Cookie', AUTH_COOKIE)
       .send({ platform: 'x', credentials: VALID_CREDENTIALS });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('VALIDATION_FAILED');
   });
 
   it('rejects login when the live Reddit validator reports invalid credentials', async () => {
