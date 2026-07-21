@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import * as crypto from 'node:crypto';
-import type { AgentCredentialsRecord, PlatformType, isPlatformType } from '../types/agentAuth.js';
+import type { AgentCredentialsRecord, PlatformType } from '../types/agentAuth.js';
+import { isPlatformType } from '../types/agentAuth.js';
 
 const TABLE = 'agent_credentials';
 
@@ -67,6 +68,32 @@ export async function updateCredentials(
      SET encrypted_credentials = $1, updated_at = NOW()
      WHERE user_id = $2 AND platform = $3`,
     [encryptedCredentials, userId, platform],
+  );
+}
+
+/**
+ * Insert or update agent credentials for a user/platform combination in a
+ * single atomic statement.
+ *
+ * Prefer this over a "find, then insert-or-update" sequence (as used by the
+ * HTTP route layer) when callers do not already hold the existing record —
+ * the two-step approach has a race window where two concurrent writers can
+ * both see "not found" and both attempt an INSERT, tripping the
+ * unique_user_platform constraint. ON CONFLICT sidesteps that entirely.
+ */
+export async function upsertCredentials(
+  pool: Pool,
+  userId: string,
+  platform: PlatformType,
+  encryptedCredentials: string,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO ${TABLE} (id, user_id, platform, encrypted_credentials, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, NOW(), NOW())
+     ON CONFLICT (user_id, platform) DO UPDATE
+       SET encrypted_credentials = EXCLUDED.encrypted_credentials,
+           updated_at = NOW()`,
+    [generateSecureId(), userId, platform, encryptedCredentials],
   );
 }
 
