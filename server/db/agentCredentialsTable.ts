@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import * as crypto from 'node:crypto';
-import type { AgentCredentialsRecord, PlatformType, isPlatformType } from '../types/agentAuth.js';
+import type { AgentCredentialsRecord, PlatformType } from '../types/agentAuth.js';
+import { isPlatformType } from '../types/agentAuth.js';
 
 const TABLE = 'agent_credentials';
 
