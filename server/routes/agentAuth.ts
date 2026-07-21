@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import type { Pool } from 'pg';
+import jwt from 'jsonwebtoken';
 import { requireAuth } from '../middleware/auth.js';
+import { jwtSecret } from '../utils/config.js';
 import { getPool } from '../db/connection.js';
 import { encryptAgentCredentials, decryptAgentCredentials } from '../utils/agentCredentialEncryption.js';
 import {
@@ -14,15 +17,43 @@ import type { AgentCredentials, PlatformType, CredentialValidationResult } from 
 import { isPlatformType } from '../types/agentAuth.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const VALID_PLATFORMS: PlatformType[] = ['reddit', 'x'];
+
+// Agent session tokens are shorter-lived than the primary app session (7d,
+// see routes/auth.ts) because they represent an elevated capability — the
+// ability to act as the user's connected Reddit/X agent — so a compromised
+// cookie has a smaller blast-radius window.
+const AGENT_SESSION_TTL = '1h';
+const AGENT_SESSION_COOKIE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+
+// Per-platform module specifiers for the dynamically-loaded validator
+// services (owned by other in-flight tasks). Resolved through a variable
+// (rather than a string literal passed directly to `import()`) so the
+// TypeScript compiler treats the specifier as untyped `string` and does not
+// attempt to statically resolve the module — these services are developed on
+// separate branches and may not exist yet in every checkout.
+const PLATFORM_SERVICE_MODULES: Record<PlatformType, string> = {
+  reddit: '../services/social/redditAgentService.js',
+  x: '../services/social/xAgentService.js',
+};
 
 // ── Input validators ─────────────────────────────────────────────────────────
 
 /**
- * Validates that a string is a valid platform type.
+ * Validates that a value is a valid platform type. Accepts `unknown` so
+ * callers can pass raw `req.body`/`req.params` values (which may be
+ * `string | string[] | undefined` under Express 5's param typing) without an
+ * unsound cast that would defeat the type-narrowing this guard provides.
  */
-function isValidPlatform(value: string): value is PlatformType {
-  return isPlatformType(value);
+function isValidPlatform(value: unknown): value is PlatformType {
+  return typeof value === 'string' && isPlatformType(value);
+}
+
+/**
+ * Human-readable label for a platform, used in user-facing error/status
+ * messages. Extracted to avoid repeating the same ternary across handlers.
+ */
+function platformLabel(platform: PlatformType): string {
+  return platform === 'reddit' ? 'Reddit' : 'X (Twitter)';
 }
 
 /**
@@ -126,33 +157,24 @@ class PlatformValidatorRegistry {
     }
 
     try {
-      let validator: PlatformValidator;
+      const modulePath = PLATFORM_SERVICE_MODULES[platform];
+      const agentModule: unknown = await import(modulePath);
 
-      if (platform === 'reddit') {
-        const agentModule = await import('../services/social/redditAgent.js');
-        
-        // Type guard to ensure the module has the expected function
-        if (!('validateCredentials' in agentModule) || typeof agentModule.validateCredentials !== 'function') {
-          return null;
-        }
-        
-        validator = {
-          validateCredentials: agentModule.validateCredentials.bind(agentModule),
-        };
-      } else if (platform === 'x') {
-        const agentModule = await import('../services/social/xAgent.js');
-        
-        // Type guard to ensure the module has the expected function
-        if (!('validateCredentials' in agentModule) || typeof agentModule.validateCredentials !== 'function') {
-          return null;
-        }
-        
-        validator = {
-          validateCredentials: agentModule.validateCredentials.bind(agentModule),
-        };
-      } else {
+      // Type guard to ensure the module has the expected function
+      if (
+        !agentModule ||
+        typeof agentModule !== 'object' ||
+        !('validateCredentials' in agentModule) ||
+        typeof (agentModule as { validateCredentials?: unknown }).validateCredentials !== 'function'
+      ) {
         return null;
       }
+
+      const validateCredentials = (
+        agentModule as { validateCredentials: (credentials: AgentCredentials) => Promise<boolean> }
+      ).validateCredentials.bind(agentModule);
+
+      const validator: PlatformValidator = { validateCredentials };
 
       // Cache the validator
       this.cache.set(platform, validator);
@@ -174,6 +196,65 @@ class PlatformValidatorRegistry {
 // Single instance of the registry
 const validatorRegistry = new PlatformValidatorRegistry();
 
+// ── Credential persistence ───────────────────────────────────────────────────
+
+/**
+ * Encrypt and persist agent credentials for a user/platform pair, updating
+ * an existing row when one already exists. Shared by /connect and /login so
+ * the insert-or-update logic lives in exactly one place.
+ */
+async function persistEncryptedCredentials(
+  pool: Pool,
+  userId: string,
+  platform: PlatformType,
+  credentials: AgentCredentials,
+): Promise<void> {
+  await ensureTable(pool);
+
+  const encryptedCredentials = encryptAgentCredentials(credentials);
+  const existing = await findByUserAndPlatform(pool, userId, platform);
+
+  if (existing) {
+    await updateCredentials(pool, userId, platform, encryptedCredentials);
+  } else {
+    await insertCredentials(pool, userId, platform, encryptedCredentials);
+  }
+}
+
+// ── Agent session cookie ─────────────────────────────────────────────────────
+
+/**
+ * Payload embedded in the agent session cookie issued by POST /login.
+ * Deliberately minimal — it only asserts which app user is acting as which
+ * platform's agent; it never carries the underlying platform credentials.
+ */
+interface AgentSessionPayload {
+  sub: string; // app user id
+  platform: PlatformType;
+}
+
+function agentSessionCookieName(platform: PlatformType): string {
+  return `agent_session_${platform}`;
+}
+
+function agentSessionCookieOptions() {
+  return {
+    httpOnly: true, // inaccessible to JS — mitigates XSS token theft
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
+    sameSite: 'strict' as const, // CSRF protection
+    path: '/',
+    maxAge: AGENT_SESSION_COOKIE_MAX_AGE_MS,
+  };
+}
+
+function signAgentSessionToken(userId: string, platform: PlatformType): string {
+  const payload: AgentSessionPayload = { sub: userId, platform };
+  return jwt.sign(payload, jwtSecret(), {
+    algorithm: 'HS256',
+    expiresIn: AGENT_SESSION_TTL,
+  });
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 const router = Router();
@@ -193,7 +274,7 @@ router.post('/connect', async (req: Request, res: Response): Promise<void> => {
     const { platform, credentials } = req.body as Record<string, unknown>;
 
     // Validate platform
-    if (!isValidPlatform(platform as string)) {
+    if (!isValidPlatform(platform)) {
       res.status(400).json({
         error: 'Invalid platform. Must be one of: reddit, x',
         code: 'INVALID_PLATFORM',
@@ -212,7 +293,7 @@ router.post('/connect', async (req: Request, res: Response): Promise<void> => {
     }
 
     const userId = req.user!.sub;
-    
+
     // Validate userId to prevent invalid/malicious IDs
     if (!isValidUserId(userId)) {
       res.status(401).json({
@@ -232,22 +313,7 @@ router.post('/connect', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Ensure table exists
-    await ensureTable(pool);
-
-    // Encrypt credentials before storing
-    const encryptedCredentials = encryptAgentCredentials(validationResult.credentials!);
-
-    // Check if credentials already exist for this user/platform
-    const existing = await findByUserAndPlatform(pool, userId, platform);
-
-    if (existing) {
-      // Update existing credentials
-      await updateCredentials(pool, userId, platform, encryptedCredentials);
-    } else {
-      // Insert new credentials
-      await insertCredentials(pool, userId, platform, encryptedCredentials);
-    }
+    await persistEncryptedCredentials(pool, userId, platform, validationResult.credentials!);
 
     res.status(200).json({
       success: true,
@@ -258,6 +324,109 @@ router.post('/connect', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       error: 'Failed to store credentials',
       code: 'STORE_ERROR',
+    });
+  }
+});
+
+/**
+ * POST /api/agent/login
+ * Authenticate a platform agent: validates the submitted credentials
+ * (structurally, and against the live platform when its validator service is
+ * available), stores them encrypted in the database, and — on success —
+ * issues an httpOnly session cookie asserting that this app user is
+ * authenticated as that platform's agent.
+ *
+ * Body: { platform: 'reddit' | 'x'; credentials: { username: string; password: string; clientId: string; clientSecret: string } }
+ * Response: { success: true; platform: string; message: string }
+ * Sets an httpOnly `agent_session_<platform>` cookie on success.
+ */
+router.post('/login', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { platform, credentials } = req.body as Record<string, unknown>;
+
+    // Validate platform
+    if (!isValidPlatform(platform)) {
+      res.status(400).json({
+        error: 'Invalid platform. Must be one of: reddit, x',
+        code: 'INVALID_PLATFORM',
+      });
+      return;
+    }
+
+    // Validate credentials using shared validator
+    const validationResult = validateAgentCredentialsInput(credentials);
+    if (!validationResult.valid) {
+      res.status(400).json({
+        error: validationResult.error,
+        code: validationResult.code,
+      });
+      return;
+    }
+
+    const userId = req.user!.sub;
+
+    // Validate userId to prevent invalid/malicious IDs
+    if (!isValidUserId(userId)) {
+      res.status(401).json({
+        error: 'Invalid user authentication',
+        code: 'INVALID_USER',
+      });
+      return;
+    }
+
+    const pool = getPool();
+
+    if (!pool) {
+      res.status(503).json({
+        error: 'Database connection not available',
+        code: 'DB_UNAVAILABLE',
+      });
+      return;
+    }
+
+    // Best-effort live validation: when the platform's agent service is
+    // available, the credentials must actually authenticate before we store
+    // them or issue a session. When the service isn't available yet, degrade
+    // gracefully (same tolerance as /connect) rather than blocking login on
+    // an optional dependency.
+    const validator = await validatorRegistry.getValidator(platform);
+    if (validator) {
+      let isValid: boolean;
+      try {
+        isValid = await validator.validateCredentials(validationResult.credentials!);
+      } catch (validationError) {
+        const errorMessage = validationError instanceof Error ? validationError.message : 'Unknown error';
+        res.status(401).json({
+          error: errorMessage,
+          code: 'VALIDATION_FAILED',
+        });
+        return;
+      }
+
+      if (!isValid) {
+        res.status(401).json({
+          error: `Invalid ${platformLabel(platform)} credentials`,
+          code: 'INVALID_CREDENTIALS',
+        });
+        return;
+      }
+    }
+
+    await persistEncryptedCredentials(pool, userId, platform, validationResult.credentials!);
+
+    const sessionToken = signAgentSessionToken(userId, platform);
+    res.cookie(agentSessionCookieName(platform), sessionToken, agentSessionCookieOptions());
+
+    res.status(200).json({
+      success: true,
+      platform,
+      message: `Successfully logged in to ${platformLabel(platform)}`,
+    });
+  } catch (error) {
+    console.error('[agentAuth] Error logging in:', error);
+    res.status(500).json({
+      error: 'Failed to log in',
+      code: 'LOGIN_ERROR',
     });
   }
 });
@@ -274,7 +443,7 @@ router.post('/validate', async (req: Request, res: Response): Promise<void> => {
     const { platform } = req.body as Record<string, unknown>;
 
     // Validate platform
-    if (!isValidPlatform(platform as string)) {
+    if (!isValidPlatform(platform)) {
       res.status(400).json({
         error: 'Invalid platform. Must be one of: reddit, x',
         code: 'INVALID_PLATFORM',
@@ -298,7 +467,7 @@ router.post('/validate', async (req: Request, res: Response): Promise<void> => {
     if (!validator) {
       res.status(503).json({
         valid: false,
-        error: `${platform === 'reddit' ? 'Reddit' : 'X (Twitter)'} agent service not available`,
+        error: `${platformLabel(platform)} agent service not available`,
         code: 'SERVICE_UNAVAILABLE',
       });
       return;
@@ -310,12 +479,12 @@ router.post('/validate', async (req: Request, res: Response): Promise<void> => {
       if (isValid) {
         res.status(200).json({
           valid: true,
-          message: `${platform === 'reddit' ? 'Reddit' : 'X (Twitter)'} credentials are valid`,
+          message: `${platformLabel(platform)} credentials are valid`,
         });
       } else {
         res.status(401).json({
           valid: false,
-          error: `Invalid ${platform === 'reddit' ? 'Reddit' : 'X (Twitter)'} credentials`,
+          error: `Invalid ${platformLabel(platform)} credentials`,
           code: 'INVALID_CREDENTIALS',
         });
       }
@@ -469,7 +638,7 @@ router.get('/status/:platform', async (req: Request, res: Response): Promise<voi
           platform,
           lastValidated: credentials.updatedAt,
           valid: false,
-          error: `${platform === 'reddit' ? 'Reddit' : 'X (Twitter)'} agent service not available`,
+          error: `${platformLabel(platform)} agent service not available`,
           code: 'SERVICE_UNAVAILABLE',
         });
         return;
