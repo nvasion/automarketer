@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useContext } from 'react'
 import type { PlatformConfig } from '../types'
 import { AuthContext } from '../contexts/AuthContext'
 import PlatformBadge from './PlatformBadge'
+import AgentWarningBadge from './AgentWarningBadge'
+import { isAgentAuthPlatform } from '../utils/agentAuthPlatforms'
 import { PLATFORM_CREDENTIAL_FIELDS, PLATFORM_OAUTH_CONFIG } from '../config/platformConfig'
 import { fetchPlatformClientIds } from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
@@ -516,6 +518,11 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
           <div className={styles.headerText}>
             <div className={styles.headerTitle}>Connect {platform.name}</div>
             <div className={styles.headerSubtitle}>{platform.description}</div>
+            {isAgentAuthPlatform(platform.id) && (
+              <div style={{ marginTop: '6px' }}>
+                <AgentWarningBadge size="sm" />
+              </div>
+            )}
           </div>
           {!isOAuthConnecting && (
             <button
