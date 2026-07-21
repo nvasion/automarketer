@@ -13,6 +13,14 @@
 import { getPool } from '../db/connection.js';
 import { refreshAccessToken } from '../utils/tokenRefresh.js';
 import { encryptDPoPKey, decryptDPoPKey } from '../utils/dpopKeyEncryption.js';
+import {
+  ensureTable as ensureAgentCredentialsTable,
+  findByUserAndPlatform as findAgentCredentialsByUserAndPlatform,
+  upsertCredentials as upsertAgentCredentials,
+  deleteByUserAndPlatform as deleteAgentCredentialsByUserAndPlatform,
+} from '../db/agentCredentialsTable.js';
+import { encryptAgentCredentials, decryptAgentCredentials } from '../utils/agentCredentialEncryption.js';
+import type { AgentCredentials, PlatformType } from '../types/agentAuth.js';
 
 interface TokenEntry {
   accessToken: string;
@@ -374,5 +382,143 @@ export const accessTokenStore = {
    */
   _clear(): void {
     cache.clear();
+  },
+};
+
+// ── Agent credentials store (Reddit/X agent-based auth) ─────────────────────
+// Agent-based platforms (Reddit, X) are accessed via stored username/password
+// + client credentials rather than OAuth, so they use a separate table
+// (agent_credentials) and encryption scheme (agentCredentialEncryption) from
+// the OAuth token store above. This store gives platform agent services
+// (e.g. redditAgentService, xAgentService) a single place to fetch already-
+// decrypted credentials at call time, mirroring how accessTokenStore.
+// getValidAccessToken() abstracts OAuth token retrieval away from callers —
+// so agent services never touch the database or decryption logic directly.
+//
+// Storage strategy (mirrors accessTokenStore above):
+//   1. In-memory cache of *decrypted* credentials — for fast lookups.
+//   2. Database (agent_credentials) — persistent, encrypted-at-rest storage.
+
+// Per-user in-memory cache: Map<userId, Map<platform, AgentCredentials>>
+const agentCredentialsCache = new Map<string, Map<PlatformType, AgentCredentials>>();
+
+function getAgentCredentialsUserMap(userId: string): Map<PlatformType, AgentCredentials> {
+  let userMap = agentCredentialsCache.get(userId);
+  if (!userMap) {
+    userMap = new Map();
+    agentCredentialsCache.set(userId, userMap);
+  }
+  return userMap;
+}
+
+export const agentCredentialStore = {
+  /**
+   * Ensure the agent_credentials table exists. Call once at server startup.
+   * No-op when DATABASE_URL is not set.
+   */
+  async initialize(): Promise<void> {
+    const pool = getPool();
+    if (!pool) return;
+    await ensureAgentCredentialsTable(pool);
+  },
+
+  /**
+   * Encrypt and persist agent credentials for a user/platform pair, and warm
+   * the in-memory cache with the plaintext for immediate use.
+   */
+  async setCredentials(
+    userId: string,
+    platform: PlatformType,
+    credentials: AgentCredentials,
+  ): Promise<void> {
+    getAgentCredentialsUserMap(userId).set(platform, credentials);
+
+    const pool = getPool();
+    if (!pool) {
+      console.warn(
+        `[agentCredentialStore] stored ${platform} credentials for user=${userId} IN MEMORY ONLY — ` +
+          'DATABASE_URL is not set, so this connection will be lost when the server restarts.'
+      );
+      return;
+    }
+
+    const encrypted = encryptAgentCredentials(credentials);
+    await upsertAgentCredentials(pool, userId, platform, encrypted);
+    console.log(`[agentCredentialStore] stored ${platform} credentials for user=${userId} (persisted to database)`);
+  },
+
+  /**
+   * Get decrypted credentials for a user/platform pair, loading and
+   * decrypting from the database on a cache miss. Returns null when no
+   * credentials are stored.
+   *
+   * Throws (rather than returning null) if stored credentials exist but
+   * cannot be decrypted — e.g. the encryption key changed or the data was
+   * tampered with — so callers don't mistake "corrupted" for "never connected".
+   */
+  async getCredentials(userId: string, platform: PlatformType): Promise<AgentCredentials | null> {
+    const cached = agentCredentialsCache.get(userId)?.get(platform);
+    if (cached) return cached;
+
+    const pool = getPool();
+    if (!pool) {
+      console.warn(
+        `[agentCredentialStore] miss: no ${platform} credentials cached for user=${userId} and no database configured.`
+      );
+      return null;
+    }
+
+    const record = await findAgentCredentialsByUserAndPlatform(pool, userId, platform);
+    if (!record) {
+      console.warn(`[agentCredentialStore] miss: no ${platform} credentials found for user=${userId}.`);
+      return null;
+    }
+
+    let decrypted: AgentCredentials;
+    try {
+      decrypted = decryptAgentCredentials(record.encryptedCredentials);
+    } catch (err) {
+      throw new Error(
+        `[agentCredentialStore] Failed to decrypt stored ${platform} credentials for user=${userId}: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    getAgentCredentialsUserMap(userId).set(platform, decrypted);
+    return decrypted;
+  },
+
+  /**
+   * Check whether credentials are stored for a user/platform pair without
+   * decrypting them.
+   */
+  async hasCredentials(userId: string, platform: PlatformType): Promise<boolean> {
+    if (agentCredentialsCache.get(userId)?.has(platform)) return true;
+
+    const pool = getPool();
+    if (!pool) return false;
+
+    const record = await findAgentCredentialsByUserAndPlatform(pool, userId, platform);
+    return record !== undefined;
+  },
+
+  /**
+   * Delete stored credentials for a user/platform pair, from both the cache
+   * and the database.
+   */
+  async deleteCredentials(userId: string, platform: PlatformType): Promise<void> {
+    agentCredentialsCache.get(userId)?.delete(platform);
+
+    const pool = getPool();
+    if (pool) {
+      await deleteAgentCredentialsByUserAndPlatform(pool, userId, platform);
+    }
+  },
+
+  /**
+   * Clear the cache — for tests only.
+   */
+  _clear(): void {
+    agentCredentialsCache.clear();
   },
 };
