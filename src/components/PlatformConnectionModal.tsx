@@ -7,6 +7,24 @@ import { fetchPlatformClientIds } from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
 import styles from './PlatformConnectionModal.module.css'
 
+// ── OAuth popup → opener side channels ────────────────────────────────────────
+// Some authorization servers (notably Bluesky's bsky.social) send a
+// Cross-Origin-Opener-Policy header. Navigating the popup there severs the
+// window.opener link and disconnects the opener's popup handle — so
+// window.opener.postMessage never arrives and popup.closed reads `true` even
+// while the user is still authorizing. To survive that, /oauth/callback also
+// publishes its result over these same-origin channels (see src/main.tsx),
+// which COOP does not affect. Keep these values in sync with main.tsx.
+const OAUTH_CHANNEL = 'oauth_callback'
+const OAUTH_RESULT_KEY = 'oauth_callback_result'
+
+interface OAuthCallbackPayload {
+  type?: string
+  code?: string | null
+  error?: string | null
+  state?: string | null
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type ConnectionMethod = 'oauth' | 'credentials'
@@ -198,6 +216,14 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
   const openOAuthPopup = (url: string, state: string) => {
     setOauthStep('opening')
 
+    // Clear any stale result left behind by an abandoned earlier attempt so the
+    // localStorage poll below can't pick one up before this flow completes.
+    try {
+      localStorage.removeItem(OAUTH_RESULT_KEY)
+    } catch {
+      /* ignore storage errors */
+    }
+
     setTimeout(() => {
       const popup = window.open(url, `oauth-${platform.id}`, 'width=600,height=700,scrollbars=yes,resizable=yes')
 
@@ -210,12 +236,31 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
       setOauthStep('authorizing')
 
       let resolved = false
+      let finalizing = false
+      let channel: BroadcastChannel | null = null
+
+      const cleanup = () => {
+        clearInterval(pollTimer)
+        clearTimeout(timeoutTimer)
+        window.removeEventListener('message', onMessage)
+        if (channel) {
+          try {
+            channel.close()
+          } catch {
+            /* ignore */
+          }
+        }
+        try {
+          localStorage.removeItem(OAUTH_RESULT_KEY)
+        } catch {
+          /* ignore */
+        }
+      }
 
       const resolve = (success: boolean, errorMsg?: string) => {
         if (resolved) return
         resolved = true
-        clearInterval(pollTimer)
-        window.removeEventListener('message', onMessage)
+        cleanup()
         if (success) {
           setOauthStep('success')
           setTimeout(() => {
@@ -228,21 +273,20 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
         }
       }
 
-      let finalizing = false
-      const onMessage = async (e: MessageEvent) => {
-        if (e.origin !== window.location.origin) return
-        if (e.data?.type !== 'oauth_callback') return
+      // Handle a callback payload delivered over any of the three channels
+      // (postMessage, BroadcastChannel, or localStorage). Idempotent: the first
+      // channel to deliver wins; the `finalizing` guard drops the rest.
+      const handlePayload = async (data: OAuthCallbackPayload | undefined) => {
+        if (!data || data.type !== 'oauth_callback') return
         if (resolved || finalizing) return
-        if (e.data.state !== state) {
-          resolve(false, 'Authorization failed: state parameter mismatch. Please try again.')
-          return
-        }
-        if (e.data.error) {
-          const safeError = String(e.data.error).substring(0, 200)
+        // Ignore payloads from an unrelated flow (e.g. a stale localStorage entry).
+        if (data.state !== state) return
+        if (data.error) {
+          const safeError = String(data.error).substring(0, 200)
           resolve(false, `Authorization failed: ${safeError}`)
           return
         }
-        if (!e.data.code) {
+        if (!data.code) {
           resolve(false, 'Authorization failed: no authorization code was returned.')
           return
         }
@@ -253,7 +297,7 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
 
         try {
           const res = await fetch(
-            `/api/oauth/callback?code=${encodeURIComponent(e.data.code)}&platform=${encodeURIComponent(platform.id)}&state=${encodeURIComponent(state)}`,
+            `/api/oauth/callback?code=${encodeURIComponent(data.code)}&platform=${encodeURIComponent(platform.id)}&state=${encodeURIComponent(state)}`,
             { credentials: 'include' },
           )
           const body = (await res.json().catch(() => ({}))) as { error?: string; authorId?: string }
@@ -275,13 +319,48 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
           resolve(false, 'Authorization succeeded, but the server could not be reached to store the connection. Please try again.')
         }
       }
+
+      // Channel 1: direct postMessage — works when the opener link is intact.
+      const onMessage = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return
+        void handlePayload(e.data as OAuthCallbackPayload)
+      }
       window.addEventListener('message', onMessage)
 
+      // Channel 2: BroadcastChannel — same-origin, unaffected by COOP severing
+      // the opener link (which is what breaks the Bluesky flow).
+      try {
+        channel = new BroadcastChannel(OAUTH_CHANNEL)
+        channel.onmessage = (e) => void handlePayload(e.data as OAuthCallbackPayload)
+      } catch {
+        /* BroadcastChannel unsupported — the localStorage poll below still covers it */
+      }
+
+      // Channel 3: localStorage poll — the most robust fallback. The callback
+      // writes the result synchronously before closing, so it is readable here
+      // even when the popup is orphaned by COOP and window.opener is null.
       const pollTimer = setInterval(() => {
-        if (popup.closed) {
-          resolve(false, 'Authorization was cancelled.')
+        let raw: string | null = null
+        try {
+          raw = localStorage.getItem(OAUTH_RESULT_KEY)
+        } catch {
+          return
         }
-      }, 500)
+        if (!raw) return
+        try {
+          void handlePayload(JSON.parse(raw) as OAuthCallbackPayload)
+        } catch {
+          /* malformed entry — ignore */
+        }
+      }, 300)
+
+      // Absolute backstop so an abandoned flow (user closed the popup, never
+      // finished) doesn't leave the modal spinning forever. popup.closed is not
+      // usable for this: COOP disconnects the handle, making it read `true` even
+      // while the user is still authorizing — which is the false "cancelled".
+      const timeoutTimer = setTimeout(() => {
+        resolve(false, 'Authorization timed out. Please try connecting again.')
+      }, 5 * 60 * 1000)
     }, 100)
   }
 

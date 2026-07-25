@@ -540,6 +540,126 @@ describe('PlatformConnectionModal', () => {
     expect(screen.queryByTestId('modal-close-btn')).toBeNull()
   })
 
+  // ── Bluesky OAuth (COOP-severed opener) ─────────────────────────────────────
+  // Bluesky's authorization server (bsky.social) sends Cross-Origin-Opener-Policy,
+  // which severs window.opener and makes the opener's `popup.closed` read `true`
+  // even while the user is still authorizing. The callback result must therefore
+  // arrive over a same-origin side channel (localStorage / BroadcastChannel), and
+  // `popup.closed` must NOT be treated as a cancellation. Regression test for the
+  // false "Authorization was cancelled." after a successful Bluesky login.
+  describe('Bluesky OAuth (COOP-severed opener)', () => {
+    const BLUESKY: PlatformConfig = {
+      id: 'bluesky',
+      name: 'Bluesky',
+      icon: '🦋',
+      color: '#ffffff',
+      bgColor: '#0085ff',
+      charLimit: 300,
+      description: 'Decentralised social on the AT Protocol',
+    }
+
+    // fetch is used twice in this flow: POST /api/bluesky/initiate (returns the
+    // authorization URL) then GET /api/oauth/callback (server code exchange).
+    function stubBlueskyFetch() {
+      const fetchMock = vi.fn((input: unknown) => {
+        if (String(input).includes('/api/bluesky/initiate')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                authorizationUrl: 'https://pds.example/oauth/authorize?client_id=x&request_uri=urn:req',
+              }),
+          })
+        }
+        // /api/oauth/callback
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true, platform: 'bluesky', authorId: 'did:plc:abc123' }),
+        })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    // Drain the promise chain (initiate fetch → json → openOAuthPopup, or
+    // callback fetch → json → resolve) under fake timers.
+    async function flush() {
+      for (let i = 0; i < 6; i++) await act(async () => {})
+    }
+
+    beforeEach(() => {
+      // Bluesky must be configured (client_id = client-metadata URL) to render.
+      mockFetchClientIds.mockResolvedValue({
+        bluesky: 'https://app.example.com/api/bluesky/client-metadata.json',
+      })
+    })
+
+    async function startBlueskyFlow() {
+      const props = await renderModal({ platform: BLUESKY })
+      fireEvent.change(screen.getByTestId('bluesky-handle-input'), {
+        target: { value: 'alice.bsky.social' },
+      })
+      fireEvent.click(screen.getByTestId('oauth-connect-btn'))
+      await flush() // resolve /api/bluesky/initiate and reach openOAuthPopup
+      act(() => {
+        vi.advanceTimersByTime(100)
+      }) // fire the setTimeout that opens the popup → 'authorizing'
+      return props
+    }
+
+    it('completes via the localStorage channel when window.opener is null and popup.closed is true', async () => {
+      const fetchMock = stubBlueskyFetch()
+      const { onConnect } = await startBlueskyFlow()
+
+      expect(screen.getByTestId('oauth-status').textContent).toContain('authorisation')
+
+      // Simulate COOP: the popup handle reads closed and the callback page
+      // delivers the result over localStorage instead of postMessage.
+      mockPopup.closed = true
+      act(() => {
+        localStorage.setItem(
+          'oauth_callback_result',
+          JSON.stringify({ type: 'oauth_callback', code: 'bsky-code', error: null, state: MOCK_OAUTH_STATE, ts: 1 })
+        )
+      })
+
+      // The 300ms localStorage poll picks it up and confirms with the server.
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      await flush()
+
+      expect(screen.getByTestId('oauth-status').textContent).toContain('Connected')
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/oauth/callback?code=bsky-code'),
+        expect.anything()
+      )
+
+      act(() => {
+        vi.advanceTimersByTime(800)
+      })
+      expect(onConnect).toHaveBeenCalledWith('bluesky')
+    })
+
+    it('does NOT report "cancelled" when popup.closed is true (COOP severs the handle)', async () => {
+      stubBlueskyFetch()
+      await startBlueskyFlow()
+
+      // Under COOP the popup handle reads closed even while the user is still
+      // authorizing — this must not resolve the flow as cancelled.
+      mockPopup.closed = true
+      act(() => {
+        vi.advanceTimersByTime(5000)
+      })
+
+      const status = screen.getByTestId('oauth-status').textContent ?? ''
+      expect(status).not.toContain('cancelled')
+      expect(status).toContain('authorisation') // still waiting for the real result
+    })
+  })
+
   it('close button reappears after OAuth error', async () => {
     vi.spyOn(window, 'open').mockReturnValue(null)
     await renderModal()
