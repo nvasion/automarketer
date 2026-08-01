@@ -750,6 +750,8 @@ function CreateCampaign() {
                 {selectedPlatforms.map((platform) => {
                   const content = generatedPosts[platform] ?? ''
                   const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)
+                  const charLimit = cfg?.charLimit
+                  const isOverLimit = charLimit !== undefined && content.length > charLimit
                   return (
                     <div
                       key={platform}
@@ -771,13 +773,27 @@ function CreateCampaign() {
                       >
                         <PlatformBadge platform={platform} size="md" />
                         <span style={{ fontWeight: 600, fontSize: '14px' }}>{cfg?.name}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: 'auto' }}>
-                          {content.length}/{cfg?.charLimit} chars
+                        <span
+                          style={{
+                            color: isOverLimit ? '#dc2626' : '#94a3b8',
+                            fontSize: '12px',
+                            marginLeft: 'auto',
+                          }}
+                        >
+                          {content.length}/{charLimit ?? '∞'} chars
                         </span>
                       </div>
                       <div style={{ padding: '16px' }}>
                         <textarea
-                          defaultValue={content}
+                          value={content}
+                          maxLength={charLimit}
+                          aria-label={`Edit ${cfg?.name ?? platform} post`}
+                          onChange={(e) =>
+                            setGeneratedPosts((prev) => ({
+                              ...prev,
+                              [platform]: e.target.value,
+                            }))
+                          }
                           style={{
                             width: '100%',
                             border: 'none',
