@@ -76,9 +76,9 @@ function PostCard({
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: 'var(--panel)',
         borderRadius: '12px',
-        border: '1px solid #e2e8f0',
+        border: '1px solid var(--line)',
         overflow: 'hidden',
         transition: 'box-shadow 0.2s',
       }}
@@ -90,17 +90,17 @@ function PostCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '14px 16px',
-          borderBottom: '1px solid #f1f5f9',
-          background: '#fafbfc',
+          borderBottom: '1px solid var(--line-soft)',
+          background: 'var(--sunken)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <PlatformBadge platform={post.platform} size="md" />
-          <span style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>
+          <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>
             {config?.name ?? post.platform}
           </span>
           {config && (
-            <span style={{ color: '#94a3b8', fontSize: '12px' }}>
+            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>
               {post.content.length}/{config.charLimit} chars
             </span>
           )}
@@ -110,12 +110,12 @@ function PostCard({
           <button
             onClick={handleCopy}
             style={{
-              background: copied ? '#f0fdf4' : '#f8fafc',
-              border: `1px solid ${copied ? '#bbf7d0' : '#e2e8f0'}`,
+              background: copied ? 'var(--ok-soft)' : 'var(--sunken)',
+              border: `1px solid ${copied ? 'var(--ok-line)' : 'var(--line)'}`,
               borderRadius: '6px',
               padding: '4px 10px',
               fontSize: '12px',
-              color: copied ? '#16a34a' : '#64748b',
+              color: copied ? 'var(--ok)' : 'var(--muted)',
               cursor: 'pointer',
               fontWeight: 500,
               transition: 'all 0.15s',
@@ -129,12 +129,12 @@ function PostCard({
               disabled={republishing || !platformConnected}
               title={!platformConnected ? notConnectedTitle : undefined}
               style={{
-                background: republishing || !platformConnected ? '#e2e8f0' : '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: republishing || !platformConnected ? 'var(--line)' : 'var(--sunken)',
+                border: '1px solid var(--line)',
                 borderRadius: '6px',
                 padding: '4px 10px',
                 fontSize: '12px',
-                color: republishing || !platformConnected ? '#94a3b8' : '#64748b',
+                color: republishing || !platformConnected ? 'var(--muted)' : 'var(--muted)',
                 cursor: republishing || !platformConnected ? 'not-allowed' : 'pointer',
                 fontWeight: 500,
                 transition: 'all 0.15s',
@@ -150,7 +150,7 @@ function PostCard({
       <div style={{ padding: '16px' }}>
         <p
           style={{
-            color: '#334155',
+            color: 'var(--ink-2)',
             fontSize: '14px',
             lineHeight: '1.65',
             whiteSpace: 'pre-line',
@@ -165,7 +165,7 @@ function PostCard({
             style={{
               background: 'none',
               border: 'none',
-              color: '#6366f1',
+              color: 'var(--accent)',
               fontSize: '13px',
               cursor: 'pointer',
               padding: '4px 0',
@@ -184,8 +184,8 @@ function PostCard({
               <span
                 key={tag}
                 style={{
-                  background: '#eff6ff',
-                  color: '#3b82f6',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent)',
                   borderRadius: '4px',
                   padding: '2px 8px',
                   fontSize: '12px',
@@ -204,7 +204,7 @@ function PostCard({
             style={{
               marginTop: '14px',
               paddingTop: '14px',
-              borderTop: '1px solid #f1f5f9',
+              borderTop: '1px solid var(--line-soft)',
               display: 'flex',
               gap: '20px',
             }}
@@ -216,10 +216,10 @@ function PostCard({
               { icon: '👁️', value: post.engagements.views, label: 'Views' },
             ].map(({ icon, value, label }) => (
               <div key={label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
                   {icon} {value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{label}</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{label}</div>
               </div>
             ))}
           </div>
@@ -233,10 +233,10 @@ function PostCard({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              color: '#a16207',
+              color: 'var(--warn)',
               fontSize: '12px',
-              background: '#fefce8',
-              border: '1px solid #fef08a',
+              background: 'var(--warn-soft)',
+              border: '1px solid var(--warn-line)',
               borderRadius: '6px',
               padding: '6px 10px',
             }}
@@ -260,7 +260,7 @@ function PostCard({
         <div
           style={{
             padding: '10px 16px',
-            borderTop: '1px solid #f1f5f9',
+            borderTop: '1px solid var(--line-soft)',
             display: 'flex',
             gap: '8px',
             justifyContent: 'flex-end',
@@ -271,12 +271,12 @@ function PostCard({
             <>
               <button
                 style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
+                  background: 'var(--sunken)',
+                  border: '1px solid var(--line)',
                   borderRadius: '6px',
                   padding: '6px 14px',
                   fontSize: '13px',
-                  color: '#64748b',
+                  color: 'var(--muted)',
                   cursor: 'pointer',
                   fontWeight: 500,
                 }}
@@ -288,12 +288,12 @@ function PostCard({
                 disabled={publishDisabled}
                 title={!platformConnected ? notConnectedTitle : undefined}
                 style={{
-                  background: publishDisabled ? '#9ca3af' : '#6366f1',
+                  background: publishDisabled ? 'var(--off)' : 'var(--primary)',
                   border: 'none',
                   borderRadius: '6px',
                   padding: '6px 14px',
                   fontSize: '13px',
-                  color: 'white',
+                  color: 'var(--on-primary)',
                   cursor: publishDisabled ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
                   opacity: publishDisabled ? 0.7 : 1,
@@ -309,12 +309,12 @@ function PostCard({
               disabled={publishDisabled}
               title={!platformConnected ? notConnectedTitle : undefined}
               style={{
-                background: publishDisabled ? '#9ca3af' : '#6366f1',
+                background: publishDisabled ? 'var(--off)' : 'var(--primary)',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '6px 14px',
                 fontSize: '13px',
-                color: 'white',
+                color: 'var(--on-primary)',
                 cursor: publishDisabled ? 'not-allowed' : 'pointer',
                 fontWeight: 600,
                 opacity: publishDisabled ? 0.7 : 1,
@@ -324,7 +324,7 @@ function PostCard({
             </button>
           )}
           {publishError && (
-            <span style={{ color: '#dc2626', fontSize: '12px', marginRight: '8px' }}>
+            <span style={{ color: 'var(--fail)', fontSize: '12px', marginRight: '8px' }}>
               ⚠ {publishError}
             </span>
           )}
@@ -337,11 +337,11 @@ function PostCard({
         <div
           style={{
             padding: '10px 16px',
-            borderTop: '1px solid #f1f5f9',
+            borderTop: '1px solid var(--line-soft)',
             textAlign: 'right',
           }}
         >
-          <span style={{ color: '#dc2626', fontSize: '12px' }}>⚠ {publishError}</span>
+          <span style={{ color: 'var(--fail)', fontSize: '12px' }}>⚠ {publishError}</span>
         </div>
       )}
     </div>

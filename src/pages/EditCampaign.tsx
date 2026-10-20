@@ -47,9 +47,9 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
               fontSize: '13px',
               background:
                 step <= current
-                  ? 'linear-gradient(135deg, #52b788, #40916c)'
-                  : '#e2e8f0',
-              color: step <= current ? 'white' : '#94a3b8',
+                  ? 'var(--primary)'
+                  : 'var(--line)',
+              color: step <= current ? 'var(--on-primary)' : 'var(--muted)',
               transition: 'all 0.3s',
             }}
           >
@@ -60,7 +60,7 @@ function StepIndicator({ current, total }: { current: Step; total: number }) {
               style={{
                 height: '2px',
                 width: '80px',
-                background: step < current ? '#52b788' : '#e2e8f0',
+                background: step < current ? 'var(--primary)' : 'var(--line)',
                 transition: 'background 0.3s',
               }}
             />
@@ -264,19 +264,19 @@ function EditCampaign() {
     width: '100%',
     padding: '10px 14px',
     borderRadius: '8px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--line)',
     fontSize: '14px',
-    color: '#1e293b',
+    color: 'var(--ink)',
     outline: 'none',
     transition: 'border-color 0.15s',
-    background: 'white',
+    background: 'var(--panel)',
   }
 
   const labelStyle: React.CSSProperties = {
     display: 'block',
     fontSize: '13px',
     fontWeight: 600,
-    color: '#374151',
+    color: 'var(--ink-2)',
     marginBottom: '6px',
   }
 
@@ -286,7 +286,7 @@ function EditCampaign() {
 
   if (campaignLoading) {
     return (
-      <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+      <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>
         <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
         <p>Loading campaign…</p>
       </div>
@@ -297,15 +297,15 @@ function EditCampaign() {
     return (
       <div style={{ padding: '32px', textAlign: 'center' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>😕</div>
-        <h2 style={{ color: '#1e293b', marginBottom: '8px' }}>Campaign not found</h2>
+        <h2 style={{ color: 'var(--ink)', marginBottom: '8px' }}>Campaign not found</h2>
         <button
           onClick={() => navigate('/campaigns')}
           style={{
-            background: '#52b788',
+            background: 'var(--primary)',
             border: 'none',
             borderRadius: '8px',
             padding: '10px 24px',
-            color: 'white',
+            color: 'var(--on-primary)',
             cursor: 'pointer',
             fontWeight: 600,
           }}
@@ -324,7 +324,7 @@ function EditCampaign() {
           style={{
             background: 'none',
             border: 'none',
-            color: '#52b788',
+            color: 'var(--accent)',
             fontSize: '13px',
             cursor: 'pointer',
             padding: 0,
@@ -336,19 +336,19 @@ function EditCampaign() {
         >
           ← Back to Campaign
         </button>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+        <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
           Edit Campaign
         </h1>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
           Update your campaign details and regenerate posts.
         </p>
       </div>
 
       <div
         style={{
-          background: 'white',
+          background: 'var(--panel)',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--line)',
           padding: '32px',
           marginTop: '24px',
         }}
@@ -358,10 +358,10 @@ function EditCampaign() {
         {/* ── Step 1: Website Info ────────────────────────────────────────── */}
         {step === 1 && (
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
               Website Information
             </h2>
-            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>
               Tell us about the product or service you want to promote.
             </p>
 
@@ -383,7 +383,7 @@ function EditCampaign() {
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
               />
-              <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
                 AI will use this for on-brand, accurate content.
               </p>
             </div>
@@ -413,10 +413,10 @@ function EditCampaign() {
         {/* ── Step 2: Screenshots ─────────────────────────────────────────── */}
         {step === 2 && (
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
               Upload Screenshots
             </h2>
-            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>
               Add screenshots of your product or landing page. AI will use these for richer context.
             </p>
 
@@ -432,21 +432,21 @@ function EditCampaign() {
             <div
               onClick={() => fileRef.current?.click()}
               style={{
-                border: '2px dashed #b7e4c7',
+                border: '2px dashed var(--accent-line)',
                 borderRadius: '12px',
                 padding: '40px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                background: '#f0fdf4',
+                background: 'var(--ok-soft)',
                 transition: 'all 0.15s',
                 marginBottom: '20px',
               }}
             >
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>📸</div>
-              <p style={{ fontWeight: 600, color: '#40916c', marginBottom: '4px' }}>
+              <p style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>
                 Click to upload screenshots
               </p>
-              <p style={{ color: '#94a3b8', fontSize: '13px' }}>PNG, JPG, GIF up to 10 MB each</p>
+              <p style={{ color: 'var(--muted)', fontSize: '13px' }}>PNG, JPG, GIF up to 10 MB each</p>
             </div>
 
             {screenshots.length > 0 && (
@@ -458,9 +458,9 @@ function EditCampaign() {
                       position: 'relative',
                       borderRadius: '8px',
                       overflow: 'hidden',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid var(--line)',
                       aspectRatio: '16/9',
-                      background: '#f1f5f9',
+                      background: 'var(--chip)',
                     }}
                   >
                     {ss.url ? (
@@ -494,7 +494,7 @@ function EditCampaign() {
                         borderRadius: '50%',
                         background: 'rgba(0,0,0,0.6)',
                         border: 'none',
-                        color: 'white',
+                        color: 'var(--on-primary)',
                         fontSize: '12px',
                         cursor: 'pointer',
                         display: 'flex',
@@ -512,7 +512,7 @@ function EditCampaign() {
                         left: 0,
                         right: 0,
                         background: 'rgba(0,0,0,0.5)',
-                        color: 'white',
+                        color: 'var(--on-primary)',
                         fontSize: '10px',
                         padding: '4px 6px',
                         whiteSpace: 'nowrap',
@@ -527,7 +527,7 @@ function EditCampaign() {
               </div>
             )}
 
-            <p style={{ color: '#64748b', fontSize: '13px', marginTop: '12px' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>
               {screenshots.length === 0
                 ? '💡 Screenshots are optional but help AI generate more accurate content.'
                 : `✅ ${screenshots.length} screenshot${screenshots.length !== 1 ? 's' : ''} added.`}
@@ -538,10 +538,10 @@ function EditCampaign() {
         {/* ── Step 3: Platforms & Tone ────────────────────────────────────── */}
         {step === 3 && (
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
               Platforms & Tone
             </h2>
-            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>
               Choose where to post and the writing style for the generated content.
             </p>
 
@@ -555,11 +555,11 @@ function EditCampaign() {
                       key={p.id}
                       onClick={() => togglePlatform(p.id)}
                       style={{
-                        border: `2px solid ${selected ? '#52b788' : '#e2e8f0'}`,
+                        border: `2px solid ${selected ? 'var(--accent)' : 'var(--line)'}`,
                         borderRadius: '10px',
                         padding: '12px 14px',
                         cursor: 'pointer',
-                        background: selected ? '#d8f3dc' : 'white',
+                        background: selected ? 'var(--accent-soft)' : 'var(--panel)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
@@ -568,8 +568,8 @@ function EditCampaign() {
                     >
                       <PlatformBadge platform={p.id} size="md" />
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>{p.name}</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{p.description}</div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{p.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{p.description}</div>
                       </div>
                       {selected && (
                         <span
@@ -578,8 +578,8 @@ function EditCampaign() {
                             width: '20px',
                             height: '20px',
                             borderRadius: '50%',
-                            background: '#52b788',
-                            color: 'white',
+                            background: 'var(--primary)',
+                            color: 'var(--on-primary)',
                             fontSize: '11px',
                             display: 'flex',
                             alignItems: 'center',
@@ -605,7 +605,7 @@ function EditCampaign() {
                   value={subreddits}
                   onChange={(e) => setSubreddits(e.target.value)}
                 />
-                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
                   A single subreddit or a comma-separated list — Reddit posts will be submitted to each.
                 </p>
               </div>
@@ -621,11 +621,11 @@ function EditCampaign() {
                       key={t.id}
                       onClick={() => setTone(t.id)}
                       style={{
-                        border: `2px solid ${selected ? '#52b788' : '#e2e8f0'}`,
+                        border: `2px solid ${selected ? 'var(--accent)' : 'var(--line)'}`,
                         borderRadius: '10px',
                         padding: '12px 14px',
                         cursor: 'pointer',
-                        background: selected ? '#d8f3dc' : 'white',
+                        background: selected ? 'var(--accent-soft)' : 'var(--panel)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
@@ -634,8 +634,8 @@ function EditCampaign() {
                     >
                       <span style={{ fontSize: '22px' }}>{t.icon}</span>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>{t.label}</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{t.desc}</div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{t.label}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{t.desc}</div>
                       </div>
                     </div>
                   )
@@ -647,8 +647,8 @@ function EditCampaign() {
             {generationError && (
               <div
                 style={{
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
+                  background: 'var(--fail-soft)',
+                  border: '1px solid var(--fail-line)',
                   borderRadius: '10px',
                   padding: '14px 16px',
                   display: 'flex',
@@ -659,10 +659,10 @@ function EditCampaign() {
               >
                 <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#991b1b', marginBottom: '2px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--fail)', marginBottom: '2px' }}>
                     Generation failed
                   </div>
-                  <div style={{ color: '#b91c1c', fontSize: '13px' }}>{generationError}</div>
+                  <div style={{ color: 'var(--fail)', fontSize: '13px' }}>{generationError}</div>
                 </div>
               </div>
             )}
@@ -671,8 +671,8 @@ function EditCampaign() {
             {!hasInferenceConfig() && !generationError && (
               <div
                 style={{
-                  background: '#fffbeb',
-                  border: '1px solid #fde68a',
+                  background: 'var(--warn-soft)',
+                  border: '1px solid var(--warn-line)',
                   borderRadius: '10px',
                   padding: '12px 16px',
                   display: 'flex',
@@ -683,17 +683,17 @@ function EditCampaign() {
               >
                 <span style={{ fontSize: '18px', flexShrink: 0 }}>💡</span>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '13px', color: '#92400e' }}>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--warn)' }}>
                     No AI key configured — will use template content
                   </div>
-                  <div style={{ color: '#a16207', fontSize: '12px', marginTop: '2px' }}>
+                  <div style={{ color: 'var(--warn)', fontSize: '12px', marginTop: '2px' }}>
                     Add an OpenRouter API key in{' '}
                     <button
                       onClick={() => navigate('/settings')}
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#a16207',
+                        color: 'var(--warn)',
                         textDecoration: 'underline',
                         cursor: 'pointer',
                         padding: 0,
@@ -713,10 +713,10 @@ function EditCampaign() {
         {/* ── Step 4: Generated Content ───────────────────────────────────── */}
         {step === 4 && (
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
               ✨ AI-Generated Content
             </h2>
-            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>
               Review and edit your generated posts before publishing or scheduling.
             </p>
 
@@ -736,13 +736,13 @@ function EditCampaign() {
                     width: '48px',
                     height: '48px',
                     borderRadius: '50%',
-                    border: '3px solid #e2e8f0',
-                    borderTopColor: '#52b788',
+                    border: '3px solid var(--line)',
+                    borderTopColor: 'var(--accent)',
                     animation: 'spin 0.8s linear infinite',
                   }}
                 />
-                <div style={{ fontWeight: 600, color: '#1e293b' }}>Generating your content…</div>
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center' }}>
+                <div style={{ fontWeight: 600, color: 'var(--ink)' }}>Generating your content…</div>
+                <div style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center' }}>
                   AI is crafting platform-specific posts for your campaign
                 </div>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -756,8 +756,8 @@ function EditCampaign() {
                 {usedFallback && (
                   <div
                     style={{
-                      background: '#fffbeb',
-                      border: '1px solid #fde68a',
+                      background: 'var(--warn-soft)',
+                      border: '1px solid var(--warn-line)',
                       borderRadius: '10px',
                       padding: '12px 16px',
                       display: 'flex',
@@ -767,10 +767,10 @@ function EditCampaign() {
                   >
                     <span style={{ fontSize: '18px' }}>💡</span>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#92400e' }}>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--warn)' }}>
                         Using template content
                       </div>
-                      <div style={{ color: '#a16207', fontSize: '12px' }}>
+                      <div style={{ color: 'var(--warn)', fontSize: '12px' }}>
                         These are generic drafts. Add an OpenRouter API key for campaign-specific posts.
                       </div>
                     </div>
@@ -784,16 +784,16 @@ function EditCampaign() {
                     <div
                       key={platform}
                       style={{
-                        border: '1px solid #e2e8f0',
+                        border: '1px solid var(--line)',
                         borderRadius: '12px',
                         overflow: 'hidden',
                       }}
                     >
                       <div
                         style={{
-                          background: '#fafbfc',
+                          background: 'var(--sunken)',
                           padding: '12px 16px',
-                          borderBottom: '1px solid #f1f5f9',
+                          borderBottom: '1px solid var(--line-soft)',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '10px',
@@ -801,7 +801,7 @@ function EditCampaign() {
                       >
                         <PlatformBadge platform={platform} size="md" />
                         <span style={{ fontWeight: 600, fontSize: '14px' }}>{cfg?.name}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: 'auto' }}>
+                        <span style={{ color: 'var(--muted)', fontSize: '12px', marginLeft: 'auto' }}>
                           {content.length}/{cfg?.charLimit} chars
                         </span>
                       </div>
@@ -815,7 +815,7 @@ function EditCampaign() {
                             outline: 'none',
                             fontSize: '14px',
                             lineHeight: '1.65',
-                            color: '#334155',
+                            color: 'var(--ink-2)',
                             resize: 'vertical',
                             minHeight: '120px',
                             background: 'transparent',
@@ -828,8 +828,8 @@ function EditCampaign() {
 
                 <div
                   style={{
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
+                    background: 'var(--ok-soft)',
+                    border: '1px solid var(--ok-line)',
                     borderRadius: '10px',
                     padding: '14px 16px',
                     display: 'flex',
@@ -839,10 +839,10 @@ function EditCampaign() {
                 >
                   <span style={{ fontSize: '20px' }}>✅</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#15803d' }}>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ok)' }}>
                       Content ready to publish!
                     </div>
-                    <div style={{ color: '#16a34a', fontSize: '12px' }}>
+                    <div style={{ color: 'var(--ok)', fontSize: '12px' }}>
                       {selectedPlatforms.length} post{selectedPlatforms.length !== 1 ? 's' : ''} generated.
                       Review above and click "Save Campaign" when ready.
                     </div>
@@ -861,19 +861,19 @@ function EditCampaign() {
             alignItems: 'center',
             marginTop: '32px',
             paddingTop: '24px',
-            borderTop: '1px solid #f1f5f9',
+            borderTop: '1px solid var(--line-soft)',
           }}
         >
           <button
             onClick={() => (step > 1 ? setStep((prev) => (prev - 1) as Step) : navigate(`/campaigns/${id}`))}
             disabled={generating}
             style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              background: 'var(--sunken)',
+              border: '1px solid var(--line)',
               borderRadius: '8px',
               padding: '10px 20px',
               fontSize: '14px',
-              color: generating ? '#94a3b8' : '#64748b',
+              color: generating ? 'var(--muted)' : 'var(--muted)',
               cursor: generating ? 'not-allowed' : 'pointer',
               fontWeight: 500,
             }}
@@ -887,19 +887,19 @@ function EditCampaign() {
                 onClick={() => setStep((prev) => (prev + 1) as Step)}
                 disabled={step === 1 && (!campaignName.trim() || !websiteUrl.trim() || !description.trim())}
                 style={{
-                  background: 'linear-gradient(135deg, #52b788, #40916c)',
+                  background: 'var(--primary)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '10px 24px',
                   fontSize: '14px',
-                  color: 'white',
+                  color: 'var(--on-primary)',
                   cursor: 'pointer',
                   fontWeight: 600,
                   opacity:
                     step === 1 && (!campaignName.trim() || !websiteUrl.trim() || !description.trim())
                       ? 0.5
                       : 1,
-                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+                  boxShadow: 'none',
                 }}
               >
                 Continue →
@@ -911,16 +911,16 @@ function EditCampaign() {
                 onClick={handleGenerate}
                 disabled={!canGenerate || generating}
                 style={{
-                  background: 'linear-gradient(135deg, #52b788, #40916c)',
+                  background: 'var(--primary)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '10px 24px',
                   fontSize: '14px',
-                  color: 'white',
+                  color: 'var(--on-primary)',
                   cursor: !canGenerate || generating ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
                   opacity: !canGenerate || generating ? 0.5 : 1,
-                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+                  boxShadow: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
@@ -933,22 +933,22 @@ function EditCampaign() {
             {step === 4 && generated && !generating && (
               <>
                 {saveError && (
-                  <span style={{ fontSize: '12px', color: '#dc2626' }}>{saveError}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--fail)' }}>{saveError}</span>
                 )}
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    background: 'linear-gradient(135deg, #52b788, #40916c)',
+                    background: 'var(--primary)',
                     border: 'none',
                     borderRadius: '8px',
                     padding: '10px 24px',
                     fontSize: '14px',
-                    color: 'white',
+                    color: 'var(--on-primary)',
                     cursor: saving ? 'not-allowed' : 'pointer',
                     fontWeight: 600,
                     opacity: saving ? 0.7 : 1,
-                    boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+                    boxShadow: 'none',
                   }}
                 >
                   {saving ? 'Saving…' : 'Save Changes ✓'}

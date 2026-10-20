@@ -239,14 +239,15 @@ describe('CreateCampaign — editing generated posts', () => {
     // Exactly at the limit → counter is NOT red.
     fireEvent.change(textarea, { target: { value: 'x'.repeat(cfg.charLimit) } })
     const counterAtLimit = screen.getByText(`${cfg.charLimit}/${cfg.charLimit} chars`)
-    expect(counterAtLimit.style.color).not.toBe('rgb(220, 38, 38)')
+    // jsdom drops var() colours from .style, so the counter states it as data.
+    expect(counterAtLimit).not.toHaveAttribute('data-over-limit')
 
     // jsdom does NOT enforce maxLength on fireEvent.change, so we can drive the
     // component's isOverLimit branch by setting a value beyond the limit. The
     // controlled state stores the full value and the counter turns red.
     fireEvent.change(textarea, { target: { value: 'x'.repeat(cfg.charLimit + 5) } })
     const counterOverLimit = screen.getByText(`${cfg.charLimit + 5}/${cfg.charLimit} chars`)
-    expect(counterOverLimit.style.color).toBe('rgb(220, 38, 38)')
+    expect(counterOverLimit).toHaveAttribute('data-over-limit', 'true')
   })
 
   // ── State persistence + save ───────────────────────────────────────────────

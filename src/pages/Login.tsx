@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { AuthBrand } from '../components/Brand';
 
 export default function Login() {
   const { login } = useAuth();
@@ -27,69 +28,14 @@ export default function Login() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#f8fafc',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-      }}
-    >
-      <div
-        style={{
-          background: 'white',
-          borderRadius: '16px',
-          border: '1px solid #e2e8f0',
-          padding: '40px',
-          width: '100%',
-          maxWidth: '400px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-        }}
-      >
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-          <img
-            src="/automarketer.png"
-            alt="AutoMarketer logo"
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '10px',
-              objectFit: 'cover',
-            }}
-          />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '17px', color: '#0f172a' }}>AutoMarketer</div>
-            <div style={{ color: '#64748b', fontSize: '12px' }}>AI Social Platform</div>
-            <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
-              By{' '}
-              <a
-                href="https://tynhub.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#52b788', textDecoration: 'none' }}
-              >
-                TynHub
-              </a>{' '}
-              and Built on{' '}
-              <a
-                href="https://factory-nexus.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#52b788', textDecoration: 'none' }}
-              >
-                Factory Nexus
-              </a>
-            </div>
-          </div>
-        </div>
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <AuthBrand />
 
-        <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
           Welcome back
         </h1>
-        <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '28px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '28px' }}>
           Sign in to your account
         </p>
 
@@ -97,11 +43,11 @@ export default function Login() {
           <div
             role="alert"
             style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
+              background: 'var(--fail-soft)',
+              border: '1px solid var(--fail-line)',
               borderRadius: '8px',
               padding: '12px 14px',
-              color: '#dc2626',
+              color: 'var(--fail)',
               fontSize: '13px',
               marginBottom: '20px',
             }}
@@ -114,7 +60,7 @@ export default function Login() {
           <div style={{ marginBottom: '16px' }}>
             <label
               htmlFor="email"
-              style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}
+              style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--ink-2)', marginBottom: '6px' }}
             >
               Email address
             </label>
@@ -128,10 +74,10 @@ export default function Login() {
               style={{
                 width: '100%',
                 padding: '10px 12px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--btn-line)',
                 borderRadius: '8px',
                 fontSize: '14px',
-                color: '#1e293b',
+                color: 'var(--ink)',
                 outline: 'none',
                 boxSizing: 'border-box',
               }}
@@ -142,7 +88,7 @@ export default function Login() {
           <div style={{ marginBottom: '24px' }}>
             <label
               htmlFor="password"
-              style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}
+              style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--ink-2)', marginBottom: '6px' }}
             >
               Password
             </label>
@@ -156,10 +102,10 @@ export default function Login() {
               style={{
                 width: '100%',
                 padding: '10px 12px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--btn-line)',
                 borderRadius: '8px',
                 fontSize: '14px',
-                color: '#1e293b',
+                color: 'var(--ink)',
                 outline: 'none',
                 boxSizing: 'border-box',
               }}
@@ -174,15 +120,15 @@ export default function Login() {
               width: '100%',
               padding: '11px',
               background: submitting
-                ? '#a7f3d0'
-                : 'linear-gradient(135deg, #52b788, #40916c)',
+                ? 'var(--off)'
+                : 'var(--primary)',
               border: 'none',
               borderRadius: '10px',
-              color: 'white',
+              color: 'var(--on-primary)',
               fontSize: '14px',
               fontWeight: 600,
               cursor: submitting ? 'not-allowed' : 'pointer',
-              boxShadow: submitting ? 'none' : '0 4px 14px rgba(82,183,136,0.35)',
+              boxShadow: submitting ? 'none' : 'none',
               transition: 'all 0.15s',
             }}
           >
@@ -190,9 +136,9 @@ export default function Login() {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '13px', color: '#64748b' }}>
+        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--muted)' }}>
           Don&apos;t have an account?{' '}
-          <Link to="/register" style={{ color: '#40916c', fontWeight: 600, textDecoration: 'none' }}>
+          <Link to="/register" style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>
             Create one
           </Link>
         </p>

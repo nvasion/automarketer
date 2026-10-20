@@ -67,10 +67,10 @@ function Analytics() {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+        <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
           Analytics
         </h1>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
           Publishing activity across all your campaigns and platforms.
         </p>
       </div>
@@ -81,16 +81,16 @@ function Analytics() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               padding: '20px',
             }}
           >
             <div style={{ fontSize: '22px', marginBottom: '8px' }}>{icon}</div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: '#0f172a', marginBottom: '2px' }}>{value}</div>
-            <div style={{ fontWeight: 600, fontSize: '13px', color: '#475569', marginBottom: '2px' }}>{label}</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{sub}</div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--ink)', marginBottom: '2px' }}>{value}</div>
+            <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink-2)', marginBottom: '2px' }}>{label}</div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{sub}</div>
           </div>
         ))}
       </div>
@@ -98,13 +98,13 @@ function Analytics() {
       {/* Engagement-metrics notice */}
       <div
         style={{
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
+          background: 'var(--sunken)',
+          border: '1px solid var(--line)',
           borderRadius: '10px',
           padding: '12px 16px',
           marginBottom: '28px',
           fontSize: '12px',
-          color: '#64748b',
+          color: 'var(--muted)',
         }}
       >
         💡 Engagement metrics (likes, comments, views) will appear here once a platform's metrics API is
@@ -114,18 +114,18 @@ function Analytics() {
       {/* Publishing activity chart */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--panel)',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--line)',
           padding: '24px',
           marginBottom: '24px',
         }}
       >
-        <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 20px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', margin: '0 0 20px' }}>
           Publishing Activity (last {NUM_WEEKS} weeks)
         </h2>
         {publishedCount === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+          <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--muted)', fontSize: '14px' }}>
             No posts published yet. Publish a post to see your activity here.
           </div>
         ) : (
@@ -153,14 +153,14 @@ function Analytics() {
                       width: '60%',
                       height: `${(w.count / maxWeek) * 100}%`,
                       minHeight: w.count > 0 ? '4px' : '0',
-                      background: 'linear-gradient(180deg, #52b788, #40916c)',
+                      background: 'var(--primary)',
                       borderRadius: '6px 6px 0 0',
                       transition: 'height 0.3s',
                     }}
                   />
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginTop: '6px' }}>{w.count}</div>
-                <div style={{ fontSize: '10px', color: '#94a3b8' }}>{w.label}</div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)', marginTop: '6px' }}>{w.count}</div>
+                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{w.label}</div>
               </div>
             ))}
           </div>
@@ -170,18 +170,18 @@ function Analytics() {
       {/* Platform breakdown */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--panel)',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--line)',
           padding: '24px',
           marginBottom: '24px',
         }}
       >
-        <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '0 0 20px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', margin: '0 0 20px' }}>
           Platform Breakdown
         </h2>
         {platformStats.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+          <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--muted)', fontSize: '14px' }}>
             No posts yet. Create a campaign to see a breakdown.
           </div>
         ) : (
@@ -193,17 +193,17 @@ function Analytics() {
                 alignItems: 'center',
                 gap: '12px',
                 padding: '10px 0',
-                borderBottom: '1px solid #f1f5f9',
+                borderBottom: '1px solid var(--line-soft)',
               }}
             >
               <PlatformBadge platform={platform} size="md" />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>{cfg.name}</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{total} post{total === 1 ? '' : 's'}</div>
+                <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{cfg.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{total} post{total === 1 ? '' : 's'}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{published}</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>published</div>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>{published}</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>published</div>
               </div>
             </div>
           ))
@@ -213,31 +213,31 @@ function Analytics() {
       {/* Recently published posts */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--panel)',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--line)',
           overflow: 'hidden',
         }}
       >
         <div
           style={{
             padding: '16px 24px',
-            borderBottom: '1px solid #f1f5f9',
+            borderBottom: '1px solid var(--line-soft)',
             fontWeight: 700,
             fontSize: '15px',
-            color: '#0f172a',
+            color: 'var(--ink)',
           }}
         >
           Recently Published
         </div>
         {recentPublished.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '14px' }}>
             No published posts yet.
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#fafbfc' }}>
+              <tr style={{ background: 'var(--sunken)' }}>
                 {['Post', 'Platform', 'Campaign', 'Published'].map((h) => (
                   <th
                     key={h}
@@ -246,10 +246,10 @@ function Analytics() {
                       textAlign: 'left',
                       fontSize: '11px',
                       fontWeight: 600,
-                      color: '#94a3b8',
+                      color: 'var(--muted)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
-                      borderBottom: '1px solid #f1f5f9',
+                      borderBottom: '1px solid var(--line-soft)',
                     }}
                   >
                     {h}
@@ -260,18 +260,18 @@ function Analytics() {
             <tbody>
               {recentPublished.map((post) => (
                 <tr key={post.id}>
-                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', maxWidth: '320px' }}>
-                    <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.4 }}>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', maxWidth: '320px' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--ink-2)', margin: 0, lineHeight: 1.4 }}>
                       {post.content.length > 100 ? `${post.content.slice(0, 100)}…` : post.content}
                     </p>
                   </td>
-                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa' }}>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)' }}>
                     <PlatformBadge platform={post.platform} size="sm" showLabel />
                   </td>
-                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', fontSize: '13px', color: '#64748b' }}>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', fontSize: '13px', color: 'var(--muted)' }}>
                     {post.campaign}
                   </td>
-                  <td style={{ padding: '12px 16px', borderBottom: '1px solid #f8f9fa', fontSize: '13px', color: '#64748b' }}>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', fontSize: '13px', color: 'var(--muted)' }}>
                     {new Date(post.publishedAt!).toLocaleDateString()}
                   </td>
                 </tr>

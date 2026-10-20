@@ -45,7 +45,7 @@ function PlatformBadge({ platform, size = 'md', showLabel = false }: Props) {
         {config.icon}
       </span>
       {showLabel && (
-        <span style={{ fontSize: '13px', fontWeight: 500, color: '#1e293b' }}>{config.name}</span>
+        <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>{config.name}</span>
       )}
     </span>
   )

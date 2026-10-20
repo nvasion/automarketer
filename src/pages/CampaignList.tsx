@@ -26,21 +26,21 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
     <div
       onClick={() => navigate(`/campaigns/${campaign.id}`)}
       style={{
-        background: 'white',
+        background: 'var(--panel)',
         borderRadius: '12px',
-        border: '1px solid #e2e8f0',
+        border: '1px solid var(--line)',
         padding: '20px',
         cursor: 'pointer',
         transition: 'all 0.2s',
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLDivElement
-        el.style.borderColor = '#b7e4c7'
-        el.style.boxShadow = '0 4px 16px rgba(82,183,136,0.1)'
+        el.style.borderColor = 'var(--accent-line)'
+        el.style.boxShadow = '0 4px 16px var(--accent-soft)'
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLDivElement
-        el.style.borderColor = '#e2e8f0'
+        el.style.borderColor = 'var(--line)'
         el.style.boxShadow = 'none'
       }}
     >
@@ -51,7 +51,7 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
             style={{
               fontSize: '15px',
               fontWeight: 700,
-              color: '#0f172a',
+              color: 'var(--ink)',
               marginBottom: '4px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -63,7 +63,7 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
           <a
             href={campaign.websiteUrl}
             onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: '12px', color: '#52b788', textDecoration: 'none' }}
+            style={{ fontSize: '12px', color: 'var(--accent)', textDecoration: 'none' }}
           >
             {campaign.websiteUrl}
           </a>
@@ -75,7 +75,7 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
       <p
         style={{
           fontSize: '13px',
-          color: '#64748b',
+          color: 'var(--muted)',
           lineHeight: 1.5,
           marginBottom: '14px',
           display: '-webkit-box',
@@ -100,7 +100,7 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
           display: 'flex',
           gap: '0',
           paddingTop: '14px',
-          borderTop: '1px solid #f1f5f9',
+          borderTop: '1px solid var(--line-soft)',
         }}
       >
         {[
@@ -117,11 +117,11 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
             style={{
               flex: 1,
               textAlign: 'center',
-              borderRight: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none',
+              borderRight: i < arr.length - 1 ? '1px solid var(--line-soft)' : 'none',
             }}
           >
-            <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>{value}</div>
-            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{label}</div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>{value}</div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{label}</div>
           </div>
         ))}
       </div>
@@ -149,28 +149,28 @@ function CampaignList() {
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+          <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
             Campaigns
           </h1>
-          <p style={{ color: '#64748b', fontSize: '14px' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             {loading ? 'Loading…' : `${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''} total`}
           </p>
         </div>
         <button
           onClick={() => navigate('/create')}
           style={{
-            background: 'linear-gradient(135deg, #52b788, #40916c)',
+            background: 'var(--primary)',
             border: 'none',
             borderRadius: '10px',
             padding: '10px 20px',
-            color: 'white',
+            color: 'var(--on-primary)',
             fontSize: '14px',
             fontWeight: 600,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+            boxShadow: 'none',
           }}
         >
           <span>✨</span> New Campaign
@@ -195,7 +195,7 @@ function CampaignList() {
               left: '12px',
               top: '50%',
               transform: 'translateY(-50%)',
-              color: '#94a3b8',
+              color: 'var(--muted)',
               fontSize: '14px',
             }}
           >
@@ -209,10 +209,10 @@ function CampaignList() {
               width: '100%',
               padding: '9px 14px 9px 36px',
               borderRadius: '8px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               fontSize: '14px',
               outline: 'none',
-              background: 'white',
+              background: 'var(--panel)',
             }}
           />
         </div>
@@ -226,9 +226,9 @@ function CampaignList() {
               style={{
                 padding: '7px 14px',
                 borderRadius: '8px',
-                border: `1px solid ${filter === value ? '#52b788' : '#e2e8f0'}`,
-                background: filter === value ? '#d8f3dc' : 'white',
-                color: filter === value ? '#40916c' : '#64748b',
+                border: `1px solid ${filter === value ? 'var(--accent)' : 'var(--line)'}`,
+                background: filter === value ? 'var(--accent-soft)' : 'var(--panel)',
+                color: filter === value ? 'var(--accent)' : 'var(--muted)',
                 fontSize: '13px',
                 fontWeight: filter === value ? 600 : 400,
                 cursor: 'pointer',
@@ -247,13 +247,13 @@ function CampaignList() {
           style={{
             textAlign: 'center',
             padding: '80px 40px',
-            background: 'white',
+            background: 'var(--panel)',
             borderRadius: '12px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--line)',
           }}
         >
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-          <p style={{ color: '#94a3b8', fontSize: '14px' }}>Loading campaigns…</p>
+          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Loading campaigns…</p>
         </div>
       )}
 
@@ -263,13 +263,13 @@ function CampaignList() {
           style={{
             textAlign: 'center',
             padding: '60px 40px',
-            background: '#fef2f2',
+            background: 'var(--fail-soft)',
             borderRadius: '12px',
-            border: '1px solid #fecaca',
+            border: '1px solid var(--fail-line)',
           }}
         >
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
-          <p style={{ color: '#dc2626', fontSize: '14px' }}>{error}</p>
+          <p style={{ color: 'var(--fail)', fontSize: '14px' }}>{error}</p>
         </div>
       )}
 
@@ -292,26 +292,26 @@ function CampaignList() {
             style={{
               textAlign: 'center',
               padding: '80px 40px',
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
             }}
           >
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
-            <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--ink)', marginBottom: '8px' }}>
               No campaigns found
             </h3>
-            <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '20px' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '20px' }}>
               {search ? `No campaigns match "${search}"` : 'Create your first campaign to get started.'}
             </p>
             <button
               onClick={() => navigate('/create')}
               style={{
-                background: 'linear-gradient(135deg, #52b788, #40916c)',
+                background: 'var(--primary)',
                 border: 'none',
                 borderRadius: '8px',
                 padding: '10px 24px',
-                color: 'white',
+                color: 'var(--on-primary)',
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',

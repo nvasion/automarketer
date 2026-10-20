@@ -29,7 +29,7 @@
   align-items: center;
   gap: 12px;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .headerText {
@@ -39,12 +39,12 @@
 .headerTitle {
   font-weight: 700;
   font-size: 15px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .headerSubtitle {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
   margin-top: 2px;
 }
 
@@ -52,7 +52,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 18px;
   padding: 2px 6px;
   line-height: 1;
@@ -68,7 +68,7 @@
 
 .methodSwitcher {
   display: flex;
-  background: #f1f5f9;
+  background: var(--chip);
   border-radius: 8px;
   padding: 3px;
   margin-bottom: 20px;
@@ -85,7 +85,7 @@
 
 .methodTabActive {
   background: white;
-  color: #0f172a;
+  color: var(--ink);
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   cursor: pointer;
@@ -93,7 +93,7 @@
 
 .methodTabInactive {
   background: transparent;
-  color: #64748b;
+  color: var(--muted);
   font-weight: 400;
   cursor: pointer;
 }
@@ -110,42 +110,42 @@
 
 .oauthDescription {
   font-size: 13px;
-  color: #64748b;
+  color: var(--muted);
   margin-bottom: 20px;
   line-height: 1.6;
 }
 
 .oauthStatus {
   font-size: 13px;
-  color: #64748b;
+  color: var(--muted);
   padding: 12px 0;
 }
 
 .oauthStatusSuccess {
   font-size: 14px;
-  color: #16a34a;
+  color: var(--ok);
   font-weight: 600;
   padding: 12px 0;
 }
 
 .oauthStatusError {
   font-size: 13px;
-  color: #dc2626;
+  color: var(--fail);
   padding: 8px 10px;
-  background: #fef2f2;
+  background: var(--fail-soft);
   border-radius: 6px;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--fail-line);
   margin-bottom: 12px;
   text-align: left;
 }
 
 .oauthRetryBtn {
   background: none;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 20px;
   font-size: 13px;
-  color: #374151;
+  color: var(--ink-2);
   cursor: pointer;
   font-weight: 500;
 }
@@ -154,7 +154,7 @@
 
 .credentialsDescription {
   font-size: 13px;
-  color: #64748b;
+  color: var(--muted);
   margin-bottom: 16px;
   line-height: 1.6;
 }
@@ -170,7 +170,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ink-2);
   margin-bottom: 5px;
 }
 
@@ -182,9 +182,9 @@
   width: 100%;
   padding: 9px 12px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--line);
   font-size: 13px;
-  color: #1e293b;
+  color: var(--ink);
   outline: none;
   background: white;
   box-sizing: border-box;
@@ -201,7 +201,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--muted);
   cursor: pointer;
   font-size: 11px;
   font-weight: 500;
@@ -210,9 +210,9 @@
 
 .securityNote {
   font-size: 11px;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--muted);
+  background: var(--sunken);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px 10px;
   margin-bottom: 14px;
@@ -221,12 +221,12 @@
 
 .credentialsError {
   font-size: 12px;
-  color: #dc2626;
+  color: var(--fail);
   margin-bottom: 12px;
   padding: 8px 10px;
-  background: #fef2f2;
+  background: var(--fail-soft);
   border-radius: 6px;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--fail-line);
 }
 
 .connectBtn {
@@ -234,7 +234,7 @@
   padding: 10px 20px;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(135deg, #52b788, #40916c);
+  background: var(--primary);
   color: white;
   font-weight: 700;
   font-size: 14px;
