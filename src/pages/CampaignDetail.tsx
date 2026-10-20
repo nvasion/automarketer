@@ -101,7 +101,7 @@ function CampaignDetail() {
 
   if (loading) {
     return (
-      <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+      <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>
         <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
         <p>Loading campaign…</p>
       </div>
@@ -112,15 +112,15 @@ function CampaignDetail() {
     return (
       <div style={{ padding: '32px', textAlign: 'center' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>😕</div>
-        <h2 style={{ color: '#1e293b', marginBottom: '8px' }}>Campaign not found</h2>
+        <h2 style={{ color: 'var(--ink)', marginBottom: '8px' }}>Campaign not found</h2>
         <button
           onClick={() => navigate('/campaigns')}
           style={{
-            background: '#52b788',
+            background: 'var(--primary)',
             border: 'none',
             borderRadius: '8px',
             padding: '10px 24px',
-            color: 'white',
+            color: 'var(--on-primary)',
             cursor: 'pointer',
             fontWeight: 600,
           }}
@@ -286,7 +286,7 @@ function CampaignDetail() {
           style={{
             background: 'none',
             border: 'none',
-            color: '#52b788',
+            color: 'var(--accent)',
             fontSize: '13px',
             cursor: 'pointer',
             padding: 0,
@@ -294,16 +294,16 @@ function CampaignDetail() {
         >
           Campaigns
         </button>
-        <span style={{ color: '#cbd5e1' }}>›</span>
-        <span style={{ color: '#64748b', fontSize: '13px' }}>{campaign.name}</span>
+        <span style={{ color: 'var(--btn-line)' }}>›</span>
+        <span style={{ color: 'var(--muted)', fontSize: '13px' }}>{campaign.name}</span>
       </div>
 
       {/* Campaign header */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--panel)',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--line)',
           padding: '24px',
           marginBottom: '24px',
         }}
@@ -311,26 +311,26 @@ function CampaignDetail() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a' }}>{campaign.name}</h1>
+              <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>{campaign.name}</h1>
               <StatusBadge status={campaign.status} pulse={campaign.status === 'generating'} />
             </div>
             <a
               href={campaign.websiteUrl}
-              style={{ color: '#52b788', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              style={{ color: 'var(--accent)', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
               🌐 {campaign.websiteUrl}
             </a>
-            <p style={{ color: '#64748b', fontSize: '14px', marginTop: '8px', lineHeight: 1.6 }}>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginTop: '8px', lineHeight: 1.6 }}>
               {campaign.description}
             </p>
             <div style={{ display: 'flex', gap: '16px', marginTop: '12px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', color: '#64748b' }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
                 👥 <strong>Audience:</strong> {campaign.targetAudience}
               </span>
-              <span style={{ fontSize: '13px', color: '#64748b' }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
                 🎯 <strong>Tone:</strong> {campaign.tone.charAt(0).toUpperCase() + campaign.tone.slice(1)}
               </span>
-              <span style={{ fontSize: '13px', color: '#64748b' }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
                 📅 <strong>Created:</strong>{' '}
                 {new Date(campaign.createdAt).toLocaleDateString('en-US', {
                   month: 'long',
@@ -346,15 +346,15 @@ function CampaignDetail() {
             {campaign.status === 'ready' && (
               <button
                 style={{
-                  background: 'linear-gradient(135deg, #52b788, #40916c)',
+                  background: 'var(--primary)',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '9px 18px',
-                  color: 'white',
+                  color: 'var(--on-primary)',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+                  boxShadow: 'none',
                 }}
               >
                 🚀 Publish All
@@ -363,12 +363,12 @@ function CampaignDetail() {
             <button
               onClick={() => navigate(`/campaigns/${campaign.id}/edit`)}
               style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: 'var(--sunken)',
+                border: '1px solid var(--line)',
                 borderRadius: '8px',
                 padding: '9px 18px',
                 fontSize: '13px',
-                color: '#64748b',
+                color: 'var(--muted)',
                 cursor: 'pointer',
                 fontWeight: 500,
               }}
@@ -379,7 +379,7 @@ function CampaignDetail() {
         </div>
 
         {/* Platforms */}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--line-soft)' }}>
           {campaign.platforms.map((p) => {
             const cfg = PLATFORM_CONFIGS.find((c) => c.id === p)
             return (
@@ -389,14 +389,14 @@ function CampaignDetail() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
+                  background: 'var(--sunken)',
+                  border: '1px solid var(--line)',
                   borderRadius: '8px',
                   padding: '5px 10px',
                 }}
               >
                 <PlatformBadge platform={p} size="sm" />
-                <span style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>{cfg?.name}</span>
+                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--ink-2)' }}>{cfg?.name}</span>
               </div>
             )
           })}
@@ -425,16 +425,16 @@ function CampaignDetail() {
           <div
             key={label}
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '10px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               padding: '16px',
               textAlign: 'center',
             }}
           >
             <div style={{ fontSize: '20px', marginBottom: '4px' }}>{icon}</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a' }}>{value}</div>
-            <div style={{ fontSize: '12px', color: '#94a3b8' }}>{label}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>{value}</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{label}</div>
           </div>
         ))}
       </div>
@@ -442,9 +442,9 @@ function CampaignDetail() {
       {/* Posts section */}
       <div
         style={{
-          background: 'white',
+          background: 'var(--panel)',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
+          border: '1px solid var(--line)',
           overflow: 'hidden',
         }}
       >
@@ -453,7 +453,7 @@ function CampaignDetail() {
           style={{
             display: 'flex',
             gap: '0',
-            borderBottom: '1px solid #f1f5f9',
+            borderBottom: '1px solid var(--line-soft)',
             padding: '0 20px',
             overflowX: 'auto',
           }}
@@ -466,9 +466,9 @@ function CampaignDetail() {
               padding: '14px 16px',
               fontSize: '13px',
               fontWeight: activeTab === 'all' ? 600 : 400,
-              color: activeTab === 'all' ? '#40916c' : '#64748b',
+              color: activeTab === 'all' ? 'var(--accent)' : 'var(--muted)',
               cursor: 'pointer',
-              borderBottom: activeTab === 'all' ? '2px solid #52b788' : '2px solid transparent',
+              borderBottom: activeTab === 'all' ? '2px solid var(--accent)' : '2px solid transparent',
               transition: 'all 0.15s',
               whiteSpace: 'nowrap',
             }}
@@ -488,9 +488,9 @@ function CampaignDetail() {
                   padding: '14px 16px',
                   fontSize: '13px',
                   fontWeight: activeTab === p ? 600 : 400,
-                  color: activeTab === p ? '#40916c' : '#64748b',
+                  color: activeTab === p ? 'var(--accent)' : 'var(--muted)',
                   cursor: 'pointer',
-                  borderBottom: activeTab === p ? '2px solid #52b788' : '2px solid transparent',
+                  borderBottom: activeTab === p ? '2px solid var(--accent)' : '2px solid transparent',
                   transition: 'all 0.15s',
                   whiteSpace: 'nowrap',
                   display: 'flex',
@@ -514,10 +514,10 @@ function CampaignDetail() {
               alignItems: 'center',
               gap: '10px',
               padding: '10px 20px',
-              background: '#f0fdf4',
-              borderBottom: '1px solid #bbf7d0',
+              background: 'var(--ok-soft)',
+              borderBottom: '1px solid var(--ok-line)',
               fontSize: '13px',
-              color: '#374151',
+              color: 'var(--ink-2)',
               flexWrap: 'wrap',
             }}
           >
@@ -527,7 +527,7 @@ function CampaignDetail() {
             </span>
 
             {linkedInPages.length === 1 ? (
-              <span style={{ color: '#1e293b' }}>
+              <span style={{ color: 'var(--ink)' }}>
                 {linkedInPages[0]?.type === 'organization' ? '🏢' : '👤'}{' '}
                 {linkedInPages[0]?.name}
               </span>
@@ -540,9 +540,9 @@ function CampaignDetail() {
                   fontSize: '12px',
                   padding: '4px 8px',
                   borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  background: 'white',
-                  color: '#1e293b',
+                  border: '1px solid var(--btn-line)',
+                  background: 'var(--panel)',
+                  color: 'var(--ink)',
                   cursor: 'pointer',
                   minWidth: '160px',
                 }}
@@ -557,7 +557,7 @@ function CampaignDetail() {
             )}
 
             {linkedInPages.length > 1 && (
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
                 · switch to post as a different page or profile
               </span>
             )}
@@ -579,7 +579,7 @@ function CampaignDetail() {
               />
             ))
           ) : (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
               <p>No posts for this platform yet.</p>
             </div>

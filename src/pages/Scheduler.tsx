@@ -77,10 +77,10 @@ function Scheduler() {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+        <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
           Scheduler
         </h1>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
           Plan and schedule your social media posts across all platforms.
         </p>
       </div>
@@ -89,9 +89,9 @@ function Scheduler() {
         {/* Calendar */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--panel)',
             borderRadius: '16px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--line)',
             overflow: 'hidden',
           }}
         >
@@ -102,14 +102,14 @@ function Scheduler() {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '18px 20px',
-              borderBottom: '1px solid #f1f5f9',
+              borderBottom: '1px solid var(--line-soft)',
             }}
           >
             <button
               onClick={prevMonth}
               style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: 'var(--sunken)',
+                border: '1px solid var(--line)',
                 borderRadius: '8px',
                 width: '32px',
                 height: '32px',
@@ -122,14 +122,14 @@ function Scheduler() {
             >
               ‹
             </button>
-            <h2 style={{ fontWeight: 700, color: '#0f172a', fontSize: '16px' }}>
+            <h2 style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '16px' }}>
               {MONTHS[viewMonth]} {viewYear}
             </h2>
             <button
               onClick={nextMonth}
               style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: 'var(--sunken)',
+                border: '1px solid var(--line)',
                 borderRadius: '8px',
                 width: '32px',
                 height: '32px',
@@ -154,7 +154,7 @@ function Scheduler() {
                   padding: '10px 4px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: '#94a3b8',
+                  color: 'var(--muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
                 }}
@@ -196,13 +196,13 @@ function Scheduler() {
                     borderRadius: '8px',
                     padding: '6px',
                     cursor: 'pointer',
-                    background: isSelected ? '#d8f3dc' : 'transparent',
-                    border: `1px solid ${isSelected ? '#b7e4c7' : 'transparent'}`,
+                    background: isSelected ? 'var(--accent-soft)' : 'transparent',
+                    border: `1px solid ${isSelected ? 'var(--accent-line)' : 'transparent'}`,
                     transition: 'all 0.1s',
                     minHeight: '62px',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = '#f8fafc'
+                    if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'var(--sunken)'
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'transparent'
@@ -213,8 +213,8 @@ function Scheduler() {
                       width: '26px',
                       height: '26px',
                       borderRadius: '50%',
-                      background: isToday ? '#52b788' : 'transparent',
-                      color: isToday ? 'white' : '#334155',
+                      background: isToday ? 'var(--primary)' : 'transparent',
+                      color: isToday ? 'var(--on-primary)' : 'var(--ink-2)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -234,13 +234,13 @@ function Scheduler() {
                           height: '8px',
                           borderRadius: '2px',
                           background:
-                            item.post.status === 'published' ? '#22c55e' : '#f59e0b',
+                            item.post.status === 'published' ? 'var(--ok)' : 'var(--warn)',
                         }}
                         title={`${item.campaignName} — ${item.post.platform}`}
                       />
                     ))}
                     {dayPosts.length > 3 && (
-                      <span style={{ fontSize: '9px', color: '#94a3b8' }}>+{dayPosts.length - 3}</span>
+                      <span style={{ fontSize: '9px', color: 'var(--muted)' }}>+{dayPosts.length - 3}</span>
                     )}
                   </div>
                 </div>
@@ -252,16 +252,16 @@ function Scheduler() {
           {selectedDay !== null && (
             <div
               style={{
-                borderTop: '1px solid #f1f5f9',
+                borderTop: '1px solid var(--line-soft)',
                 padding: '16px 20px',
-                background: '#fafbfc',
+                background: 'var(--sunken)',
               }}
             >
-              <h3 style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b', marginBottom: '12px' }}>
+              <h3 style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)', marginBottom: '12px' }}>
                 {MONTHS[viewMonth]} {selectedDay}, {viewYear}
               </h3>
               {selectedItems.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: '13px' }}>No posts scheduled for this day.</p>
+                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>No posts scheduled for this day.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {selectedItems.map((item) => (
@@ -271,21 +271,21 @@ function Scheduler() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        background: 'white',
-                        border: '1px solid #e2e8f0',
+                        background: 'var(--panel)',
+                        border: '1px solid var(--line)',
                         borderRadius: '8px',
                         padding: '10px 12px',
                       }}
                     >
                       <PlatformBadge platform={item.post.platform} size="sm" />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 500, fontSize: '13px', color: '#1e293b' }}>
+                        <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--ink)' }}>
                           {item.campaignName}
                         </div>
                         <div
                           style={{
                             fontSize: '12px',
-                            color: '#94a3b8',
+                            color: 'var(--muted)',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -308,26 +308,26 @@ function Scheduler() {
           {/* Upcoming posts */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '16px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               overflow: 'hidden',
             }}
           >
             <div
               style={{
                 padding: '16px 20px',
-                borderBottom: '1px solid #f1f5f9',
+                borderBottom: '1px solid var(--line-soft)',
                 fontWeight: 700,
                 fontSize: '15px',
-                color: '#0f172a',
+                color: 'var(--ink)',
               }}
             >
               Upcoming Posts
             </div>
             <div style={{ padding: '12px' }}>
               {upcomingPosts.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>
                   No upcoming posts scheduled.
                 </div>
               ) : (
@@ -347,10 +347,10 @@ function Scheduler() {
                     >
                       <PlatformBadge platform={item.post.platform as Platform} size="sm" />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 500, fontSize: '13px', color: '#1e293b', marginBottom: '2px' }}>
+                        <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--ink)', marginBottom: '2px' }}>
                           {item.campaignName}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
                           📅{' '}
                           {date.toLocaleDateString('en-US', {
                             month: 'short',
@@ -370,22 +370,22 @@ function Scheduler() {
           {/* Legend */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               padding: '16px 20px',
             }}
           >
-            <h3 style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b', marginBottom: '12px' }}>
+            <h3 style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)', marginBottom: '12px' }}>
               Legend
             </h3>
             {[
-              { color: '#22c55e', label: 'Published' },
-              { color: '#f59e0b', label: 'Scheduled' },
+              { color: 'var(--ok)', label: 'Published' },
+              { color: 'var(--warn)', label: 'Scheduled' },
             ].map(({ color, label }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: color }} />
-                <span style={{ fontSize: '13px', color: '#64748b' }}>{label}</span>
+                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{label}</span>
               </div>
             ))}
           </div>

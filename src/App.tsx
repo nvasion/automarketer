@@ -1,7 +1,11 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Sidebar from './components/Sidebar'
+import { Lockup } from './components/Brand'
+import { ThemeSwitch } from './components/Theme'
+import LandingPage from './pages/public/LandingPage'
+import HowItWorksPage from './pages/public/HowItWorksPage'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -14,28 +18,43 @@ import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import './App.css'
 
-/** Layout wrapper for authenticated pages: sidebar + main content area. */
+/**
+ * Layout wrapper for authenticated pages, the TynHub console frame shared with
+ * Routini: slate masthead with the lockup, left nav, then the page.
+ */
 function AppShell({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
   return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        backgroundColor: '#f8fafc',
-      }}
-    >
-      <Sidebar />
-      <main
-        style={{
-          flex: 1,
-          marginLeft: '240px',
-          minHeight: '100vh',
-          overflowX: 'hidden',
-        }}
-      >
-        {children}
-      </main>
+    <div className="shell">
+      <header className="am-header">
+        <Link className="brand" to="/" aria-label="AutoMarketer home">
+          <Lockup size={34} sub="AI MARKETING · ON TYNHUB" />
+        </Link>
+        <span className="am-header-spacer" />
+        <ThemeSwitch />
+        <button type="button" className="btn primary" onClick={() => navigate('/create')}>
+          New campaign
+        </button>
+      </header>
+      <div className="shell-body">
+        <Sidebar />
+        <main className="shell-main" id="main">
+          {children}
+        </main>
+      </div>
     </div>
+  )
+}
+
+/** "/" is the dashboard when signed in and the public front page otherwise. */
+function HomeRoute() {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (!user) return <LandingPage />
+  return (
+    <AppShell>
+      <Dashboard />
+    </AppShell>
   )
 }
 
@@ -68,17 +87,10 @@ function App() {
         }
       />
 
+      <Route path="/how-it-works" element={<HowItWorksPage />} />
+
       {/* ── Protected routes ── */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <AppShell>
-              <Dashboard />
-            </AppShell>
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/" element={<HomeRoute />} />
       <Route
         path="/campaigns"
         element={

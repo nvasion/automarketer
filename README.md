@@ -274,7 +274,12 @@ automarketer/
 │   │   ├── CreateCampaign.tsx# 4-step campaign creation wizard with real AI generation
 │   │   ├── Scheduler.tsx     # Calendar view for scheduled and published posts
 │   │   ├── Analytics.tsx     # Engagement charts and platform performance breakdown
-│   │   └── Settings.tsx      # Profile, platforms, AI inference config, and notifications
+│   │   ├── Settings.tsx      # Profile, platforms, AI inference config, and notifications
+│   │   └── public/           # Landing + How it works (PublicLayout, Shot, shared copy in content.ts)
+│   ├── styles/
+│   │   ├── tokens.css        # TynHub theme tokens (light + dark) and self-hosted fonts
+│   │   └── public.css        # Public pages and sign-in cards
+│   ├── assets/               # Fonts, brand mark/tile (cut from public/automarketer.png), screenshots
 │   ├── services/
 │   │   ├── ai/               # AI inference abstraction layer (see above)
 │   │   ├── social/           # Social media posting connectors (see above)
@@ -317,12 +322,31 @@ automarketer/
 └── tsconfig.server.json      # TypeScript configuration (server — targets Node ESM)
 ```
 
+## Design system
+
+AutoMarketer uses TynHub's design system, shared with Routini: the same layout, Barlow Semi Condensed / IBM Plex Sans / IBM Plex Mono (self-hosted in `src/assets/fonts`) and three themes, as Routini has. **AutoMarketer** (the default) keeps the product's own colours: green brand on a navy masthead and nav, indigo focus. **TynHub dark** and **TynHub light** are the network's palette: slate masthead, azure for anything interactive, ember for activity. The switch is in the masthead and the public footer. Colours come only from the tokens in `src/styles/tokens.css`; inline styles use them as `var(--ink)`, `var(--primary)`, `var(--fail)` and so on, so every theme applies everywhere. Platform badge colours are the networks' own marks and stay fixed.
+
+### Screenshots for the public pages
+
+The How it works page shows real screenshots in every theme (`src/assets/shots/<name>-automarketer|light|dark.webp`). Regenerate them after UI changes:
+
+```bash
+# NODE_ENV=test raises the auth rate limit (every page load calls /api/auth/me);
+# any *_CLIENT_ID value makes Connected Platforms show Connect buttons.
+NODE_ENV=test LINKEDIN_CLIENT_ID=demo TWITTER_CLIENT_ID=demo REDDIT_CLIENT_ID=demo FACEBOOK_CLIENT_ID=demo npm run dev:full
+node scripts/shots.mjs                # BASE_URL defaults to http://localhost:5173
+```
+
+It needs Playwright with Chromium (`PLAYWRIGHT=/path/to/playwright/index.mjs` if it isn't installed here). See the header of `scripts/shots.mjs` for options.
+
 ## Routes
 
 ### Public (no authentication required)
 
 | Path | Page | Description |
 |------|------|-------------|
+| `/` | Landing | Public front page when signed out (the dashboard when signed in) |
+| `/how-it-works` | How it works | Step-by-step walkthrough with screenshots of the app |
 | `/login` | Login | Sign-in form |
 | `/register` | Register | Account creation form |
 
@@ -330,7 +354,7 @@ automarketer/
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | Dashboard | Home with metrics and recent campaigns |
+| `/` | Dashboard | Home with metrics and recent campaigns (signed in) |
 | `/campaigns` | Campaign List | Browse and filter all campaigns |
 | `/campaigns/:id` | Campaign Detail | View and manage posts for a single campaign |
 | `/create` | Create Campaign | Step-by-step campaign creation wizard |

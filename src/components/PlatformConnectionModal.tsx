@@ -50,22 +50,22 @@ function NotConfiguredNotice({ platformName, envPrefix }: { platformName: string
     <div data-testid="platform-not-configured" style={{ textAlign: 'left' }}>
       <div
         style={{
-          background: '#fffbeb',
-          border: '1px solid #fde68a',
+          background: 'var(--warn-soft)',
+          border: '1px solid var(--warn-line)',
           borderRadius: '8px',
           padding: '12px 14px',
           fontSize: '13px',
-          color: '#92400e',
+          color: 'var(--warn)',
           lineHeight: 1.5,
         }}
       >
         <strong>{platformName} isn't configured on the server yet.</strong> AutoMarketer
         uses a single shared OAuth app per platform. Ask your administrator to set{' '}
-        <code style={{ background: '#fde68a', padding: '1px 5px', borderRadius: '3px' }}>
+        <code style={{ background: 'var(--warn-line)', padding: '1px 5px', borderRadius: '3px' }}>
           {envPrefix}_CLIENT_ID
         </code>{' '}
         and{' '}
-        <code style={{ background: '#fde68a', padding: '1px 5px', borderRadius: '3px' }}>
+        <code style={{ background: 'var(--warn-line)', padding: '1px 5px', borderRadius: '3px' }}>
           {envPrefix}_CLIENT_SECRET
         </code>{' '}
         in the server environment, then restart the API server.
@@ -641,21 +641,21 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
             <div className={styles.oauthPanel}>
               {/* Loading state */}
               {configLoadState === 'loading' && (
-                <div data-testid="oauth-loading" style={{ color: '#64748b', fontSize: '13px', padding: '12px 0' }}>
+                <div data-testid="oauth-loading" style={{ color: 'var(--muted)', fontSize: '13px', padding: '12px 0' }}>
                   Loading configuration…
                 </div>
               )}
 
               {/* Config fetch error */}
               {configLoadState === 'error' && (
-                <div style={{ color: '#dc2626', fontSize: '13px', padding: '12px 0' }}>
+                <div style={{ color: 'var(--fail)', fontSize: '13px', padding: '12px 0' }}>
                   Could not load platform configuration. Please refresh and try again.
                 </div>
               )}
 
               {/* Ready — platform not supported (unknown id) */}
               {configLoadState === 'ready' && !oauthConfig && (
-                <div data-testid="oauth-status" style={{ color: '#64748b', fontSize: '13px', padding: '12px 0' }}>
+                <div data-testid="oauth-status" style={{ color: 'var(--muted)', fontSize: '13px', padding: '12px 0' }}>
                   OAuth is not configured for this platform.
                 </div>
               )}
@@ -681,7 +681,7 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
                         <div style={{ marginBottom: '12px' }}>
                           <label
                             htmlFor="bluesky-handle"
-                            style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}
+                            style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '6px' }}
                           >
                             Your Bluesky Handle
                           </label>
@@ -697,16 +697,16 @@ function PlatformConnectionModal({ platform, onClose, onConnect }: Props) {
                               width: '100%',
                               padding: '9px 12px',
                               borderRadius: '8px',
-                              border: '1px solid #e2e8f0',
+                              border: '1px solid var(--line)',
                               fontSize: '14px',
-                              color: '#1e293b',
+                              color: 'var(--ink)',
                               outline: 'none',
                               boxSizing: 'border-box',
                             }}
                             autoComplete="username"
                             autoFocus
                           />
-                          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                          <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
                             You can use any Bluesky handle, e.g. alice.bsky.social or alice.example.com
                           </p>
                         </div>

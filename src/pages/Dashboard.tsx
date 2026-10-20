@@ -13,27 +13,27 @@ function CampaignRow({ campaign }: { campaign: CampaignRecord }) {
     <tr
       onClick={() => navigate(`/campaigns/${campaign.id}`)}
       style={{ cursor: 'pointer', transition: 'background 0.1s' }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = '#f8fafc')}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = 'var(--sunken)')}
       onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = 'transparent')}
     >
-      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>{campaign.name}</div>
-        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{campaign.websiteUrl}</div>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>{campaign.name}</div>
+        <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{campaign.websiteUrl}</div>
       </td>
-      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
         <div style={{ display: 'flex', gap: '4px' }}>
           {campaign.platforms.map((p) => (
             <PlatformBadge key={p} platform={p} size="sm" />
           ))}
         </div>
       </td>
-      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)' }}>
         <StatusBadge status={campaign.status} size="sm" pulse={campaign.status === 'generating'} />
       </td>
-      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', color: '#64748b', fontSize: '13px' }}>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--muted)', fontSize: '13px' }}>
         {campaign.posts.length} posts
       </td>
-      <td style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '13px' }}>
+      <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--line-soft)', color: 'var(--muted)', fontSize: '13px' }}>
         {new Date(campaign.createdAt).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -53,15 +53,15 @@ function Dashboard() {
       label: 'Total Campaigns',
       value: stats?.totalCampaigns ?? '—',
       icon: '📢',
-      color: '#6366f1',
-      bg: '#eff0ff',
+      color: 'var(--accent)',
+      bg: 'var(--accent-soft)',
     },
     {
       label: 'Posts Published',
       value: stats?.totalPostsPublished ?? '—',
       icon: '✅',
-      color: '#10b981',
-      bg: '#ecfdf5',
+      color: 'var(--ok)',
+      bg: 'var(--ok-soft)',
     },
     {
       label: 'Total Engagements',
@@ -71,15 +71,15 @@ function Dashboard() {
           : String(stats.totalEngagements)
         : '—',
       icon: '🔥',
-      color: '#f59e0b',
-      bg: '#fffbeb',
+      color: 'var(--warn)',
+      bg: 'var(--warn-soft)',
     },
     {
       label: 'Avg. Engagement Rate',
       value: stats ? `${stats.avgEngagementRate}%` : '—',
       icon: '📈',
-      color: '#3b82f6',
-      bg: '#eff6ff',
+      color: 'var(--accent)',
+      bg: 'var(--accent-soft)',
     },
   ]
 
@@ -103,28 +103,28 @@ function Dashboard() {
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+          <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
             Dashboard
           </h1>
-          <p style={{ color: '#64748b', fontSize: '14px' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             Welcome back! Here's your marketing overview.
           </p>
         </div>
         <button
           onClick={() => navigate('/create')}
           style={{
-            background: 'linear-gradient(135deg, #52b788, #40916c)',
+            background: 'var(--primary)',
             border: 'none',
             borderRadius: '10px',
             padding: '10px 20px',
-            color: 'white',
+            color: 'var(--on-primary)',
             fontSize: '14px',
             fontWeight: 600,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            boxShadow: '0 4px 14px rgba(82,183,136,0.35)',
+            boxShadow: 'none',
           }}
         >
           <span>✨</span> New Campaign
@@ -144,14 +144,14 @@ function Dashboard() {
           <div
             key={card.label}
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               padding: '20px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ color: '#64748b', fontSize: '13px', fontWeight: 500 }}>{card.label}</span>
+              <span style={{ color: 'var(--muted)', fontSize: '13px', fontWeight: 500 }}>{card.label}</span>
               <span
                 style={{
                   width: '36px',
@@ -167,7 +167,7 @@ function Dashboard() {
                 {card.icon}
               </span>
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--ink)' }}>
               {card.value}
             </div>
           </div>
@@ -179,28 +179,28 @@ function Dashboard() {
         {/* Recent campaigns */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--panel)',
             borderRadius: '12px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--line)',
             overflow: 'hidden',
           }}
         >
           <div
             style={{
               padding: '16px 20px',
-              borderBottom: '1px solid #f1f5f9',
+              borderBottom: '1px solid var(--line-soft)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Recent Campaigns</h2>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>Recent Campaigns</h2>
             <button
               onClick={() => navigate('/campaigns')}
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#52b788',
+                color: 'var(--accent)',
                 fontSize: '13px',
                 cursor: 'pointer',
                 fontWeight: 500,
@@ -210,15 +210,15 @@ function Dashboard() {
             </button>
           </div>
           {campaignsLoading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
               Loading campaigns…
             </div>
           ) : campaigns.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '14px' }}>
               No campaigns yet.{' '}
               <span
                 onClick={() => navigate('/create')}
-                style={{ color: '#52b788', cursor: 'pointer', fontWeight: 500 }}
+                style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}
               >
                 Create your first campaign →
               </span>
@@ -226,7 +226,7 @@ function Dashboard() {
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#fafbfc' }}>
+                <tr style={{ background: 'var(--sunken)' }}>
                   {['Campaign', 'Platforms', 'Status', 'Posts', 'Created'].map((h) => (
                     <th
                       key={h}
@@ -235,10 +235,10 @@ function Dashboard() {
                         textAlign: 'left',
                         fontSize: '11px',
                         fontWeight: 600,
-                        color: '#94a3b8',
+                        color: 'var(--muted)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.05em',
-                        borderBottom: '1px solid #f1f5f9',
+                        borderBottom: '1px solid var(--line-soft)',
                       }}
                     >
                       {h}
@@ -260,17 +260,17 @@ function Dashboard() {
           {/* Platform performance */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               padding: '20px',
             }}
           >
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginBottom: '16px' }}>
               Platform Performance
             </h3>
             {platformPerformance.length === 0 ? (
-              <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>
+              <div style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>
                 No engagement data yet.
               </div>
             ) : (
@@ -281,24 +281,24 @@ function Dashboard() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <PlatformBadge platform={platform} size="sm" />
-                        <span style={{ fontSize: '13px', fontWeight: 500, color: '#334155' }}>{cfg.name}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink-2)' }}>{cfg.name}</span>
                       </div>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
                         {engagements >= 1000 ? `${(engagements / 1000).toFixed(1)}k` : engagements} engagements
                       </span>
                     </div>
-                    <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '6px', background: 'var(--chip)', borderRadius: '3px', overflow: 'hidden' }}>
                       <div
                         style={{
                           height: '100%',
                           width: `${pct}%`,
-                          background: cfg.bgColor ?? '#6366f1',
+                          background: cfg.bgColor ?? 'var(--primary)',
                           borderRadius: '3px',
                           transition: 'width 0.8s ease',
                         }}
                       />
                     </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>{posts} posts</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>{posts} posts</div>
                   </div>
                 )
               })
@@ -308,13 +308,13 @@ function Dashboard() {
           {/* Quick actions */}
           <div
             style={{
-              background: 'white',
+              background: 'var(--panel)',
               borderRadius: '12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--line)',
               padding: '20px',
             }}
           >
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginBottom: '14px' }}>
               Quick Actions
             </h3>
             {[
@@ -332,9 +332,9 @@ function Dashboard() {
                   gap: '10px',
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  border: primary ? 'none' : '1px solid #e2e8f0',
-                  background: primary ? 'linear-gradient(135deg, #52b788, #40916c)' : '#fafbfc',
-                  color: primary ? 'white' : '#334155',
+                  border: primary ? 'none' : '1px solid var(--line)',
+                  background: primary ? 'var(--primary)' : 'var(--sunken)',
+                  color: primary ? 'var(--on-primary)' : 'var(--ink-2)',
                   fontSize: '13px',
                   fontWeight: 500,
                   cursor: 'pointer',

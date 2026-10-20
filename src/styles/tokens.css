@@ -1,0 +1,209 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Theme tokens: AutoMarketer (default), TynHub light and TynHub dark, the
+   same arrangement as Routini (routini/client/src/styles/tokens.css). The
+   TynHub pair is the "Exhibition Hall" palette, tynhub-prds/DESIGN-tynhub-ui.md.
+   Components read only var(--…); each theme defines the roles.
+
+   Rules that hold in every theme:
+   – The masthead is structure (navy / slate); --accent and --primary are
+     interactive (links, primary buttons). In the TynHub themes, ember marks
+     activity (live, focus).
+   – Status colours (ok / warn / fail / live / off) mean the same everywhere.
+   – Interactive colour (--accent, --primary) never marks a status.
+   – Social platform colours are the platforms' own marks, not theme colours.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-semicondensed-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-semicondensed-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/plex-sans-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/plex-sans-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 600 700;
+  font-display: swap;
+  src: url('../assets/fonts/plex-sans-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/plex-mono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-weight: 500 600;
+  font-display: swap;
+  src: url('../assets/fonts/plex-mono-500.woff2') format('woff2');
+}
+
+/* AutoMarketer (default): the product's own colours. Green brand on a navy
+   masthead and nav, slate-gray page, indigo focus. Green text links use the
+   darker forest so they pass AA on white. In this theme green is identity as
+   well as "ok"; status badges always carry their label, so meaning never
+   rests on colour alone. */
+:root,
+[data-theme='automarketer'] {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --sunken: #f1f5f9;
+  --hover: #eef2f6;
+  --chip: #f1f5f9;
+  --line: #e2e8f0;
+  --line-soft: #f1f5f9;
+  --btn-line: #cbd5e1;
+  --ink: #1e293b;
+  --ink-2: #334155;
+  --muted: #64748b;
+  --placeholder: #94a3b8;
+  --code: #f1f5f9;
+  --accent: #2d6a4f;
+  --accent-hover: #1b4332;
+  --accent-line: #b7e4c7;
+  --accent-soft: #d8f3dc;
+  --primary: #388460;
+  --on-primary: #ffffff;
+  --focus: #6366f1;
+  --live: #2563eb;
+  --ok: #15803d;
+  --ok-line: #bbf7d0;
+  --ok-soft: #f0fdf4;
+  --warn: #a16207;
+  --warn-line: #fde68a;
+  --warn-soft: #fefce8;
+  --fail: #dc2626;
+  --fail-line: #fecaca;
+  --fail-soft: #fef2f2;
+  --off: #94a3b8;
+  --h-bg: #0f172a;
+  --h-ink: #f1f5f9;
+  --h-muted: #94a3b8;
+  --h-line: #1e293b;
+  --h-hover: #1e293b;
+  --shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
+}
+
+/* The AutoMarketer nav is navy, as the original sidebar was, so it re-scopes
+   its tokens (the way Routini's TynHub light header does). */
+[data-theme='automarketer'] .nav,
+:root:not([data-theme]) .nav {
+  --sunken: #0f172a;
+  --panel: #1e293b;
+  --hover: #1e293b;
+  --line: #1e293b;
+  --line-soft: #1e293b;
+  --btn-line: #334155;
+  --ink: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #52b788;
+  --fail: #f87171;
+}
+
+[data-theme='tynhub-light'] {
+  color-scheme: light;
+  --bg: #f4f4f2;
+  --panel: #ffffff;
+  --sunken: #ecedea;
+  --hover: #e3e7ec;
+  --chip: #e6eaef;
+  --line: #cdd0d4;
+  --line-soft: #e3e5e8;
+  --btn-line: #b4bac2;
+  --ink: #23272c;
+  --ink-2: #3e454d;
+  --muted: #5c6670;
+  --placeholder: #7a828b;
+  --code: #f1f2f4;
+  --accent: #1e6fb2;
+  --accent-hover: #155a93;
+  --accent-line: #a9c6e3;
+  --accent-soft: #e6eff8;
+  --primary: #1e6fb2;
+  --on-primary: #ffffff;
+  --focus: #d95b22;
+  --live: #bc4a16;
+  --ok: #1c7c60;
+  --ok-line: #a5d5c4;
+  --ok-soft: #e7f3ee;
+  --warn: #8f6200;
+  --warn-line: #e0c68a;
+  --warn-soft: #f8f1e1;
+  --fail: #b8332a;
+  --fail-line: #e6b0ab;
+  --fail-soft: #f9e9e7;
+  --off: #8a929b;
+  --h-bg: #24303e;
+  --h-ink: #edf0f3;
+  --h-muted: #b7c1cc;
+  --h-line: #3a4757;
+  --h-hover: #33414f;
+  --shadow: 0 8px 28px rgba(20, 24, 30, 0.14);
+}
+
+[data-theme='tynhub-dark'] {
+  color-scheme: dark;
+  --bg: #14181e;
+  --panel: #1c232c;
+  --sunken: #171c23;
+  --hover: #26303c;
+  --chip: #24303e;
+  --line: #333b45;
+  --line-soft: #2a323c;
+  --btn-line: #3f4a57;
+  --ink: #e7e9ec;
+  --ink-2: #c3cad2;
+  --muted: #a3acb7;
+  --placeholder: #7d8793;
+  --code: #0f1318;
+  --accent: #6fb1e8;
+  --accent-hover: #a9d1f3;
+  --accent-line: #284b6b;
+  --accent-soft: #1b2e40;
+  --primary: #1e6fb2;
+  --on-primary: #ffffff;
+  --focus: #ed7a3c;
+  --live: #ed7a3c;
+  --ok: #5bc0a0;
+  --ok-line: #2e5e50;
+  --ok-soft: #18302a;
+  --warn: #e8b44a;
+  --warn-line: #5a4a26;
+  --warn-soft: #2d2718;
+  --fail: #f0716e;
+  --fail-line: #6a3433;
+  --fail-soft: #33201f;
+  --off: #6b7480;
+  --h-bg: #121a24;
+  --h-ink: #dce2e9;
+  --h-muted: #8b939c;
+  --h-line: #2a3542;
+  --h-hover: #1f2a37;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+:root {
+  --font-sign: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
+  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --radius: 8px;
+}

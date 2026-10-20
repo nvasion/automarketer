@@ -47,7 +47,8 @@ afterEach(() => {
 describe('App', () => {
   it('renders the sidebar with brand name', () => {
     renderApp()
-    expect(screen.getByText('AutoMarketer')).toBeDefined()
+    // "AutoMarketer" is also a theme name, so find the masthead brand by its link.
+    expect(screen.getByRole('link', { name: 'AutoMarketer home' })).toHaveTextContent('AutoMarketer')
   })
 
   it('renders navigation links', () => {

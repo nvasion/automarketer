@@ -70,7 +70,7 @@ function Toggle({ on, onChange, testId }: { on: boolean; onChange: () => void; t
         width: '44px',
         height: '24px',
         borderRadius: '12px',
-        background: on ? '#52b788' : '#e2e8f0',
+        background: on ? 'var(--primary)' : 'var(--line)',
         cursor: 'pointer',
         position: 'relative',
         transition: 'background 0.2s',
@@ -83,7 +83,7 @@ function Toggle({ on, onChange, testId }: { on: boolean; onChange: () => void; t
           width: '18px',
           height: '18px',
           borderRadius: '50%',
-          background: 'white',
+          background: 'var(--panel)',
           position: 'absolute',
           top: '3px',
           left: on ? '23px' : '3px',
@@ -269,18 +269,18 @@ function Settings() {
     width: '100%',
     padding: '9px 12px',
     borderRadius: '8px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--line)',
     fontSize: '14px',
-    color: '#1e293b',
+    color: 'var(--ink)',
     outline: 'none',
-    background: 'white',
+    background: 'var(--panel)',
   }
 
   const labelStyle: React.CSSProperties = {
     display: 'block',
     fontSize: '13px',
     fontWeight: 600,
-    color: '#374151',
+    color: 'var(--ink-2)',
     marginBottom: '6px',
   }
 
@@ -291,10 +291,10 @@ function Settings() {
   return (
     <div style={{ padding: '32px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+        <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
           Settings
         </h1>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
           Manage your account, platforms, and AI preferences.
         </p>
       </div>
@@ -303,9 +303,9 @@ function Settings() {
         {/* Tab nav */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--panel)',
             borderRadius: '12px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--line)',
             padding: '12px',
             height: 'fit-content',
           }}
@@ -322,8 +322,8 @@ function Settings() {
                 padding: '9px 10px',
                 borderRadius: '8px',
                 border: 'none',
-                background: activeTab === id ? '#d8f3dc' : 'transparent',
-                color: activeTab === id ? '#40916c' : '#64748b',
+                background: activeTab === id ? 'var(--accent-soft)' : 'transparent',
+                color: activeTab === id ? 'var(--accent)' : 'var(--muted)',
                 fontSize: '13px',
                 fontWeight: activeTab === id ? 600 : 400,
                 cursor: 'pointer',
@@ -340,19 +340,19 @@ function Settings() {
         {/* Content */}
         <div
           style={{
-            background: 'white',
+            background: 'var(--panel)',
             borderRadius: '12px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--line)',
             padding: '28px',
           }}
         >
           {/* ── Profile Tab ──────────────────────────────────────────────── */}
           {activeTab === 'profile' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
                 Profile Settings
               </h2>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
                 Update your account information.
               </p>
 
@@ -362,11 +362,11 @@ function Settings() {
                     width: '64px',
                     height: '64px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #52b788, #40916c)',
+                    background: 'var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'white',
+                    color: 'var(--on-primary)',
                     fontSize: '24px',
                     fontWeight: 700,
                   }}
@@ -376,19 +376,19 @@ function Settings() {
                 <div>
                   <button
                     style={{
-                      background: '#f8fafc',
-                      border: '1px solid #e2e8f0',
+                      background: 'var(--sunken)',
+                      border: '1px solid var(--line)',
                       borderRadius: '8px',
                       padding: '7px 14px',
                       fontSize: '13px',
-                      color: '#374151',
+                      color: 'var(--ink-2)',
                       cursor: 'pointer',
                       fontWeight: 500,
                     }}
                   >
                     Change Avatar
                   </button>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
                     JPG, PNG max 2 MB
                   </p>
                 </div>
@@ -419,7 +419,7 @@ function Settings() {
           {activeTab === 'platforms' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)' }}>
                   Connected Platforms
                 </h2>
                 {Object.values(connections).some(Boolean) && (
@@ -431,12 +431,12 @@ function Settings() {
                         .forEach(([platformId]) => handleDisconnect(platformId))
                     }}
                     style={{
-                      background: 'white',
-                      border: '1px solid #fecaca',
+                      background: 'var(--panel)',
+                      border: '1px solid var(--fail-line)',
                       borderRadius: '8px',
                       padding: '6px 12px',
                       fontSize: '12px',
-                      color: '#dc2626',
+                      color: 'var(--fail)',
                       cursor: 'pointer',
                       fontWeight: 500,
                     }}
@@ -445,7 +445,7 @@ function Settings() {
                   </button>
                 )}
               </div>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
                 Connect your social accounts to publish directly from AutoMarketer.
               </p>
 
@@ -465,20 +465,20 @@ function Settings() {
                           borderRadius: isLinkedIn && connected && linkedInPages.length > 0
                             ? '10px 10px 0 0'
                             : '10px',
-                          border: `1px solid ${connected ? '#bbf7d0' : '#e2e8f0'}`,
+                          border: `1px solid ${connected ? 'var(--ok-line)' : 'var(--line)'}`,
                           borderBottom: isLinkedIn && connected && linkedInPages.length > 0
                             ? 'none'
                             : undefined,
-                          background: connected ? '#f0fdf4' : '#fafbfc',
+                          background: connected ? 'var(--ok-soft)' : 'var(--sunken)',
                           transition: 'all 0.15s',
                         }}
                       >
                         <PlatformBadge platform={p.id} size="lg" />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>{p.name}</div>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>{p.description}</div>
+                          <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>{p.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{p.description}</div>
                           {connected && (
-                            <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--ok)', marginTop: '2px' }}>
                               ✓ Connected
                             </div>
                           )}
@@ -487,12 +487,12 @@ function Settings() {
                           data-testid={`platform-btn-${p.id}`}
                           onClick={() => connected ? handleDisconnect(p.id) : openConnectModal(p)}
                           style={{
-                            background: connected ? 'white' : '#52b788',
-                            border: `1px solid ${connected ? '#e2e8f0' : '#52b788'}`,
+                            background: connected ? 'var(--panel)' : 'var(--primary)',
+                            border: `1px solid ${connected ? 'var(--line)' : 'var(--accent)'}`,
                             borderRadius: '8px',
                             padding: '7px 16px',
                             fontSize: '13px',
-                            color: connected ? '#dc2626' : 'white',
+                            color: connected ? 'var(--fail)' : 'var(--on-primary)',
                             cursor: 'pointer',
                             fontWeight: 600,
                             transition: 'all 0.15s',
@@ -509,9 +509,9 @@ function Settings() {
                           style={{
                             padding: '12px 16px',
                             borderRadius: '0 0 10px 10px',
-                            border: '1px solid #bbf7d0',
-                            borderTop: '1px solid #d1fae5',
-                            background: '#f8fffe',
+                            border: '1px solid var(--ok-line)',
+                            borderTop: '1px solid var(--ok-soft)',
+                            background: 'var(--accent-soft)',
                           }}
                         >
                           <div style={{
@@ -520,24 +520,24 @@ function Settings() {
                             gap: '10px',
                             flexWrap: 'wrap',
                           }}>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)', whiteSpace: 'nowrap' }}>
                               Post as:
                             </span>
 
                             {linkedInPagesLoading && (
-                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
                                 Loading pages…
                               </span>
                             )}
 
                             {!linkedInPagesLoading && linkedInPagesError && (
-                              <span style={{ fontSize: '12px', color: '#dc2626' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--fail)' }}>
                                 {linkedInPagesError}
                               </span>
                             )}
 
                             {!linkedInPagesLoading && !linkedInPagesError && linkedInPages.length === 0 && (
-                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
                                 No pages found — reconnect LinkedIn to refresh.
                               </span>
                             )}
@@ -551,9 +551,9 @@ function Settings() {
                                   fontSize: '12px',
                                   padding: '5px 8px',
                                   borderRadius: '6px',
-                                  border: '1px solid #d1d5db',
-                                  background: 'white',
-                                  color: '#1e293b',
+                                  border: '1px solid var(--btn-line)',
+                                  background: 'var(--panel)',
+                                  color: 'var(--ink)',
                                   cursor: 'pointer',
                                   flex: 1,
                                   minWidth: '180px',
@@ -570,20 +570,20 @@ function Settings() {
                             )}
 
                             {!linkedInPagesLoading && linkedInPages.length > 1 && (
-                              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
                                 {linkedInPages.length - 1} page{linkedInPages.length - 1 !== 1 ? 's' : ''} available
                               </span>
                             )}
                           </div>
 
                           {linkedInPages.length > 1 && (
-                            <p style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 0' }}>
+                            <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '6px 0 0' }}>
                               Switch between your personal profile and company pages. The selection applies to all LinkedIn posts.
                             </p>
                           )}
 
                           {linkedInPages.length === 1 && linkedInPages[0]?.type === 'person' && (
-                            <p style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 0' }}>
+                            <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '6px 0 0' }}>
                               Posting as a company page requires LinkedIn's "Community Management API" product, which is not available to most apps. Posts are published to your personal profile.
                             </p>
                           )}
@@ -599,23 +599,23 @@ function Settings() {
           {/* ── AI Settings Tab ───────────────────────────────────────────── */}
           {activeTab === 'ai' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
                 AI Settings
               </h2>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '16px' }}>
                 Configure how AutoMarketer generates content for your campaigns.
               </p>
 
               {/* ── Security notice ───────────────────────────────────────── */}
               <div
                 style={{
-                  background: '#fffbeb',
-                  border: '1px solid #fde68a',
+                  background: 'var(--warn-soft)',
+                  border: '1px solid var(--warn-line)',
                   borderRadius: '8px',
                   padding: '10px 14px',
                   marginBottom: '20px',
                   fontSize: '12px',
-                  color: '#92400e',
+                  color: 'var(--warn)',
                   lineHeight: 1.5,
                 }}
               >
@@ -626,7 +626,7 @@ function Settings() {
                   href="https://openrouter.ai/settings/limits"
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: '#92400e' }}
+                  style={{ color: 'var(--warn)' }}
                 >
                   spending limits
                 </a>{' '}
@@ -645,9 +645,9 @@ function Settings() {
                         flex: 1,
                         padding: '10px 16px',
                         borderRadius: '8px',
-                        border: `2px solid ${aiConfig.provider === p ? '#52b788' : '#e2e8f0'}`,
-                        background: aiConfig.provider === p ? '#d8f3dc' : 'white',
-                        color: aiConfig.provider === p ? '#40916c' : '#64748b',
+                        border: `2px solid ${aiConfig.provider === p ? 'var(--accent)' : 'var(--line)'}`,
+                        background: aiConfig.provider === p ? 'var(--accent-soft)' : 'var(--panel)',
+                        color: aiConfig.provider === p ? 'var(--accent)' : 'var(--muted)',
                         fontWeight: aiConfig.provider === p ? 600 : 400,
                         fontSize: '13px',
                         cursor: 'pointer',
@@ -664,9 +664,9 @@ function Settings() {
               {aiConfig.provider === 'openrouter' && (
                 <div
                   style={{
-                    background: '#f8fafc',
+                    background: 'var(--sunken)',
                     borderRadius: '10px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--line)',
                     padding: '16px',
                     marginBottom: '20px',
                     display: 'flex',
@@ -674,13 +674,13 @@ function Settings() {
                     gap: '14px',
                   }}
                 >
-                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '2px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '2px' }}>
                     OpenRouter routes to 100+ models (GPT-4o, Claude, Gemini, Llama, …) via one API key.{' '}
                     <a
                       href="https://openrouter.ai/keys"
                       target="_blank"
                       rel="noreferrer"
-                      style={{ color: '#52b788' }}
+                      style={{ color: 'var(--accent)' }}
                     >
                       Get a free key →
                     </a>
@@ -706,7 +706,7 @@ function Settings() {
                           transform: 'translateY(-50%)',
                           background: 'none',
                           border: 'none',
-                          color: '#94a3b8',
+                          color: 'var(--muted)',
                           cursor: 'pointer',
                           fontSize: '12px',
                           fontWeight: 500,
@@ -715,7 +715,7 @@ function Settings() {
                         {showApiKey ? 'Hide' : 'Show'}
                       </button>
                     </div>
-                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
                       Stored in your browser only — never sent to AutoMarketer servers.
                     </p>
                   </div>
@@ -728,13 +728,13 @@ function Settings() {
                       value={aiConfig.providers.openrouter.model}
                       onChange={(e) => updateProvider('openrouter', { model: e.target.value })}
                     />
-                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
                       Paste any model ID from{' '}
                       <a
                         href="https://openrouter.ai/models"
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: '#52b788' }}
+                        style={{ color: 'var(--accent)' }}
                       >
                         openrouter.ai/models
                       </a>
@@ -750,7 +750,7 @@ function Settings() {
                       value={aiConfig.providers.openrouter.baseUrl}
                       onChange={(e) => updateProvider('openrouter', { baseUrl: e.target.value })}
                     />
-                    <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
                       Leave as default unless you're using an OpenRouter-compatible proxy.
                     </p>
                   </div>
@@ -761,9 +761,9 @@ function Settings() {
               {aiConfig.provider === 'custom' && (
                 <div
                   style={{
-                    background: '#f8fafc',
+                    background: 'var(--sunken)',
                     borderRadius: '10px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--line)',
                     padding: '16px',
                     marginBottom: '20px',
                     display: 'flex',
@@ -771,8 +771,8 @@ function Settings() {
                     gap: '14px',
                   }}
                 >
-                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '2px' }}>
-                    Any OpenAI-compatible <code style={{ background: '#e2e8f0', padding: '1px 4px', borderRadius: '3px' }}>/chat/completions</code> endpoint works here —
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '2px' }}>
+                    Any OpenAI-compatible <code style={{ background: 'var(--line)', padding: '1px 4px', borderRadius: '3px' }}>/chat/completions</code> endpoint works here —
                     Ollama, vLLM, LM Studio, LocalAI, or a private deployment.
                   </div>
 
@@ -781,19 +781,19 @@ function Settings() {
                     <input
                       style={{
                         ...inputStyle,
-                        borderColor: endpointUrlError ? '#ef4444' : '#e2e8f0',
+                        borderColor: endpointUrlError ? 'var(--fail)' : 'var(--line)',
                       }}
                       placeholder="http://localhost:11434/v1"
                       value={aiConfig.providers.custom.baseUrl}
                       onChange={(e) => handleCustomBaseUrlChange(e.target.value)}
                     />
                     {endpointUrlError ? (
-                      <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--fail)', marginTop: '4px' }}>
                         {endpointUrlError}
                       </p>
                     ) : (
-                      <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                        Base URL — AutoMarketer appends <code style={{ background: '#e2e8f0', padding: '1px 3px', borderRadius: '3px' }}>/chat/completions</code>.
+                      <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                        Base URL — AutoMarketer appends <code style={{ background: 'var(--line)', padding: '1px 3px', borderRadius: '3px' }}>/chat/completions</code>.
                       </p>
                     )}
                   </div>
@@ -828,7 +828,7 @@ function Settings() {
                           transform: 'translateY(-50%)',
                           background: 'none',
                           border: 'none',
-                          color: '#94a3b8',
+                          color: 'var(--muted)',
                           cursor: 'pointer',
                           fontSize: '12px',
                           fontWeight: 500,
@@ -842,8 +842,8 @@ function Settings() {
               )}
 
               {/* ── Content defaults ──────────────────────────────────────── */}
-              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '20px', marginTop: '4px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '14px' }}>
+              <div style={{ borderTop: '1px solid var(--line-soft)', paddingTop: '20px', marginTop: '4px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '14px' }}>
                   Content Defaults
                 </div>
 
@@ -891,15 +891,15 @@ function Settings() {
                       justifyContent: 'space-between',
                       padding: '14px 16px',
                       borderRadius: '10px',
-                      border: '1px solid #e2e8f0',
-                      background: '#fafbfc',
+                      border: '1px solid var(--line)',
+                      background: 'var(--sunken)',
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>
                         Auto-generate Hashtags
                       </div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                         Automatically add relevant hashtags to all posts
                       </div>
                     </div>
@@ -916,10 +916,10 @@ function Settings() {
           {/* ── Notifications Tab ─────────────────────────────────────────── */}
           {activeTab === 'notifications' && (
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
                 Notifications
               </h2>
-              <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '24px' }}>
                 Choose what notifications you receive.
               </p>
 
@@ -933,12 +933,12 @@ function Settings() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '14px 0',
-                      borderBottom: '1px solid #f1f5f9',
+                      borderBottom: '1px solid var(--line-soft)',
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 500, fontSize: '14px', color: '#1e293b' }}>{title}</div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>{desc}</div>
+                      <div style={{ fontWeight: 500, fontSize: '14px', color: 'var(--ink)' }}>{title}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{desc}</div>
                     </div>
                     <Toggle on={on} onChange={() => toggleNotification(id)} testId={id} />
                   </div>
@@ -948,17 +948,17 @@ function Settings() {
           )}
 
           {/* ── Save button ───────────────────────────────────────────────── */}
-          <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid var(--line-soft)' }}>
             {saveError && (
               <p
                 style={{
                   fontSize: '12px',
-                  color: '#dc2626',
+                  color: 'var(--fail)',
                   marginBottom: '10px',
                   padding: '8px 12px',
-                  background: '#fef2f2',
+                  background: 'var(--fail-soft)',
                   borderRadius: '6px',
-                  border: '1px solid #fecaca',
+                  border: '1px solid var(--fail-line)',
                 }}
               >
                 Settings could not be saved: {saveError}
@@ -968,19 +968,19 @@ function Settings() {
               onClick={handleSave}
               style={{
                 background: saved
-                  ? '#16a34a'
-                  : 'linear-gradient(135deg, #52b788, #40916c)',
+                  ? 'var(--ok)'
+                  : 'var(--primary)',
                 border: 'none',
                 borderRadius: '8px',
                 padding: '10px 24px',
-                color: 'white',
+                color: 'var(--on-primary)',
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'background 0.2s',
                 boxShadow: saved
-                  ? '0 4px 14px rgba(22,163,74,0.3)'
-                  : '0 4px 14px rgba(82,183,136,0.35)',
+                  ? 'none'
+                  : 'none',
               }}
             >
               {saved ? '✓ Changes Saved' : 'Save Changes'}

@@ -1,0 +1,537 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Public pages (front page, how it works) and the sign-in cards. Same pieces
+   as Routini's public.css, so the TynHub products read as one family. They
+   follow the selected theme, except the hero, which keeps the logo tile on
+   the logo's own slate ground.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.public {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+}
+.public main {
+  flex: 1;
+}
+
+.public-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 12px clamp(16px, 4vw, 48px);
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+.public-nav .brand-sub {
+  color: var(--muted);
+}
+.public-links {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+}
+.public-links a {
+  color: var(--ink-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.public-links a:hover,
+.public-links a.active {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.public-actions {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  /* Links drop under the brand and buttons instead of wrapping word by word. */
+  .public-links {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .public-actions {
+    margin-left: auto;
+  }
+}
+
+/* Hero: the logo tile on its slate ground, in every theme. */
+.hero {
+  background: #26343f;
+  color: #edf0f3;
+  text-align: center;
+  padding: clamp(40px, 7vw, 80px) 16px clamp(44px, 7vw, 76px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 4px solid #1e6fb2;
+}
+.hero-tile {
+  width: clamp(150px, 20vw, 240px);
+  height: auto;
+  border-radius: 4.5%;
+}
+.hero-title {
+  font-family: var(--font-sign);
+  font-weight: 700;
+  font-size: clamp(34px, 5.2vw, 58px);
+  line-height: 1.05;
+  margin: 8px 0 0;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+}
+.hero-lead {
+  max-width: 720px;
+  margin: 0;
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.55;
+  color: #c9d2dc;
+}
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.hero-btn {
+  min-height: 46px;
+  padding: 0 22px;
+  font-size: 16px;
+}
+/* On slate, buttons keep slate-appropriate colours in every theme. */
+.hero .btn.primary {
+  background: #1e6fb2;
+  border-color: #1e6fb2;
+  color: #ffffff;
+}
+.hero .btn:not(.primary) {
+  background: transparent;
+  color: #edf0f3;
+  border-color: #5b6b7c;
+}
+.hero .btn:not(.primary):hover {
+  background: #33414f;
+}
+/* AutoMarketer theme: the navy ground and green brand of the original app. */
+[data-theme='automarketer'] .hero {
+  background: #0f172a;
+  border-bottom-color: #52b788;
+}
+[data-theme='automarketer'] .hero .btn.primary {
+  background: #388460;
+  border-color: #388460;
+}
+[data-theme='automarketer'] .hero .btn:not(.primary) {
+  border-color: #475569;
+}
+[data-theme='automarketer'] .hero .btn:not(.primary):hover {
+  background: #1e293b;
+}
+[data-theme='automarketer'] .badges li {
+  border-color: #334155;
+}
+.badges {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.badges li {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #c9d2dc;
+  border: 1px solid #4a5a6b;
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.public-section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(36px, 6vw, 64px) clamp(16px, 4vw, 32px);
+}
+.public-section + .public-section {
+  padding-top: 0;
+}
+.public-h2 {
+  font-family: var(--font-sign);
+  font-weight: 700;
+  font-size: clamp(26px, 3vw, 34px);
+  margin: 0 0 22px;
+}
+.section-label {
+  font-family: var(--font-sign);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* How it works, front-page preview */
+.preview-steps {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr));
+  gap: 16px;
+}
+.preview-step {
+  padding: 12px;
+  gap: 14px;
+}
+.preview-body {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 0 4px 4px;
+}
+.preview-body h3 {
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+.preview-body p {
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+.install-more {
+  display: inline-block;
+  margin-top: 16px;
+  font-weight: 500;
+  color: var(--accent);
+}
+.install-more:hover {
+  color: var(--accent-hover);
+}
+
+.step-n {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateY(-1px);
+}
+
+/* Screenshot frame */
+.shot {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--sunken);
+}
+.shot-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 30px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.shot-dots {
+  display: flex;
+  gap: 6px;
+}
+.shot-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.shot-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* One capture per theme; only the matching one is shown (and, lazy, fetched). */
+.shot-img:not(.shot-automarketer),
+[data-theme='tynhub-light'] .shot-automarketer,
+[data-theme='tynhub-dark'] .shot-automarketer {
+  display: none;
+}
+[data-theme='tynhub-light'] .shot-light,
+[data-theme='tynhub-dark'] .shot-dark {
+  display: block;
+}
+.shot-missing {
+  aspect-ratio: 16 / 10;
+}
+
+/* Platforms */
+.platform-strip {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.platform-strip li {
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 18px 12px;
+}
+.platform-name {
+  font-weight: 600;
+}
+.platform-strip .mono {
+  font-size: 12px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 14px;
+}
+.feature h3 {
+  font-size: 17px;
+}
+.feature p {
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+}
+.progress-h {
+  font-family: var(--font-sign);
+  font-size: 20px;
+}
+.progress-h.done {
+  color: var(--ok);
+}
+.progress-h.next {
+  color: var(--accent);
+}
+.progress-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--ink-2);
+}
+.progress-list li {
+  display: flex;
+  gap: 10px;
+  line-height: 1.45;
+}
+.tick {
+  color: var(--ok);
+  font-weight: 700;
+}
+.tick.next {
+  color: var(--accent);
+}
+
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 820px;
+}
+.faq details {
+  padding: 14px 18px;
+}
+.faq summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.faq details p {
+  margin-top: 10px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.final-cta {
+  text-align: center;
+  padding: clamp(40px, 6vw, 72px) 16px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* How it works page */
+.doc {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) clamp(16px, 4vw, 32px);
+  display: flex;
+  gap: 48px;
+  align-items: flex-start;
+}
+.doc-toc {
+  position: sticky;
+  top: 20px;
+  flex: 0 0 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.doc-toc ol {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+}
+.doc-toc a {
+  color: var(--ink-2);
+}
+.doc-toc a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.doc-body {
+  flex: 1;
+  min-width: 0;
+  max-width: 860px;
+  line-height: 1.6;
+}
+.doc-title {
+  font-family: var(--font-sign);
+  font-weight: 700;
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.1;
+}
+.doc-lead {
+  margin-top: 10px;
+  font-size: 17px;
+  color: var(--ink-2);
+  max-width: 68ch;
+}
+.doc-section {
+  padding-top: 40px;
+  scroll-margin-top: 16px;
+}
+.doc-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sign);
+  font-weight: 700;
+  font-size: 26px;
+}
+.doc-section p,
+.doc-section ul {
+  margin: 8px 0;
+  color: var(--ink-2);
+}
+.doc-section ul {
+  padding-left: 22px;
+}
+.doc-section li {
+  margin: 4px 0;
+}
+.doc-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--muted) !important;
+}
+.walk-step .shot {
+  margin-top: 16px;
+}
+.doc-next {
+  margin-top: 48px;
+}
+@media (max-width: 860px) {
+  .doc {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .doc-toc {
+    position: static;
+    flex: none;
+  }
+}
+
+.public-footer {
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+.public-footer-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px clamp(16px, 4vw, 32px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.public-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.public-footer a {
+  color: var(--ink-2);
+}
+.public-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Sign in / sign up */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--bg);
+}
+.auth-card {
+  width: min(420px, 100%);
+  padding: 32px clamp(20px, 5vw, 36px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--h-bg);
+  border-radius: 10px;
+}
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 28px;
+  text-align: center;
+}
+.auth-credit {
+  font-size: 12px;
+  color: var(--muted);
+}
+.auth-credit a {
+  color: var(--accent);
+}

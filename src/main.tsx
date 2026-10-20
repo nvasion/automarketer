@@ -4,7 +4,10 @@ import { HashRouter } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import App from './App'
 import { initDb } from './api/campaigns'
+import { ThemeProvider } from './components/Theme'
+import './styles/tokens.css'
 import './index.css'
+import './styles/public.css'
 
 // ── OAuth callback interception ───────────────────────────────────────────────
 // Instagram (and other platforms) redirect the popup window to /oauth/callback
@@ -66,11 +69,13 @@ if (window.location.pathname === '/oauth/callback') {
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <HashRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </HashRouter>
+      <ThemeProvider>
+        <HashRouter>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </HashRouter>
+      </ThemeProvider>
     </React.StrictMode>,
   )
 }
