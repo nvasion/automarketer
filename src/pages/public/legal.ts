@@ -6,7 +6,7 @@
 // change it together with the code. Any occurrence of LEGAL_CONTACT in the
 // text is rendered as a mailto link.
 
-export const LEGAL_CONTACT = 'privacy@tynhub.com'
+export const LEGAL_CONTACT = 'privacy@notify.tynhub.com'
 export const LEGAL_UPDATED = 'October 2026'
 
 export interface LegalSection {

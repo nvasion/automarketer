@@ -83,7 +83,7 @@ describe('Legal pages', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Privacy policy' })).toBeInTheDocument()
     expect(screen.getByText('Last updated: October 2026')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'How tokens are protected' })).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'privacy@tynhub.com' })[0]).toHaveAttribute('href', 'mailto:privacy@tynhub.com')
+    expect(screen.getAllByRole('link', { name: 'privacy@notify.tynhub.com' })[0]).toHaveAttribute('href', 'mailto:privacy@notify.tynhub.com')
     expect(document.title).toBe('Privacy policy - AutoMarketer')
   })
 
