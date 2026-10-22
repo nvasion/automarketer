@@ -9,7 +9,7 @@
   "routes": {
     "/": {
       "title": "AutoMarketer - write one post, publish it to every social network",
-      "description": "AutoMarketer turns one brief into a post tailored for each network, using your own AI model key, and publishes or schedules it through official platform APIs.",
+      "description": "AutoMarketer turns one brief into a post tailored for each network, using your own AI model key, and publishes it through official platform APIs.",
       "index": true,
       "changefreq": "weekly",
       "priority": 1.0
