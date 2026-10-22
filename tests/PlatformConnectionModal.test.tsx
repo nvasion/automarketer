@@ -746,7 +746,7 @@ describe('PlatformConnectionModal', () => {
 
 // ── Settings integration: modal opens on Connect click ───────────────────────
 
-import { HashRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
 import Settings from '../src/pages/Settings'
 import type { PublicUser } from '../src/services/authService'
@@ -767,11 +767,11 @@ const mockAuthContext = {
 
 async function renderSettings() {
   render(
-    <HashRouter>
+    <MemoryRouter initialEntries={['/settings']}>
       <AuthContext.Provider value={mockAuthContext}>
         <Settings />
       </AuthContext.Provider>
-    </HashRouter>
+    </MemoryRouter>
   )
   // Flush any pending Promises (platform-config fetch inside the modal fires
   // only after the modal is opened, so this just settles the initial render).

@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { HashRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
 import Scheduler from '../src/pages/Scheduler'
 import { CampaignModel } from '../src/db/CampaignModel'
@@ -42,11 +42,11 @@ const authContextValue = {
 
 function renderScheduler() {
   return render(
-    <HashRouter>
+    <MemoryRouter initialEntries={['/scheduler']}>
       <AuthContext.Provider value={authContextValue}>
         <Scheduler />
       </AuthContext.Provider>
-    </HashRouter>
+    </MemoryRouter>
   )
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { HashRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
 import Sidebar from '../src/components/Sidebar'
 import type { PublicUser } from '../src/services/authService'
@@ -20,11 +20,11 @@ function renderSidebar(logout = vi.fn()) {
     logout,
   }
   return render(
-    <HashRouter>
+    <MemoryRouter initialEntries={['/']}>
       <AuthContext.Provider value={authValue}>
         <Sidebar />
       </AuthContext.Provider>
-    </HashRouter>
+    </MemoryRouter>
   )
 }
 

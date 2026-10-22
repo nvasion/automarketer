@@ -341,6 +341,12 @@ It needs Playwright with Chromium (`PLAYWRIGHT=/path/to/playwright/index.mjs` if
 
 ## Routes
 
+Routing uses real paths (`BrowserRouter` in `src/main.tsx`): `https://automarketer.tynhub.com/how-it-works`, not `/#/how-it-works`. The production nginx serves the app for any path that is not a file, so deep links and refreshes work.
+
+- **Old hash links** (`/#/how-it-works`, `/#/settings?tab=ai`) from before the switch are rewritten to the real path with `history.replaceState` before the router mounts (`src/utils/legacyHashRoute.ts`), so old bookmarks and emailed links still land on the right page.
+- **`/oauth/callback`** is handled in `src/main.tsx` before React mounts: the popup hands the result to the opener window and closes. It never renders a route.
+- In-page links (the How it works table of contents) are plain `#<step>` anchors.
+
 ### Public (no authentication required)
 
 | Path | Page | Description |
