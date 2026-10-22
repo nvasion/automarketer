@@ -41,6 +41,8 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    // No source maps in the production bundle: nothing consumes them, and
+    // nginx would serve them publicly. The dev server has its own.
+    sourcemap: false
   }
 }))

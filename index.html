@@ -1,10 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="automarketer">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png+xml" href="/automarketer.png" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/automarketer.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0f172a" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AutoMarketer</title>
+    <script>
+      // Apply the stored theme before first paint, so prerendered pages do not
+      // flash the default theme. Keep in sync with src/lib/theme.ts.
+      try {
+        var t = localStorage.getItem('automarketer.theme')
+        if (t === 'tynhub-dark' || t === 'tynhub-light') document.documentElement.setAttribute('data-theme', t)
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthBrand } from '../components/Brand';
+import { usePageMeta } from '../seo/usePageMeta';
 
 export default function Login() {
+  usePageMeta('/login');
   const { login } = useAuth();
   const navigate = useNavigate();
 

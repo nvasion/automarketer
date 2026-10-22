@@ -464,6 +464,23 @@
 .doc-next {
   margin-top: 48px;
 }
+/* Privacy and terms: the same document frame, with the date under the title. */
+.legal .doc-path {
+  margin-top: 12px;
+}
+.legal a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Not found: one short block, centred in the page height. */
+.not-found {
+  padding: clamp(24px, 8vh, 96px) 0;
+}
+.not-found-links {
+  margin-top: 28px;
+  flex-wrap: wrap;
+}
 @media (max-width: 860px) {
   .doc {
     flex-direction: column;

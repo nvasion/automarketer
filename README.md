@@ -138,7 +138,8 @@ Vite proxies `/api/*` requests to the Express server, so frontend code always ca
 #### Building
 
 ```bash
-npm run build          # Production build (frontend)
+npm run build          # Production build: tsc, vite build, SSR bundle, then prerender the public pages
+npm run build:ssr      # Only the SSR bundle of src/entry-server.tsx (into dist-ssr/, used by the prerender)
 npm run build:server   # Type-check the Express server (no emit; run via tsx)
 npm run preview        # Preview the production frontend build locally
 ```
@@ -275,7 +276,9 @@ automarketer/
 │   │   ├── Scheduler.tsx     # Calendar view for scheduled and published posts
 │   │   ├── Analytics.tsx     # Engagement charts and platform performance breakdown
 │   │   ├── Settings.tsx      # Profile, platforms, AI inference config, and notifications
-│   │   └── public/           # Landing + How it works (PublicLayout, Shot, shared copy in content.ts)
+│   │   └── public/           # Landing, How it works, Privacy, Terms, Not found (PublicLayout, Shot; copy in content.ts and legal.ts)
+│   ├── seo/                  # pageMeta.json (titles, descriptions, sitemap), usePageMeta, JSON-LD, prerender HTML helpers
+│   ├── entry-server.tsx      # SSR entry for the build-time prerender (public pages only)
 │   ├── styles/
 │   │   ├── tokens.css        # TynHub theme tokens (light + dark) and self-hosted fonts
 │   │   └── public.css        # Public pages and sign-in cards
@@ -312,7 +315,8 @@ automarketer/
 ├── Dockerfile                # Multi-stage build: development → builder → production (nginx)
 ├── docker-compose.yml        # Development: app + PostgreSQL with hot-module reload
 ├── docker-compose.prod.yml   # Production: pre-built nginx image + PostgreSQL
-├── nginx.conf                # nginx SPA config — gzip, asset caching, and index.html fallback
+├── nginx.conf                # nginx config — prerendered pages, spa.html for app routes, real 404s, security headers, gzip, asset caching
+├── scripts/prerender.mjs     # Writes the prerendered pages, spa.html, 404.html and sitemap.xml into dist/ (last step of npm run build)
 ├── .env.example              # Environment variable template (copy to .env)
 ├── .dockerignore             # Files excluded from the Docker build context
 ├── index.html                # HTML entry point
@@ -341,7 +345,7 @@ It needs Playwright with Chromium (`PLAYWRIGHT=/path/to/playwright/index.mjs` if
 
 ## Routes
 
-Routing uses real paths (`BrowserRouter` in `src/main.tsx`): `https://automarketer.tynhub.com/how-it-works`, not `/#/how-it-works`. The production nginx serves the app for any path that is not a file, so deep links and refreshes work.
+Routing uses real paths (`BrowserRouter` in `src/main.tsx`): `https://automarketer.tynhub.com/how-it-works`, not `/#/how-it-works`. In production nginx serves each path as described in [SEO and prerendering](#seo-and-prerendering), so deep links and refreshes work. An unknown path shows the not-found page (status 404 from nginx).
 
 - **Old hash links** (`/#/how-it-works`, `/#/settings?tab=ai`) from before the switch are rewritten to the real path with `history.replaceState` before the router mounts (`src/utils/legacyHashRoute.ts`), so old bookmarks and emailed links still land on the right page.
 - **`/oauth/callback`** is handled in `src/main.tsx` before React mounts: the popup hands the result to the opener window and closes. It never renders a route.
@@ -353,6 +357,8 @@ Routing uses real paths (`BrowserRouter` in `src/main.tsx`): `https://automarket
 |------|------|-------------|
 | `/` | Landing | Public front page when signed out (the dashboard when signed in) |
 | `/how-it-works` | How it works | Step-by-step walkthrough with screenshots of the app |
+| `/privacy` | Privacy policy | What AutoMarketer stores and how to remove it (draft, pending owner review) |
+| `/terms` | Terms of service | Terms of use (draft, pending owner review) |
 | `/login` | Login | Sign-in form |
 | `/register` | Register | Account creation form |
 
@@ -367,6 +373,21 @@ Routing uses real paths (`BrowserRouter` in `src/main.tsx`): `https://automarket
 | `/scheduler` | Scheduler | Calendar view of scheduled/published posts |
 | `/analytics` | Analytics | Engagement charts and performance data |
 | `/settings` | Settings | User profile, platforms, AI, and notifications |
+
+### SEO and prerendering
+
+Each public page has its own title, description, canonical URL, Open Graph / Twitter card tags and JSON-LD, from one source: `src/seo/pageMeta.json`. `usePageMeta` applies them in the browser; the build writes the same tags into static HTML.
+
+`npm run build` ends with a prerender: `vite build --ssr src/entry-server.tsx` bundles the public pages only (never `App.tsx`), and `scripts/prerender.mjs` renders them signed out into `dist/`. There is no hydration: `main.tsx` mounts the app with `createRoot`, which replaces the static markup. The build fails if an `index: true` route cannot be rendered or has no body.
+
+| File in `dist/` | What it is | nginx serves it for |
+|------|------|------|
+| `index.html`, `how-it-works/index.html`, `privacy/index.html`, `terms/index.html` | Prerendered public pages with their own head and JSON-LD | `/`, `/how-it-works`, `/privacy`, `/terms` |
+| `spa.html` | The empty app shell, `robots noindex` | `/campaigns`, `/create`, `/scheduler`, `/analytics`, `/settings`, `/login`, `/register`, `/oauth/*` (`/oauth/callback` also sends `X-Robots-Tag: noindex`) |
+| `404.html` | The not-found page, `noindex`, no app scripts | Any other path, with status 404 |
+| `sitemap.xml`, `robots.txt` | The indexed routes; crawl rules (app routes and `/api/` disallowed) | Themselves |
+
+To add a public page: add its route to `pageMeta.json`, and render it in `src/entry-server.tsx` (`PAGES`); nginx serves it from `location /` with no change. A new signed-in route needs adding to the nginx `spa.html` location, or it will 404 on a fresh load. `og-image.png` (1200×630) is the link-preview image for every page. Production builds have no source maps.
 
 ## API Endpoints
 

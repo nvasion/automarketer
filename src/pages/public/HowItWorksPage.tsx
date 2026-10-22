@@ -4,11 +4,13 @@
 import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { usePageMeta } from '../../seo/usePageMeta'
 import { STEPS } from './content'
 import { PublicLayout } from './PublicLayout'
 import { Shot } from './Shot'
 
 export default function HowItWorksPage() {
+  usePageMeta('/how-it-works')
   const { user } = useAuth()
   const { hash } = useLocation()
   // A deep link such as /how-it-works#publish: the browser looks for the id

@@ -10,8 +10,8 @@ import { installMockCampaignsApi, uninstallMockCampaignsApi } from './helpers/mo
 
 const signedIn: PublicUser = { id: '1', email: 'test@example.com', createdAt: new Date().toISOString() }
 
-function renderAt(path: string, user: PublicUser | null = null) {
-  const auth = { user, loading: false, login: vi.fn(), register: vi.fn(), logout: vi.fn() }
+function renderAt(path: string, user: PublicUser | null = null, loading = false) {
+  const auth = { user, loading, login: vi.fn(), register: vi.fn(), logout: vi.fn() }
   return render(
     <ThemeProvider>
       <MemoryRouter initialEntries={[path]}>
@@ -54,6 +54,60 @@ describe('Public front page', () => {
     renderAt('/', signedIn)
     expect(screen.getByText('Total Campaigns')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /write it once/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the front page, not a blank page, while the session check runs', () => {
+    renderAt('/', null, true)
+    expect(screen.getByRole('heading', { level: 1, name: /write it once/i })).toBeInTheDocument()
+  })
+
+  it('has exactly one h1 and sets its own title', () => {
+    renderAt('/')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(document.title).toBe('AutoMarketer - write one post, publish it to every social network')
+  })
+
+  it('links to how it works, privacy and terms from the footer', () => {
+    renderAt('/')
+    const footer = screen.getByRole('contentinfo')
+    expect(within(footer).getByRole('link', { name: 'How it works' })).toHaveAttribute('href', '/how-it-works')
+    expect(within(footer).getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy')
+    expect(within(footer).getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms')
+  })
+})
+
+describe('Legal pages', () => {
+  it('renders the privacy policy with its date, sections and contact', () => {
+    renderAt('/privacy')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'Privacy policy' })).toBeInTheDocument()
+    expect(screen.getByText('Last updated: October 2026')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'How tokens are protected' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'privacy@tynhub.com' })[0]).toHaveAttribute('href', 'mailto:privacy@tynhub.com')
+    expect(document.title).toBe('Privacy policy - AutoMarketer')
+  })
+
+  it('renders the terms of service', () => {
+    renderAt('/terms')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'Terms of service' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Acceptable use' })).toBeInTheDocument()
+    expect(document.title).toBe('Terms of service - AutoMarketer')
+  })
+})
+
+describe('Not found', () => {
+  it('shows a not-found page for an unknown path instead of redirecting', () => {
+    renderAt('/does-not-exist')
+    expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /go to the front page/i })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: /see how it works/i })).toHaveAttribute('href', '/how-it-works')
+    expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow')
+  })
+
+  it('shows it to signed-in users too', () => {
+    renderAt('/campaigns/1/nope', signedIn)
+    expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
   })
 })
 
