@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { HashRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
 import App from '../src/App'
 import type { PublicUser } from '../src/services/authService'
@@ -25,11 +25,11 @@ const authContextValue = {
 
 function renderApp() {
   return render(
-    <HashRouter>
+    <MemoryRouter initialEntries={['/']}>
       <AuthContext.Provider value={authContextValue}>
         <App />
       </AuthContext.Provider>
-    </HashRouter>
+    </MemoryRouter>
   )
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { HashRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '../src/contexts/AuthContext'
 import Settings from '../src/pages/Settings'
 import type { PublicUser } from '../src/services/authService'
@@ -22,11 +22,11 @@ const authContextValue = {
 
 function renderSettings(user: PublicUser = mockUser) {
   return render(
-    <HashRouter>
+    <MemoryRouter initialEntries={['/settings']}>
       <AuthContext.Provider value={{ ...authContextValue, user }}>
         <Settings />
       </AuthContext.Provider>
-    </HashRouter>
+    </MemoryRouter>
   )
 }
 

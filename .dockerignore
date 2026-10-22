@@ -3,6 +3,7 @@ node_modules
 
 # Build output — produced inside the container by the builder stage
 dist
+dist-ssr
 
 # Version control
 .git

@@ -1,21 +1,22 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { HashRouter } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import App from './App'
 import { initDb } from './api/campaigns'
 import { ThemeProvider } from './components/Theme'
+import { legacyHashPath } from './utils/legacyHashRoute'
 import './styles/tokens.css'
 import './index.css'
 import './styles/public.css'
 
 // ── OAuth callback interception ───────────────────────────────────────────────
 // Instagram (and other platforms) redirect the popup window to /oauth/callback
-// after the user grants or denies access.  HashRouter only handles routes that
-// start with '#', so a plain /oauth/callback path is invisible to React Router.
-// We intercept it here — before React mounts — forward the result to the opener
-// window, then close the popup. The PlatformConnectionModal in the main window
-// receives the result and completes the connection flow.
+// after the user grants or denies access. The popup has no app to show: we
+// intercept the path here — before React mounts, so no route ever renders for
+// it — forward the result to the opener window, then close the popup. The
+// PlatformConnectionModal in the main window receives the result and completes
+// the connection flow.
 //
 // The result is published over THREE same-origin channels because a direct
 // window.opener.postMessage is not reliable: some authorization servers (notably
@@ -64,17 +65,22 @@ if (window.location.pathname === '/oauth/callback') {
   }
   window.close()
 } else {
+  // Old hash links (/#/how-it-works) from before BrowserRouter: move them to
+  // the real path before the router reads the URL.
+  const legacy = legacyHashPath(window.location.hash, window.location.search)
+  if (legacy) window.history.replaceState(null, '', legacy)
+
   // Normal app startup — initialise DB and mount React.
   initDb()
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <ThemeProvider>
-        <HashRouter>
+        <BrowserRouter>
           <AuthProvider>
             <App />
           </AuthProvider>
-        </HashRouter>
+        </BrowserRouter>
       </ThemeProvider>
     </React.StrictMode>,
   )

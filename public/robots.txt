@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /campaigns
+Disallow: /create
+Disallow: /scheduler
+Disallow: /analytics
+Disallow: /settings
+Disallow: /login
+Disallow: /register
+Disallow: /oauth/
+Disallow: /api/
+
+Sitemap: https://automarketer.tynhub.com/sitemap.xml

@@ -48,7 +48,7 @@ const reg = await page.request.post(`${BASE}/api/auth/register`, { data: { email
 // 409: the account is left over from an earlier run against the same server.
 if (!reg.ok() && reg.status() !== 409) throw new Error(`register failed: ${reg.status()} ${await reg.text()}`)
 // Sign in through the form, so the session cookie is the browser's own.
-await page.goto(`${BASE}/#/login`)
+await page.goto(`${BASE}/login`)
 await page.locator('#email').fill(email)
 await page.locator('#password').fill(password)
 await page.getByRole('button', { name: /sign in/i }).click()
@@ -67,16 +67,16 @@ const imported = await page.evaluate(async () => {
 if (imported >= 300) throw new Error(`import failed: ${imported}`)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-// The app reads the stored theme when it mounts, and hash navigation does not
-// remount it, so reload after storing the choice.
+// The app reads the stored theme when it mounts, so reload after storing the
+// choice.
 async function setTheme(theme) {
   await page.evaluate((t) => localStorage.setItem('automarketer.theme', t), THEME_IDS[theme])
   await page.reload()
   await page.waitForFunction((t) => document.documentElement.dataset.theme === t, THEME_IDS[theme])
 }
 
-async function go(hash) {
-  await page.goto(`${BASE}/#${hash}`)
+async function go(path) {
+  await page.goto(`${BASE}${path}`)
   await page.waitForLoadState('networkidle')
   await page.evaluate(() => document.fonts.ready)
 }
@@ -156,7 +156,7 @@ for (const theme of THEMES) {
   await capture('campaign', theme)
 
   if (DEBUG_OUT) {
-    for (const [name, hash] of [
+    for (const [name, path] of [
       ['dashboard', '/'],
       ['campaigns', '/campaigns'],
       ['scheduler', '/scheduler'],
@@ -164,7 +164,7 @@ for (const theme of THEMES) {
       ['settings', '/settings'],
       ['campaign-002', '/campaigns/camp-002'],
     ]) {
-      await go(hash)
+      await go(path)
       await debugPage(`app-${name}-${theme}`)
     }
   }
@@ -182,23 +182,23 @@ if (DEBUG_OUT) {
   await context.clearCookies()
   for (const theme of THEMES) {
     await setTheme(theme)
-    for (const [name, hash] of [
+    for (const [name, path] of [
       ['landing', '/'],
       ['how-it-works', '/how-it-works'],
       ['login', '/login'],
       ['register', '/register'],
     ]) {
-      await go(hash)
+      await go(path)
       await debugPage(`public-${name}-${theme}`)
     }
   }
   await page.setViewportSize({ width: 375, height: 812 })
   await setTheme('automarketer')
-  for (const [name, hash] of [
+  for (const [name, path] of [
     ['landing', '/'],
     ['how-it-works', '/how-it-works'],
   ]) {
-    await go(hash)
+    await go(path)
     await debugPage(`mobile-${name}`)
   }
 }

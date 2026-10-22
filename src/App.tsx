@@ -6,6 +6,9 @@ import { Lockup } from './components/Brand'
 import { ThemeSwitch } from './components/Theme'
 import LandingPage from './pages/public/LandingPage'
 import HowItWorksPage from './pages/public/HowItWorksPage'
+import PrivacyPage from './pages/public/PrivacyPage'
+import TermsPage from './pages/public/TermsPage'
+import NotFoundPage from './pages/public/NotFoundPage'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -46,11 +49,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** "/" is the dashboard when signed in and the public front page otherwise. */
+/**
+ * "/" is the dashboard when signed in and the public front page otherwise.
+ * While the session check runs it shows the front page, which is also what
+ * the prerendered index.html holds, so visitors never see a blank page.
+ */
 function HomeRoute() {
   const { user, loading } = useAuth()
-  if (loading) return null
-  if (!user) return <LandingPage />
+  if (loading || !user) return <LandingPage />
   return (
     <AppShell>
       <Dashboard />
@@ -88,6 +94,8 @@ function App() {
       />
 
       <Route path="/how-it-works" element={<HowItWorksPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
 
       {/* ── Protected routes ── */}
       <Route path="/" element={<HomeRoute />} />
@@ -162,8 +170,8 @@ function App() {
         }
       />
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Unknown paths: a real not-found page (nginx serves it as 404.html with status 404). */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

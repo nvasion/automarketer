@@ -1,14 +1,24 @@
 // The public walkthrough: each step of a campaign, with a screenshot of the
 // real screen, where to find it in the app, and the details that matter.
 
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { usePageMeta } from '../../seo/usePageMeta'
 import { STEPS } from './content'
 import { PublicLayout } from './PublicLayout'
 import { Shot } from './Shot'
 
 export default function HowItWorksPage() {
+  usePageMeta('/how-it-works')
   const { user } = useAuth()
+  const { hash } = useLocation()
+  // A deep link such as /how-it-works#publish: the browser looks for the id
+  // before React has rendered the steps, so scroll once they exist.
+  useEffect(() => {
+    const id = decodeURIComponent(hash.slice(1))
+    if (id && STEPS.some((s) => s.id === id)) document.getElementById(id)?.scrollIntoView?.({ block: 'start' })
+  }, [hash])
   return (
     <PublicLayout>
       <div className="doc">
@@ -17,7 +27,7 @@ export default function HowItWorksPage() {
           <ol>
             {STEPS.map((s) => (
               <li key={s.id}>
-                <a href={`#/how-it-works`} onClick={(e) => jump(e, s.id)}>
+                <a href={`#${s.id}`} onClick={(e) => jump(e, s.id)}>
                   {s.title}
                 </a>
               </li>
@@ -75,9 +85,14 @@ export default function HowItWorksPage() {
   )
 }
 
-// HashRouter owns the URL fragment, so in-page links scroll instead of navigating.
+// The links are plain "#<step>" anchors (BrowserRouter leaves them alone, and
+// they work without JavaScript); with it, scroll smoothly unless the visitor
+// asked for reduced motion, and keep the anchor in the address bar.
 function jump(e: React.MouseEvent, id: string) {
+  const target = document.getElementById(id)
+  if (!target) return
   e.preventDefault()
   const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  document.getElementById(id)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' })
+  target.scrollIntoView?.({ behavior: still ? 'auto' : 'smooth', block: 'start' })
+  window.history.replaceState(window.history.state, '', `#${id}`)
 }

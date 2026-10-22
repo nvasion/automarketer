@@ -7,6 +7,7 @@ import tile from '../../assets/brand/tile.webp'
 import PlatformBadge from '../../components/PlatformBadge'
 import { PLATFORM_CONFIGS } from '../../data/sampleData'
 import { useAuth } from '../../contexts/AuthContext'
+import { usePageMeta } from '../../seo/usePageMeta'
 import { FAQ, FEATURES, NEXT, SHIPPED, STEPS } from './content'
 import { PublicLayout } from './PublicLayout'
 import { Shot } from './Shot'
@@ -17,6 +18,7 @@ const BADGES = ['6 social networks', 'Bring your own AI model', 'Keys stay in yo
 const PREVIEW = ['connect', 'describe', 'review', 'publish']
 
 export default function LandingPage() {
+  usePageMeta('/')
   const { user } = useAuth()
   const primary = user ? (
     <Link className="btn primary hero-btn" to="/">

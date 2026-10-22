@@ -1,0 +1,57 @@
+{
+  "site": {
+    "origin": "https://automarketer.tynhub.com",
+    "name": "AutoMarketer",
+    "image": "/og-image.png",
+    "imageWidth": 1200,
+    "imageHeight": 630
+  },
+  "routes": {
+    "/": {
+      "title": "AutoMarketer - write one post, publish it to every social network",
+      "description": "AutoMarketer turns one brief into a post tailored for each network, using your own AI model key, and publishes it through official platform APIs.",
+      "index": true,
+      "changefreq": "weekly",
+      "priority": 1.0
+    },
+    "/how-it-works": {
+      "title": "How AutoMarketer works - from one brief to every platform",
+      "description": "Connect your accounts, bring your own AI model, describe what you are marketing, review a post for each platform, then publish and follow the results.",
+      "index": true,
+      "changefreq": "monthly",
+      "priority": 0.8
+    },
+    "/privacy": {
+      "title": "Privacy policy - AutoMarketer",
+      "description": "What AutoMarketer stores, including connected social accounts and your AI key, how tokens are protected, and how to disconnect accounts or delete your data.",
+      "index": true,
+      "changefreq": "yearly",
+      "priority": 0.3
+    },
+    "/terms": {
+      "title": "Terms of service - AutoMarketer",
+      "description": "The terms for using AutoMarketer, including your responsibility for what you publish and each social platform's own rules and limits.",
+      "index": true,
+      "changefreq": "yearly",
+      "priority": 0.3
+    },
+    "/login": {
+      "title": "Sign in - AutoMarketer",
+      "description": "Sign in to AutoMarketer to write, review and publish your campaigns on LinkedIn, X, Reddit, Facebook, Instagram and Bluesky.",
+      "index": false,
+      "changefreq": "yearly",
+      "priority": 0.1
+    },
+    "/register": {
+      "title": "Create your account - AutoMarketer",
+      "description": "Create an AutoMarketer account, connect your social networks and turn one brief into a post for every platform you use.",
+      "index": false,
+      "changefreq": "yearly",
+      "priority": 0.1
+    }
+  },
+  "notFound": {
+    "title": "Page not found - AutoMarketer",
+    "description": "There is no page at this address. Start from the AutoMarketer front page, or read how it works, from one brief to every platform."
+  }
+}

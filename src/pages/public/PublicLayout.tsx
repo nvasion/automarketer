@@ -1,5 +1,7 @@
-// Frame for the public pages (front page, how it works): a top bar with the
-// brand and the way in, and a footer with the theme switch. Same structure
+// Frame for the public pages (front page, how it works, privacy, terms, not
+// found): a top bar with the brand and the way in, and a footer with the site
+// links and the theme switch. Links are real <a href> paths, so crawlers and
+// the static 404 page (which runs no JS) can follow them. Same structure
 // and classes as Routini's public pages (routini/client/src/pages/public).
 
 import type { ReactNode } from 'react'
@@ -7,9 +9,11 @@ import { Link, NavLink } from 'react-router-dom'
 import { Lockup, Mark } from '../../components/Brand'
 import { useAuth } from '../../contexts/AuthContext'
 import { ThemeSwitch } from '../../components/Theme'
+import { useStaticPage } from '../../lib/staticPage'
 
 export function PublicLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const isStatic = useStaticPage()
   return (
     <div className="public">
       <header className="public-nav">
@@ -48,6 +52,8 @@ export function PublicLayout({ children }: { children: ReactNode }) {
           </span>
           <span className="public-footer-links">
             <Link to="/how-it-works">How it works</Link>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms</Link>
             <a href="https://tynhub.com" target="_blank" rel="noopener noreferrer">
               TynHub
             </a>
@@ -55,7 +61,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               Built on Factory Nexus
             </a>
           </span>
-          <ThemeSwitch />
+          {!isStatic && <ThemeSwitch />}
         </div>
       </footer>
     </div>

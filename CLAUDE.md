@@ -19,7 +19,7 @@ npx vitest run tests/Login.test.tsx        # Single test file
 npx vitest run -t "rejects invalid email"  # Single test by name
 
 npm run lint           # ESLint — zero warnings allowed (--max-warnings 0)
-npm run build          # tsc + vite build (frontend)
+npm run build          # tsc + vite build + SSR bundle + prerender of public pages (see README "SEO")
 npm run build:server   # Type-check the server only — no emit; server always runs via tsx
 
 docker compose up --build                          # Dev: app + Postgres, hot reload

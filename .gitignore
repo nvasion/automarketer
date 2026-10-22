@@ -25,6 +25,7 @@ Thumbs.db
 
 # Build artifacts
 dist/
+dist-ssr/
 build/
 
 # Logs
