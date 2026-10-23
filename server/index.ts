@@ -1,6 +1,7 @@
 import { app } from './app.js';
 import { jwtSecret } from './utils/config.js';
 import { userStore } from './models/userStore.js';
+import { identityStore } from './models/identityStore.js';
 import { accessTokenStore } from './models/accessTokenStore.js';
 import { campaignStore } from './db/campaignsTable.js';
 import { aiPrefsStore } from './db/aiPrefsTable.js';
@@ -26,9 +27,14 @@ if (isNaN(port) || port <= 0 || port > 65535) {
 // ── Initialise user store ────────────────────────────────────────────────────
 // Ensures the users table exists and loads existing users into the in-memory
 // cache. If DATABASE_URL is not configured this is a no-op.
-userStore.initialize().catch((err) => {
-  console.error('[server] Failed to initialise user store:', err);
-});
+// The user_identities table (TynHub sign-in) references users, so it is
+// created only after the users table exists.
+userStore
+  .initialize()
+  .then(() => identityStore.initialize())
+  .catch((err) => {
+    console.error('[server] Failed to initialise user store:', err);
+  });
 
 // ── Initialise access token store ────────────────────────────────────────────
 // Ensures the user_access_tokens table exists for storing OAuth tokens.

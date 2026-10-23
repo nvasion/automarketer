@@ -1,7 +1,8 @@
 export interface User {
   id: string;
   email: string;
-  passwordHash: string;
+  /** null for accounts created through "Continue with TynHub" (no password). */
+  passwordHash: string | null;
   createdAt: string;
 }
 
@@ -9,6 +10,8 @@ export interface PublicUser {
   id: string;
   email: string;
   createdAt: string;
+  /** False for TynHub-only accounts: they cannot password-login or unlink TynHub. */
+  hasPassword: boolean;
 }
 
 export interface JwtPayload {

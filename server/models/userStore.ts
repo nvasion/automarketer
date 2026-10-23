@@ -28,7 +28,7 @@ export const userStore = {
     const { rows } = await pool.query<{
       id: string;
       email: string;
-      password_hash: string;
+      password_hash: string | null;
       created_at: string;
     }>('SELECT id, email, password_hash, created_at FROM users');
     
@@ -44,7 +44,8 @@ export const userStore = {
     }
   },
 
-  create(email: string, passwordHash: string): User {
+  /** passwordHash is null for accounts created through "Continue with TynHub". */
+  create(email: string, passwordHash: string | null): User {
     const normalized = normalizeEmail(email);
     const user: User = {
       id: randomUUID(),

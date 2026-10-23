@@ -42,7 +42,7 @@ function isValidPassword(value: unknown): value is string {
 
 // ── Cookie helper ─────────────────────────────────────────────────────────────
 
-function cookieOptions() {
+export function cookieOptions() {
   return {
     httpOnly: true, // inaccessible to JS — mitigates XSS token theft
     secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
@@ -54,16 +54,29 @@ function cookieOptions() {
 
 // ── Token & user helpers ─────────────────────────────────────────────────────
 
-function signToken(userId: string, email: string): string {
+export function signToken(userId: string, email: string): string {
   return jwt.sign({ sub: userId, email }, jwtSecret(), {
     algorithm: 'HS256',
     expiresIn: TOKEN_TTL,
   });
 }
 
-function toPublic(user: { id: string; email: string; createdAt: string }): PublicUser {
-  return { id: user.id, email: user.email, createdAt: user.createdAt };
+function toPublic(user: User): PublicUser {
+  return {
+    id: user.id,
+    email: user.email,
+    createdAt: user.createdAt,
+    hasPassword: user.passwordHash !== null,
+  };
 }
+
+/**
+ * A cost-12 bcrypt hash of a random string nobody knows. Login compares
+ * against it when the email is unknown or the account has no password
+ * (TynHub-only), so those cases take as long as a wrong password and return
+ * the same generic error: no account enumeration through timing.
+ */
+const DUMMY_PASSWORD_HASH = '$2b$12$CTu6XuwNkpSNqGKRZtByb.XK30dUPg8Ixzn7k8NC41zFXu6b7cUNC';
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
@@ -154,14 +167,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     user = userStore.findByEmail(email);
   }
   
-  if (!user) {
-    // Return a generic message to prevent user-enumeration attacks
-    res.status(401).json({ error: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
-    return;
-  }
-
-  const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-  if (!passwordMatch) {
+  // Unknown email and passwordless (TynHub-only) accounts still run a bcrypt
+  // compare against a dummy hash, then get the same generic message as a
+  // wrong password — no user enumeration by response or timing.
+  const passwordMatch = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+  if (!user || user.passwordHash === null || !passwordMatch) {
     res.status(401).json({ error: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
     return;
   }

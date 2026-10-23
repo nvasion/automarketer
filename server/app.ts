@@ -11,6 +11,8 @@ import campaignsRouter from './routes/campaigns.js';
 import aiPrefsRouter from './routes/aiPrefs.js';
 import linkedInRouter from './routes/linkedin.js';
 import blueskyRouter from './routes/bluesky.js';
+import { createTynhubAuthRouter } from './routes/tynhubAuth.js';
+import { tynhubOidcConfig } from './utils/tynhubOidc.js';
 
 /**
  * Factory function that creates and configures the Express application.
@@ -42,6 +44,11 @@ export function createApp(): express.Application {
     );
   }
 
+  // ── TynHub sign-in (hosted only) ───────────────────────────────────────────
+  // Throws on bad AUTOMARKETER_MODE, partial TYNHUB_OIDC_* vars, or TynHub
+  // configured on a selfhost install: fail fast before accepting traffic.
+  const tynhubOidc = tynhubOidcConfig();
+
   app.use(
     cors({
       origin: frontendUrl ?? 'http://localhost:5173',
@@ -65,6 +72,11 @@ export function createApp(): express.Application {
   // The authRouter applies its own rate limiter (20 req / 15 min per IP) to
   // all auth endpoints before any handler runs — see server/routes/auth.ts.
   app.use('/api/auth', authRouter);
+
+  // "Continue with TynHub" + linked identities (/providers, /tynhub/*,
+  // /identities). Mounted after authRouter on the same prefix, so requests
+  // pass through authRouter's rate limiter first and are counted once.
+  app.use('/api/auth', createTynhubAuthRouter(tynhubOidc));
 
   // Per-user OAuth client IDs (GET/PUT/DELETE) — every endpoint requires
   // authentication; each account owns its own set of client IDs.

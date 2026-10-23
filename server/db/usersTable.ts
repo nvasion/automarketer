@@ -8,16 +8,21 @@ const TABLE = 'users';
  *
  * Using CREATE TABLE IF NOT EXISTS means the server self-provisions the schema
  * on first start without a separate migration runner.
+ *
+ * password_hash is nullable: accounts created through "Continue with TynHub"
+ * have no password. The ALTER is idempotent and upgrades databases created
+ * before that (when the column was NOT NULL).
  */
 export async function ensureTable(pool: Pool): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ${TABLE} (
       id            TEXT        PRIMARY KEY,
       email         TEXT        NOT NULL UNIQUE,
-      password_hash TEXT        NOT NULL,
+      password_hash TEXT,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE ${TABLE} ALTER COLUMN password_hash DROP NOT NULL`);
 }
 
 /**
@@ -43,7 +48,7 @@ export async function findById(pool: Pool, id: string): Promise<User | undefined
   const { rows } = await pool.query<{
     id: string;
     email: string;
-    password_hash: string;
+    password_hash: string | null;
     created_at: string;
   }>(`SELECT id, email, password_hash, created_at FROM ${TABLE} WHERE id = $1`, [id]);
 
@@ -66,7 +71,7 @@ export async function findByEmail(pool: Pool, email: string): Promise<User | und
   const { rows } = await pool.query<{
     id: string;
     email: string;
-    password_hash: string;
+    password_hash: string | null;
     created_at: string;
   }>(`SELECT id, email, password_hash, created_at FROM ${TABLE} WHERE email = $1`, [
     email.toLowerCase().trim(),
