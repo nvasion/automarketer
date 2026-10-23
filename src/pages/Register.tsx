@@ -1,18 +1,22 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthBrand } from '../components/Brand';
+import ContinueWithTynhub from '../components/ContinueWithTynhub';
+import { safeNext } from '../services/tynhubService';
 import { usePageMeta } from '../seo/usePageMeta';
 
 export default function Register() {
   usePageMeta('/register');
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => searchParams.get('error') ?? '');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -67,6 +71,8 @@ export default function Register() {
             {error}
           </div>
         )}
+
+        <ContinueWithTynhub next={next} />
 
         <form onSubmit={handleSubmit} noValidate>
           <div style={{ marginBottom: '16px' }}>

@@ -1,17 +1,22 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthBrand } from '../components/Brand';
+import ContinueWithTynhub from '../components/ContinueWithTynhub';
+import { safeNext } from '../services/tynhubService';
 import { usePageMeta } from '../seo/usePageMeta';
 
 export default function Login() {
   usePageMeta('/login');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  // A failed TynHub sign-in comes back as /login?error=<message> (rendered as text).
+  const [error, setError] = useState(() => searchParams.get('error') ?? '');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -57,6 +62,8 @@ export default function Login() {
             {error}
           </div>
         )}
+
+        <ContinueWithTynhub next={next} />
 
         <form onSubmit={handleSubmit} noValidate>
           <div style={{ marginBottom: '16px' }}>

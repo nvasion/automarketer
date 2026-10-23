@@ -17,7 +17,7 @@ An AI-powered social media marketing campaign manager built with React and TypeS
 - **Scheduler** — Calendar interface to browse and manage scheduled and published posts by date
 - **Analytics** — Weekly engagement bar charts, per-platform performance breakdowns, and top-performing posts table
 - **Settings** — Configure profile, connected platforms, AI inference endpoint, and notification toggles
-- **Authentication** — Secure registration and login with bcrypt password hashing (12 rounds) and JWT session management via httpOnly cookies; all app routes are protected and redirect to `/login` when unauthenticated
+- **Authentication** — Secure registration and login with bcrypt password hashing (12 rounds) and JWT session management via httpOnly cookies; all app routes are protected and redirect to `/login` when unauthenticated. The TynHub-hosted deployment also offers "Continue with TynHub" (OpenID Connect; see [Continue with TynHub](#continue-with-tynhub-hosted-only))
 - **AI Content Generation** — Real AI-powered post generation via OpenRouter (100+ models) or any self-hosted OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, …). Falls back to built-in template content when no key is configured
 
 ## Tech Stack
@@ -398,7 +398,12 @@ The Express server runs on port `3001` and is proxied by Vite under `/api/*` dur
 | `POST` | `/api/auth/register` | No | Create a new account; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
 | `POST` | `/api/auth/login` | No | Sign in; sets an `httpOnly` `auth_token` cookie on success; returns `{ user }` |
 | `POST` | `/api/auth/logout` | No | Clears the `auth_token` cookie server-side |
-| `GET` | `/api/auth/me` | `auth_token` cookie | Returns the current user's public profile |
+| `GET` | `/api/auth/me` | `auth_token` cookie | Returns the current user's public profile (`hasPassword: false` for TynHub-only accounts) |
+| `GET` | `/api/auth/providers` | No | External sign-in offered by this server: `{ "tynhub": { "name": "TynHub" } }` or `{ "tynhub": null }` |
+| `GET` | `/api/auth/tynhub/start?next=<path>&link=1` | No (`link=1`: `auth_token` cookie) | Starts "Continue with TynHub" (redirects to TynHub); `link=1` connects TynHub to the signed-in account. 404 when not configured |
+| `GET` | `/api/auth/tynhub/callback` | No | TynHub redirects back here; signs in (sets `auth_token`) and redirects to `next`, or to `/login?error=…` |
+| `GET` | `/api/auth/identities` | `auth_token` cookie | Linked sign-in providers: `[{ "provider": "tynhub", "linkedAt": "<iso>" }]` |
+| `DELETE` | `/api/auth/identities/tynhub` | `auth_token` cookie | Disconnects TynHub; `400 NO_PASSWORD` for an account without a password (it would be locked out) |
 | `GET` | `/api/platform-config` | `auth_token` cookie | Returns the server's configured OAuth client IDs for every supported platform (empty string = not configured on the server) |
 | `GET` | `/api/oauth/callback` | `auth_token` cookie | Completes an OAuth flow: exchanges the authorization code for an access token and stores it for the user |
 | `POST` | `/api/publish/:platform` | `auth_token` cookie | Publishes a post to the platform using the user's stored access token |
@@ -420,7 +425,8 @@ Data is persisted **per-user in the server database** (PostgreSQL) so it follows
 
 | Data | Storage | Survives a new browser? |
 |------|---------|--------------------------|
-| User accounts | `users` table | ✅ |
+| User accounts | `users` table (`password_hash` is null for TynHub-only accounts) | ✅ |
+| Linked TynHub sign-ins | `user_identities` table (`provider`, `subject` = TynHub user id) | ✅ |
 | Platform OAuth tokens + LinkedIn author URN | `user_access_tokens` table | ✅ |
 | Campaigns | `campaigns` table (JSONB document per campaign) | ✅ |
 | AI generation preferences (tone, emoji, hashtags, tokens, temperature) | `user_ai_prefs` table | ✅ |
@@ -438,7 +444,20 @@ All `/api/auth/*` routes are protected by a rate limiter: **20 requests per 15-m
 |----------|---------|-------------|
 | `JWT_SECRET` | `dev-secret-change-in-production` | Secret used to sign JWTs — **must be overridden in production** (e.g. `openssl rand -hex 64`) |
 | `PORT` | `3001` | Express API server port |
-| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin (must be set in production) |
+| `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin (must be set in production); also the origin of the TynHub redirect URI |
+| `AUTOMARKETER_MODE` | `selfhost` | `hosted` (the TynHub-hosted automarketer.tynhub.com) or `selfhost`. Anything else fails startup |
+| `TYNHUB_OIDC_ISSUER` | unset | TynHub issuer, e.g. `https://tynhub.com` (trailing slash trimmed; `http` only for localhost). Hosted mode only |
+| `TYNHUB_OIDC_CLIENT_ID` | unset | Client id TynHub registered for AutoMarketer (`automarketer`) |
+| `TYNHUB_OIDC_CLIENT_SECRET` | unset | That client's secret (`thc_…`) |
+
+### Continue with TynHub (hosted only)
+
+The TynHub-hosted AutoMarketer offers "Continue with TynHub" on the login and register pages and a **TynHub account** card in Settings → Profile (connect / disconnect). It is an OpenID Connect relying party (`openid-client`, Authorization Code + PKCE S256, nonce, `client_secret_basic`) in `server/routes/tynhubAuth.ts`; configuration lives in `server/utils/tynhubOidc.ts`.
+
+- **Hosted only.** The three `TYNHUB_OIDC_*` variables are all-or-nothing, and setting them while `AUTOMARKETER_MODE` is not `hosted` is a startup error ("TynHub sign-in is only available on the TynHub-hosted AutoMarketer"). Self-hosted installs never get TynHub sign-in; TynHub itself only registers redirect URIs on its own domains.
+- **Redirect URI** to register at TynHub: `<FRONTEND_URL>/api/auth/tynhub/callback` (production: `https://automarketer.tynhub.com/api/auth/tynhub/callback`). `/api` is served on the browser's origin (Vite proxy in dev, the App Platform `/api` route in production), so the callback and the `auth_token` cookie share the app's origin.
+- **Account rules.** A returning TynHub identity signs in its user. A new identity creates a passwordless account only when TynHub reports `email_verified: true`. It is **never** attached to an existing account by email (AutoMarketer does not verify emails): that user signs in with their password and connects TynHub from Settings. A TynHub-only account cannot password-login (same generic error) and cannot disconnect TynHub.
+- Sign-in state (state, nonce, PKCE verifier, `next`) travels in a 10-minute signed `am_tynhub` cookie (`SameSite=Lax`, path `/api/auth/tynhub`); `next` is restricted to same-origin paths. Errors redirect to `/login?error=<message>` (`/settings?tynhub_error=` when connecting from Settings); TynHub's own error text is logged, never shown.
 
 ## Key Types
 

@@ -38,6 +38,8 @@ Vite (port 5173) proxies `/api/*` to Express (port 3001), so the browser always 
 
 JWT signed with `JWT_SECRET`, delivered exclusively in an `httpOnly` `auth_token` cookie — never in response bodies or localStorage. `server/middleware/auth.ts` (`requireAuth`) guards protected routes; nearly every `/api/*` route requires it. `/api/auth/*` is rate-limited (20 req / 15 min per IP). On the frontend, `AuthContext` + `ProtectedRoute` redirect unauthenticated users to `/login`.
 
+"Continue with TynHub" (OIDC relying party, `server/routes/tynhubAuth.ts`, config in `server/utils/tynhubOidc.ts`) exists only when `AUTOMARKETER_MODE=hosted`; configuring `TYNHUB_OIDC_*` in selfhost mode is a startup error. Accounts it creates have a null `password_hash`; linked identities live in `user_identities`. It never links to an existing account by email (no email verification here): users connect TynHub from Settings instead. Tests: `tests/tynhubOidc.server.test.ts` against `tests/helpers/fakeTynhubIssuer.ts`.
+
 ### Database with in-memory fallback
 
 `server/db/connection.ts` creates a lazy pg Pool only when `DATABASE_URL` is set; otherwise every store (`server/db/*Table.ts`, `server/models/*Store.ts`) falls back to an in-memory map. This is why tests and bare `npm run dev:full` work with no database — but data is lost on restart. Tables are auto-provisioned on server start (`CREATE TABLE IF NOT EXISTS`); there are no migration files.

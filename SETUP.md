@@ -136,6 +136,41 @@ LinkedIn is the only fully end-to-end path today. The others complete the
 connect UI but their server-side token exchange and/or publish connector are
 not finished — the server logs a warning when it stores a placeholder token.
 
+### 4e. Continue with TynHub (TynHub-hosted deployment only)
+
+"Continue with TynHub" is available **only** on the TynHub-hosted AutoMarketer
+(automarketer.tynhub.com). Self-hosted installs skip this section: TynHub only
+registers clients whose redirect URIs are on its own domains, and AutoMarketer
+refuses to start with TynHub configured unless `AUTOMARKETER_MODE=hosted`.
+
+1. A TynHub site admin registers the client (TynHub → Manage → Admin →
+   OAuth clients): id `automarketer`, redirect URI exactly
+   `<FRONTEND_URL>/api/auth/tynhub/callback`, i.e.
+   `https://automarketer.tynhub.com/api/auth/tynhub/callback`. The secret
+   (`thc_…`) is shown once.
+2. Set on the API service:
+
+   ```bash
+   AUTOMARKETER_MODE=hosted
+   TYNHUB_OIDC_ISSUER=https://tynhub.com
+   TYNHUB_OIDC_CLIENT_ID=automarketer
+   TYNHUB_OIDC_CLIENT_SECRET=thc_...   # a secret: set it encrypted, never commit it
+   ```
+
+   All three `TYNHUB_OIDC_*` or none (a partial set fails startup). The issuer
+   must be `https` unless it is on localhost (a local TynHub for dev/e2e).
+3. Restart and check `GET /api/auth/providers` returns
+   `{"tynhub":{"name":"TynHub"}}`. The login and register pages then show
+   **Continue with TynHub**, and Settings → Profile shows a **TynHub account**
+   card for connecting an existing password account.
+
+Account rules: a new TynHub user gets a passwordless AutoMarketer account
+(TynHub must report a verified email). If an AutoMarketer account with that
+email already exists, sign-in is refused with "sign in with your password,
+then connect TynHub from Settings": AutoMarketer never links accounts by email.
+Tables `user_identities` and the nullable `users.password_hash` are created
+automatically at startup.
+
 ---
 
 ## 5. Verify it works
@@ -160,6 +195,8 @@ for `[PlatformConnectionModal]`, `[CampaignDetail]`, and `[publishService]`.
 | "isn't configured on the server" in the connect dialog | That platform's `CLIENT_ID` env var is empty. |
 | Publish returns 401 `MISSING_TOKEN` | No usable access token. The `[accessTokenStore]` log says why: never connected, server restarted with no `DATABASE_URL`, or token expired. Reconnect. |
 | Connection "disappears" after a restart | `DATABASE_URL` not set → tokens are in-memory only. Set `DATABASE_URL` for persistence. |
+| Startup fails: "TynHub sign-in is only available on the TynHub-hosted AutoMarketer" | `TYNHUB_OIDC_*` set without `AUTOMARKETER_MODE=hosted`. Self-hosted installs must leave them unset (§4e). |
+| "Sign-in could not be verified" after Continue with TynHub | Code exchange failed: check the `[tynhub]` server log line (wrong client secret, redirect URI not registered as `<FRONTEND_URL>/api/auth/tynhub/callback`, or clock skew). |
 
 ---
 

@@ -18,6 +18,8 @@ export interface PublicUser {
   id: string;
   email: string;
   createdAt: string;
+  /** False for accounts created through "Continue with TynHub" (no password). */
+  hasPassword?: boolean;
 }
 
 interface AuthResponse {

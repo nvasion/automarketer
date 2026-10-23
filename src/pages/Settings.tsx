@@ -7,6 +7,7 @@ import type { AIConfig, ProviderConfig } from '../config/aiConfig'
 import type { PlatformConfig } from '../types'
 import PlatformBadge from '../components/PlatformBadge'
 import PlatformConnectionModal from '../components/PlatformConnectionModal'
+import TynhubAccountCard from '../components/TynhubAccountCard'
 import { fetchConnectedPlatforms, disconnectPlatform } from '../services/platformConfigService'
 import {
   fetchLinkedInPages,
@@ -412,6 +413,9 @@ function Settings() {
                 <label style={labelStyle}>Company / Brand Name</label>
                 <input style={inputStyle} defaultValue="AutoMarketer" />
               </div>
+
+              {/* Hosted AutoMarketer only: renders nothing unless TynHub sign-in is offered. */}
+              <TynhubAccountCard />
             </div>
           )}
 
