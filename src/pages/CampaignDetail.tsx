@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import PlatformBadge from '../components/PlatformBadge'
 import StatusBadge from '../components/StatusBadge'
 import PostCard from '../components/PostCard'
+import type { PostEdit } from '../components/PostCard'
 import { publishService, PublishError } from '../services/publishService'
 import { fetchPlatformClientIds } from '../services/platformConfigService'
 import type { PlatformClientIds } from '../services/platformConfigService'
@@ -257,6 +258,22 @@ function CampaignDetail() {
       await update({ posts: updatedPosts }).catch(() => {
         setPosts(activePosts)
       })
+    }
+  }
+
+  /**
+   * Save an edited post. Applied optimistically; on failure the old text is
+   * restored and the error rethrown so the card keeps its editor open.
+   */
+  const handleSavePost = async (postId: string, changes: PostEdit) => {
+    const updatedPosts = activePosts.map((p) => (p.id === postId ? { ...p, ...changes } : p))
+    setPosts(updatedPosts)
+    try {
+      await update({ posts: updatedPosts })
+    } catch (err) {
+      setPosts(activePosts)
+      console.error(`[CampaignDetail] Saving edited post ${postId} failed:`, err)
+      throw err
     }
   }
 
@@ -573,6 +590,7 @@ function CampaignDetail() {
                 post={post}
                 onStatusChange={handleStatusChange}
                 onRepublish={handleRepublish}
+                onSave={handleSavePost}
                 publishing={publishing[post.id]}
                 publishError={publishError[post.id]}
                 platformConnected={isPlatformConnected(post.platform)}

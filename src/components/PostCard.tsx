@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import type { PostRecord } from '../db/schema'
 import PlatformBadge from './PlatformBadge'
 import StatusBadge from './StatusBadge'
@@ -16,6 +17,31 @@ interface Props {
    * true so callers that don't track connection state keep the old behaviour.
    */
   platformConnected?: boolean
+  /**
+   * Persist an edited post. When provided, the card shows an Edit button.
+   * Reject to keep the editor open and show the error.
+   */
+  onSave?: (id: string, changes: PostEdit) => Promise<void>
+}
+
+export interface PostEdit {
+  content: string
+  hashtags: string[]
+}
+
+/** "launch, #saas #saas" → ["#launch", "#saas"] */
+function parseHashtags(input: string): string[] {
+  const tags = input
+    .split(/[\s,]+/)
+    .map((t) => t.replace(/^#+/, ''))
+    .filter(Boolean)
+    .map((t) => `#${t}`)
+  return Array.from(new Set(tags))
+}
+
+/** The text as it is sent to the platform: body, blank line, hashtags. */
+function combinedText(content: string, hashtags: string[]): string {
+  return hashtags.length > 0 ? `${content}\n\n${hashtags.join(' ')}` : content
 }
 
 function PostCard({
@@ -25,10 +51,16 @@ function PostCard({
   publishing = false,
   publishError = '',
   platformConnected = true,
+  onSave,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [republishing, setRepublishing] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draftText, setDraftText] = useState('')
+  const [draftTags, setDraftTags] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const config = PLATFORM_CONFIGS.find((p) => p.id === post.platform)
   const isLong = post.content.length > 280
   const isPublishing = publishing && post.status !== 'published'
@@ -71,6 +103,45 @@ function PostCard({
     }
   }
 
+  const startEditing = () => {
+    setDraftText(post.content)
+    setDraftTags((post.hashtags ?? []).join(' '))
+    setSaveError('')
+    setEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setEditing(false)
+    setSaveError('')
+  }
+
+  const draft: PostEdit = { content: draftText.trim(), hashtags: parseHashtags(draftTags) }
+  const draftLength = combinedText(draft.content, draft.hashtags).length
+  const overLimit = config ? draftLength > config.charLimit : false
+  const unchanged =
+    draft.content === post.content &&
+    draft.hashtags.join(' ') === (post.hashtags ?? []).join(' ')
+  const saveDisabled = saving || draft.content === '' || unchanged
+
+  const handleSave = async () => {
+    if (!onSave || saveDisabled) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      await onSave(post.id, draft)
+      setEditing(false)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save the post')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditorKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') cancelEditing()
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleSave()
+  }
+
   const displayContent = expanded || !isLong ? post.content : post.content.slice(0, 280) + '…'
 
   return (
@@ -89,12 +160,14 @@ function PostCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px',
           padding: '14px 16px',
           borderBottom: '1px solid var(--line-soft)',
           background: 'var(--sunken)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
           <PlatformBadge platform={post.platform} size="md" />
           <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>
             {config?.name ?? post.platform}
@@ -105,8 +178,34 @@ function PostCard({
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            marginLeft: 'auto',
+          }}
+        >
           <StatusBadge status={post.status} size="sm" />
+          {onSave && !editing && (
+            <button
+              onClick={startEditing}
+              style={{
+                background: 'var(--sunken)',
+                border: '1px solid var(--line)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '12px',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                fontWeight: 500,
+                transition: 'all 0.15s',
+              }}
+            >
+              Edit
+            </button>
+          )}
           <button
             onClick={handleCopy}
             style={{
@@ -123,7 +222,7 @@ function PostCard({
           >
             {copied ? '✓ Copied' : 'Copy'}
           </button>
-          {post.status === 'published' && (
+          {post.status === 'published' && !editing && (
             <button
               onClick={handleRepublish}
               disabled={republishing || !platformConnected}
@@ -148,6 +247,134 @@ function PostCard({
 
       {/* Content */}
       <div style={{ padding: '16px' }}>
+        {editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {post.status === 'published' && (
+              <div
+                style={{
+                  background: 'var(--warn-soft)',
+                  border: '1px solid var(--warn-line)',
+                  borderRadius: '6px',
+                  padding: '8px 10px',
+                  fontSize: '12px',
+                  color: 'var(--warn)',
+                }}
+              >
+                This post is already published. The live post won’t change; use Republish after
+                saving to post the new text.
+              </div>
+            )}
+            <textarea
+              aria-label="Post text"
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              onKeyDown={handleEditorKeyDown}
+              autoFocus
+              rows={Math.min(Math.max(draftText.split('\n').length + 1, 5), 16)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                border: '1px solid var(--line)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                fontSize: '14px',
+                lineHeight: '1.65',
+                color: 'var(--ink)',
+                background: 'var(--panel)',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+              }}
+            />
+            <label
+              htmlFor={`hashtags-${post.id}`}
+              style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}
+            >
+              Hashtags
+            </label>
+            <input
+              id={`hashtags-${post.id}`}
+              type="text"
+              value={draftTags}
+              onChange={(e) => setDraftTags(e.target.value)}
+              onKeyDown={handleEditorKeyDown}
+              placeholder="#launch #productivity"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                border: '1px solid var(--line)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: 'var(--ink)',
+                background: 'var(--panel)',
+                fontFamily: 'inherit',
+                marginTop: '-4px',
+              }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px',
+                justifyContent: 'flex-end',
+              }}
+            >
+              {config && (
+                <span
+                  style={{
+                    marginRight: 'auto',
+                    fontSize: '12px',
+                    color: overLimit ? 'var(--fail)' : 'var(--muted)',
+                    fontWeight: overLimit ? 600 : 400,
+                  }}
+                >
+                  <span>
+                    {draftLength}/{config.charLimit} chars
+                  </span>
+                  {overLimit && <span> · over the limit, will be shortened when published</span>}
+                </span>
+              )}
+              {saveError && (
+                <span style={{ color: 'var(--fail)', fontSize: '12px' }}>⚠ {saveError}</span>
+              )}
+              <button
+                onClick={cancelEditing}
+                disabled={saving}
+                style={{
+                  background: 'var(--sunken)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '13px',
+                  color: 'var(--muted)',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleSave()}
+                disabled={saveDisabled}
+                style={{
+                  background: saveDisabled ? 'var(--off)' : 'var(--primary)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '13px',
+                  color: 'var(--on-primary)',
+                  cursor: saveDisabled ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  opacity: saveDisabled ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
         <p
           style={{
             color: 'var(--ink-2)',
@@ -196,6 +423,8 @@ function PostCard({
               </span>
             ))}
           </div>
+        )}
+          </>
         )}
 
         {/* Engagements */}
@@ -256,7 +485,7 @@ function PostCard({
       </div>
 
       {/* Actions */}
-      {post.status !== 'published' && (
+      {post.status !== 'published' && !editing && (
         <div
           style={{
             padding: '10px 16px',
@@ -333,7 +562,7 @@ function PostCard({
 
       {/* Republish errors — the actions footer above only renders for
           unpublished posts, so surface failures here for published ones. */}
-      {post.status === 'published' && publishError && (
+      {post.status === 'published' && publishError && !editing && (
         <div
           style={{
             padding: '10px 16px',
