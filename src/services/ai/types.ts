@@ -29,6 +29,11 @@ export interface InferenceRequest {
 export interface InferenceResponse {
   /** The generated text content. */
   content: string
+  /**
+   * Why generation stopped, as reported by the provider (e.g. "stop",
+   * "length"). "length" means the answer was cut off by max_tokens.
+   */
+  finishReason?: string
   /** Token usage statistics, if reported by the provider. */
   usage?: {
     promptTokens: number
@@ -45,6 +50,13 @@ export interface InferenceClientConfig {
 }
 
 /**
+ * Machine-readable cause of an InferenceError, for callers that react to
+ * specific failures. "max_tokens": the model used the whole token budget
+ * (typically on reasoning) before writing any answer.
+ */
+export type InferenceErrorReason = 'max_tokens'
+
+/**
  * Error thrown by inference clients when a request fails.
  * Carries an optional HTTP status code and provider name for diagnostics.
  */
@@ -52,7 +64,8 @@ export class InferenceError extends Error {
   constructor(
     message: string,
     public readonly statusCode?: number,
-    public readonly provider?: InferenceProvider
+    public readonly provider?: InferenceProvider,
+    public readonly reason?: InferenceErrorReason
   ) {
     super(message)
     this.name = 'InferenceError'

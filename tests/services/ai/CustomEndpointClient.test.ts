@@ -219,6 +219,42 @@ describe('CustomEndpointClient', () => {
     await expect(client.complete({ messages: [] })).rejects.toThrow('Custom endpoint returned empty content')
   })
 
+  it('tags empty content with finish_reason=length as reason=max_tokens', async () => {
+    const body = { choices: [{ message: { content: '' }, finish_reason: 'length' }] }
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
+    })
+    const client = new CustomEndpointClient({
+      apiKey: '',
+      model: 'qwen3',
+      baseUrl: 'http://localhost:11434/v1',
+    })
+    const err = await client.complete({ messages: [] }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InferenceError)
+    expect((err as InferenceError).reason).toBe('max_tokens')
+    expect((err as InferenceError).message).toMatch(/max_tokens/i)
+  })
+
+  it('returns finish_reason with the content', async () => {
+    const body = { choices: [{ message: { content: 'Cut o' }, finish_reason: 'length' }] }
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
+    })
+    const client = new CustomEndpointClient({
+      apiKey: '',
+      model: 'qwen3',
+      baseUrl: 'http://localhost:11434/v1',
+    })
+    const res = await client.complete({ messages: [] })
+    expect(res.finishReason).toBe('length')
+  })
+
   it('throws InferenceError when response body is empty', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve('') })
     const client = new CustomEndpointClient({

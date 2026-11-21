@@ -209,6 +209,35 @@ describe('OpenRouterClient', () => {
     await expect(client.complete({ messages: [] })).rejects.toThrow(/max_tokens limit/i)
   })
 
+  it('tags a max_tokens exhaustion with reason=max_tokens so callers can retry', async () => {
+    const body = { choices: [{ message: { content: '' }, finish_reason: 'length' }] }
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
+    })
+    const client = new OpenRouterClient({ apiKey: 'key', model: 'minimax/minimax-m3', baseUrl: OPENROUTER_BASE_URL })
+
+    const err = await client.complete({ messages: [] }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(InferenceError)
+    expect((err as InferenceError).reason).toBe('max_tokens')
+  })
+
+  it('returns finish_reason so callers can spot a cut-off answer', async () => {
+    const body = { choices: [{ message: { content: 'Half a po' }, finish_reason: 'length' }] }
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(body)),
+      json: () => Promise.resolve(body),
+    })
+    const client = new OpenRouterClient({ apiKey: 'key', model: 'm', baseUrl: OPENROUTER_BASE_URL })
+
+    const res = await client.complete({ messages: [] })
+    expect(res.finishReason).toBe('length')
+  })
+
   it('explains a reasoning-only response in the empty-content error', async () => {
     const body = { choices: [{ message: { content: '', reasoning: 'let me think…' }, finish_reason: 'stop' }] }
     fetchMock.mockResolvedValue({
