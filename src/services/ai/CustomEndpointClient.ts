@@ -78,7 +78,7 @@ export class CustomEndpointClient implements InferenceClient {
     }
 
     type Body = {
-      choices?: { message?: { content?: string } }[]
+      choices?: { message?: { content?: string }; finish_reason?: string }[]
       usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
     }
     let data: Body
@@ -92,13 +92,24 @@ export class CustomEndpointClient implements InferenceClient {
       )
     }
 
-    const content = data.choices?.[0]?.message?.content
+    const choice = data.choices?.[0]
+    const content = choice?.message?.content
     if (!content) {
+      if (choice?.finish_reason === 'length') {
+        throw new InferenceError(
+          'Custom endpoint returned empty content — the model hit the max_tokens limit before ' +
+            'producing any answer. Increase Max Tokens in Settings → AI, or use a non-reasoning model.',
+          undefined,
+          'custom',
+          'max_tokens'
+        )
+      }
       throw new InferenceError('Custom endpoint returned empty content', undefined, 'custom')
     }
 
     return {
       content,
+      finishReason: choice?.finish_reason,
       usage: data.usage
         ? {
             promptTokens: data.usage.prompt_tokens,

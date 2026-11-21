@@ -107,11 +107,17 @@ export class OpenRouterClient implements InferenceClient {
           : finish
           ? ` (finish_reason=${finish}).`
           : '.'
-      throw new InferenceError(`OpenRouter returned empty content${detail}`, undefined, 'openrouter')
+      throw new InferenceError(
+        `OpenRouter returned empty content${detail}`,
+        undefined,
+        'openrouter',
+        finish === 'length' ? 'max_tokens' : undefined
+      )
     }
 
     return {
       content,
+      finishReason: choice?.finish_reason,
       usage: data.usage
         ? {
             promptTokens: data.usage.prompt_tokens,

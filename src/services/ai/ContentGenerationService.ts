@@ -2,6 +2,7 @@ import type { Platform } from '../../types'
 import type { Tone, EmojiUsage } from '../../config/aiConfig'
 import type { InferenceClient } from './InferenceClient'
 import { InferenceError } from './types'
+import type { InferenceRequest, InferenceResponse } from './types'
 import { PLATFORM_CONFIGS } from '../../data/sampleData'
 
 // ─── Public API types ────────────────────────────────────────────────────────
@@ -166,6 +167,26 @@ function truncateAtWordBoundary(text: string, limit: number): string {
   return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut) + '…'
 }
 
+// ─── Token budget headroom ───────────────────────────────────────────────────
+
+/** Highest max_tokens we will ever request (matches the Settings → AI cap). */
+const MAX_TOKEN_CAP = 32_000
+
+/**
+ * Budget for the single retry after the model ran out of tokens. Reasoning
+ * models spend part of max_tokens thinking before they answer (OpenRouter
+ * counts reasoning against max_tokens), so a budget that is plenty for a post
+ * can be used up before any post text is written. 4x the configured budget,
+ * at least 4096, at most the cap.
+ */
+function retryBudget(maxTokens: number): number {
+  return Math.min(Math.max(maxTokens * 4, 4096), MAX_TOKEN_CAP)
+}
+
+function isTokenExhaustion(err: unknown): boolean {
+  return err instanceof InferenceError && err.reason === 'max_tokens'
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 /**
@@ -189,14 +210,14 @@ export class ContentGenerationService {
     maxTokens = 1024,
     temperature = 0.7
   ): Promise<GeneratedPostDraft> {
-    const response = await this.client.complete({
-      messages: [
+    const response = await this.completeWithHeadroom(
+      [
         { role: 'system', content: buildSystemPrompt() },
         { role: 'user', content: buildUserPrompt(platform, params) },
       ],
       maxTokens,
-      temperature,
-    })
+      temperature
+    )
 
     const cfg = PLATFORM_CONFIGS.find((p) => p.id === platform)!
     const raw = response.content.trim()
@@ -233,6 +254,55 @@ export class ContentGenerationService {
     }
 
     return { platform, content, hashtags }
+  }
+
+  /**
+   * Call the client; if the model ran out of tokens (no answer at all, or an
+   * answer cut off with finish_reason "length"), retry once with a larger
+   * budget. Any other failure propagates unchanged.
+   */
+  private async completeWithHeadroom(
+    messages: InferenceRequest['messages'],
+    maxTokens: number,
+    temperature: number
+  ): Promise<InferenceResponse> {
+    const attempt = (budget: number) =>
+      this.client.complete({ messages, maxTokens: budget, temperature })
+
+    const retryTokens = retryBudget(maxTokens)
+    const canRetry = retryTokens > maxTokens
+
+    let first: InferenceResponse
+    try {
+      first = await attempt(maxTokens)
+    } catch (err) {
+      if (!isTokenExhaustion(err) || !canRetry) throw err
+      return this.retryAfterExhaustion(attempt, maxTokens, retryTokens)
+    }
+    if (first.finishReason !== 'length' || !canRetry) return first
+    return this.retryAfterExhaustion(attempt, maxTokens, retryTokens)
+  }
+
+  private async retryAfterExhaustion(
+    attempt: (budget: number) => Promise<InferenceResponse>,
+    maxTokens: number,
+    retryTokens: number
+  ): Promise<InferenceResponse> {
+    try {
+      return await attempt(retryTokens)
+    } catch (err) {
+      if (!isTokenExhaustion(err)) throw err
+      const provider = err instanceof InferenceError ? err.provider : undefined
+      throw new InferenceError(
+        `The model used its whole token budget before writing the post, at ${maxTokens} ` +
+          `and again at ${retryTokens} tokens. This happens with reasoning models, which ` +
+          'spend max_tokens on thinking first. Pick a non-reasoning model or raise Max Tokens ' +
+          'in Settings → AI.',
+        undefined,
+        provider,
+        'max_tokens'
+      )
+    }
   }
 
   /**

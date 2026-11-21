@@ -162,6 +162,80 @@ describe('ContentGenerationService', () => {
       expect(req.temperature).toBe(0.3)
     })
 
+    describe('token budget headroom (reasoning models)', () => {
+      const exhausted = () =>
+        new InferenceError('OpenRouter returned empty content — hit max_tokens', undefined, 'openrouter', 'max_tokens')
+
+      it('retries once with a larger budget when the model used it all before answering', async () => {
+        const complete = vi
+          .fn()
+          .mockRejectedValueOnce(exhausted())
+          .mockResolvedValueOnce({ content: 'The real post', finishReason: 'stop' })
+        const svc = new ContentGenerationService({ provider: 'openrouter', complete })
+
+        const result = await svc.generatePost('linkedin', BASE_PARAMS, 1024)
+
+        expect(result.content).toBe('The real post')
+        expect(complete).toHaveBeenCalledTimes(2)
+        const second = complete.mock.calls[1][0] as InferenceRequest
+        expect(second.maxTokens).toBe(4096)
+      })
+
+      it('retries when the answer came back cut off (finish_reason=length)', async () => {
+        const complete = vi
+          .fn()
+          .mockResolvedValueOnce({ content: 'Half a sen', finishReason: 'length' })
+          .mockResolvedValueOnce({ content: 'A whole sentence.', finishReason: 'stop' })
+        const svc = new ContentGenerationService({ provider: 'openrouter', complete })
+
+        const result = await svc.generatePost('linkedin', BASE_PARAMS, 1024)
+
+        expect(result.content).toBe('A whole sentence.')
+        expect(complete).toHaveBeenCalledTimes(2)
+      })
+
+      it('scales the retry budget from the configured one and caps it at 32000', async () => {
+        const complete = vi
+          .fn()
+          .mockRejectedValueOnce(exhausted())
+          .mockResolvedValueOnce({ content: 'Post' })
+        const svc = new ContentGenerationService({ provider: 'openrouter', complete })
+
+        await svc.generatePost('linkedin', BASE_PARAMS, 16000)
+
+        expect((complete.mock.calls[1][0] as InferenceRequest).maxTokens).toBe(32000)
+      })
+
+      it('gives an actionable error naming both budgets when the retry is exhausted too', async () => {
+        const complete = vi.fn().mockRejectedValue(exhausted())
+        const svc = new ContentGenerationService({ provider: 'openrouter', complete })
+
+        const err = await svc.generatePost('linkedin', BASE_PARAMS, 1024).catch((e: unknown) => e)
+
+        expect(complete).toHaveBeenCalledTimes(2)
+        expect(err).toBeInstanceOf(InferenceError)
+        expect((err as Error).message).toMatch(/1024/)
+        expect((err as Error).message).toMatch(/4096/)
+        expect((err as Error).message).toMatch(/reasoning/i)
+      })
+
+      it('does not retry other errors', async () => {
+        const complete = vi.fn().mockRejectedValue(new InferenceError('API key invalid', 401, 'openrouter'))
+        const svc = new ContentGenerationService({ provider: 'openrouter', complete })
+
+        await expect(svc.generatePost('linkedin', BASE_PARAMS)).rejects.toThrow('API key invalid')
+        expect(complete).toHaveBeenCalledTimes(1)
+      })
+
+      it('does not retry when the budget is already at the 32000 cap', async () => {
+        const complete = vi.fn().mockRejectedValue(exhausted())
+        const svc = new ContentGenerationService({ provider: 'openrouter', complete })
+
+        await expect(svc.generatePost('linkedin', BASE_PARAMS, 32000)).rejects.toThrow(InferenceError)
+        expect(complete).toHaveBeenCalledTimes(1)
+      })
+    })
+
     it('propagates InferenceError from the client', async () => {
       const err = new InferenceError('API key invalid', 401, 'openrouter')
       const client = makeMockClient(err)

@@ -187,6 +187,10 @@ In **Settings → AI Settings**:
 
 When no API key or endpoint URL is configured the campaign wizard uses built-in template posts (one per platform) so the workflow remains fully usable without any backend.
 
+### Reasoning models and Max Tokens
+
+Reasoning models (for example DeepSeek R1, Qwen3, MiniMax, GPT-5) think before they answer, and OpenRouter counts those thinking tokens against `max_tokens`. With the default **Max Tokens** of 1024 a reasoning model can use the whole budget thinking and return no post (`finish_reason: "length"`). When that happens, or when a post comes back cut off, `ContentGenerationService` retries that platform once with 4× the budget (at least 4096, at most 32000). If the retry also runs out, the wizard shows an error naming both budgets; pick a non-reasoning model or raise Max Tokens in Settings → AI. You pay only for tokens the model actually uses, but the first, discarded attempt is still billed.
+
 ### Service architecture
 
 ```
