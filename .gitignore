@@ -40,3 +40,6 @@ build/
 
 # Digital Ocean
 .do/
+
+# graphify knowledge graph (local only)
+graphify-out/
