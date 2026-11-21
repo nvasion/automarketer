@@ -160,12 +160,14 @@ function PostCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px',
           padding: '14px 16px',
           borderBottom: '1px solid var(--line-soft)',
           background: 'var(--sunken)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
           <PlatformBadge platform={post.platform} size="md" />
           <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>
             {config?.name ?? post.platform}
@@ -176,7 +178,15 @@ function PostCard({
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            marginLeft: 'auto',
+          }}
+        >
           <StatusBadge status={post.status} size="sm" />
           {onSave && !editing && (
             <button
